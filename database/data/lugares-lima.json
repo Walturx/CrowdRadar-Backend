@@ -1,0 +1,50 @@
+[
+  {
+    "osmId": 3570374,
+    "nombre": "Parque El Olivar",
+    "direccion": "San Isidro, Lima",
+    "latitud": -12.101094,
+    "longitud": -77.034673,
+    "categoria": "PARQUE"
+  },
+  {
+    "osmId": 28993402,
+    "nombre": "Larcomar",
+    "direccion": "Malecón de la Reserva, Miraflores",
+    "latitud": -12.132219,
+    "longitud": -77.030549,
+    "categoria": "CENTRO_COMERCIAL"
+  },
+  {
+    "osmId": 4119559799,
+    "nombre": "Mercado Central",
+    "direccion": "Cercado de Lima",
+    "latitud": -12.052679,
+    "longitud": -77.027573,
+    "categoria": "MERCADO"
+  },
+  {
+    "osmId": 1418823155,
+    "nombre": "Estación Central",
+    "direccion": "Av. Paseo de la República, Cercado de Lima",
+    "latitud": -12.05773,
+    "longitud": -77.035979,
+    "categoria": "TRANSPORTE"
+  },
+  {
+    "osmId": 44364378,
+    "nombre": "Plaza San Martín",
+    "direccion": "Cercado de Lima",
+    "latitud": -12.051649,
+    "longitud": -77.034606,
+    "categoria": "PLAZA"
+  },
+  {
+    "osmId": 396258998,
+    "nombre": "Playa Makaha",
+    "direccion": "Costa Verde, Miraflores",
+    "latitud": -12.129079,
+    "longitud": -77.036446,
+    "categoria": "PLAYA"
+  }
+]
