@@ -1,0 +1,129 @@
+import { esquemaEntorno, validarEntorno, type Entorno } from './esquemaEntorno.js';
+
+/** Overrides keyed by environment variable name, used by tests. */
+export type SobrescritosEntorno = Partial<Record<keyof typeof esquemaEntorno.shape, string | number | boolean>>;
+
+/** Valid baseline for tests: cheap bcrypt, silent logs, no real secrets. */
+const ENTORNO_PRUEBAS: Record<string, string> = {
+  DB_PASSWORD: 'prueba',
+  JWT_SECRETO: 'p'.repeat(48),
+  BCRYPT_COSTO: '4',
+  LOG_NIVEL: 'silent',
+};
+
+function congelar<T>(valor: T): Readonly<T> {
+  if (typeof valor === 'object' && valor !== null && !Object.isFrozen(valor)) {
+    Object.values(valor).forEach(congelar);
+    Object.freeze(valor);
+  }
+  return valor;
+}
+
+/**
+ * Pattern: Singleton (fail-fast).
+ *
+ * Single immutable view of the process environment, validated once with zod.
+ * `getInstance()` is called only from server.ts and container/ (dependency rule 4);
+ * everything else receives the configuration by injection. An invalid environment
+ * prints every offending key and exits with code 1 before the server listens.
+ * `paraPruebas` builds an isolated instance for tests without touching process.env.
+ */
+export class ConfiguracionApp {
+  private static instancia: ConfiguracionApp | undefined;
+
+  readonly servidor;
+  readonly bd;
+  readonly seguridad;
+  readonly reglas;
+  readonly correo;
+  readonly push;
+  readonly semillas;
+
+  private constructor(env: Entorno) {
+    this.servidor = congelar({
+      entorno: env.NODE_ENV,
+      puerto: env.PUERTO,
+      urlPublica: env.URL_PUBLICA,
+      corsOrigenes: env.CORS_ORIGENES,
+      logNivel: env.LOG_NIVEL,
+      zonaHoraria: env.ZONA_HORARIA,
+    });
+    this.bd = congelar({
+      host: env.DB_HOST,
+      puerto: env.DB_PUERTO,
+      nombre: env.DB_NOMBRE,
+      usuario: env.DB_USUARIO,
+      password: env.DB_PASSWORD,
+      ssl: env.DB_SSL,
+    });
+    this.seguridad = congelar({
+      jwtSecreto: env.JWT_SECRETO,
+      jwtExpiraEn: env.JWT_EXPIRA_EN,
+      bcryptCosto: env.BCRYPT_COSTO,
+      politicaMensajesAuth: env.POLITICA_MENSAJES_AUTH,
+      limites: {
+        ventanaMin: env.LIMITE_VENTANA_MIN,
+        login: env.LIMITE_LOGIN,
+        registro: env.LIMITE_REGISTRO,
+        recuperar: env.LIMITE_RECUPERAR,
+        restablecer: env.LIMITE_RESTABLECER,
+        password: env.LIMITE_PASSWORD,
+      },
+    });
+    this.reglas = congelar({
+      recuperacionExpiraMin: env.RECUPERACION_EXPIRA_MIN,
+      cooldownReporteMin: env.COOLDOWN_REPORTE_MIN,
+      karmaPorReporte: env.KARMA_POR_REPORTE,
+      karmaPorValidacion: env.KARMA_POR_VALIDACION,
+      karmaReportesPremiadosDia: env.KARMA_REPORTES_PREMIADOS_DIA,
+      saturacionEstrategia: env.SATURACION_ESTRATEGIA,
+      saturacionVentanaMin: env.SATURACION_VENTANA_MIN,
+      saturacionMinReportes: env.SATURACION_MIN_REPORTES,
+      saturacionUmbralModerado: env.SATURACION_UMBRAL_MODERADO,
+      saturacionUmbralSaturado: env.SATURACION_UMBRAL_SATURADO,
+      confiabilidadEstrategia: env.CONFIABILIDAD_ESTRATEGIA,
+      confiabilidadMinVotos: env.CONFIABILIDAD_MIN_VOTOS,
+      confiabilidadUmbralAlta: env.CONFIABILIDAD_UMBRAL_ALTA,
+      confiabilidadUmbralMedia: env.CONFIABILIDAD_UMBRAL_MEDIA,
+      topeKarmaPeso: env.TOPE_KARMA_PESO,
+      radioBusquedaKm: env.RADIO_BUSQUEDA_KM,
+      radioPendientesKm: env.RADIO_PENDIENTES_KM,
+      ventanaPendientesHoras: env.VENTANA_PENDIENTES_HORAS,
+      analiticaMinMuestras: env.ANALITICA_MIN_MUESTRAS,
+      suspensionDiasPermitidos: env.SUSPENSION_DIAS_PERMITIDOS,
+    });
+    this.correo = congelar({
+      proveedor: env.CORREO_PROVEEDOR,
+      remitente: env.CORREO_REMITENTE,
+      smtp: { host: env.SMTP_HOST, puerto: env.SMTP_PUERTO, usuario: env.SMTP_USUARIO, password: env.SMTP_PASSWORD },
+    });
+    this.push = congelar({ proveedor: env.PUSH_PROVEEDOR, fcmCredencialesRuta: env.FCM_CREDENCIALES_RUTA });
+    this.semillas = congelar({ adminEmail: env.ADMIN_EMAIL, adminPassword: env.ADMIN_PASSWORD, demo: env.SEED_DEMO });
+  }
+
+  /** Validates process.env once; on failure names every bad key and exits with code 1. */
+  static getInstance(): ConfiguracionApp {
+    if (!ConfiguracionApp.instancia) {
+      const resultado = validarEntorno(process.env);
+      if (!resultado.ok) {
+        process.stderr.write(`${resultado.mensaje}\n`);
+        process.exit(1);
+      }
+      ConfiguracionApp.instancia = new ConfiguracionApp(resultado.valor);
+    }
+    return ConfiguracionApp.instancia;
+  }
+
+  /** Isolated instance for tests; throws (never exits) when an override is invalid. */
+  static paraPruebas(sobrescritos: SobrescritosEntorno = {}): ConfiguracionApp {
+    const texto = Object.fromEntries(Object.entries(sobrescritos).map(([clave, valor]) => [clave, String(valor)]));
+    const resultado = validarEntorno({ ...ENTORNO_PRUEBAS, ...texto });
+    if (!resultado.ok) throw new Error(resultado.mensaje);
+    return new ConfiguracionApp(resultado.valor);
+  }
+
+  /** Drops the cached singleton. Only tests should call this. */
+  static reiniciar(): void {
+    ConfiguracionApp.instancia = undefined;
+  }
+}
