@@ -4,7 +4,7 @@
  * Two blocks:
  *  - "sin base de datos": supertest against the exported Express app; runs in `npm test`.
  *  - "con base de datos": spawns the real server process against PostgreSQL; opt-in,
- *    skipped unless DATABASE_URL_TEST is set. SPRINT1_ENTRY selects the entry file
+ *    skipped unless DATABASE_URL_TEST is set (runs db:migrate first). SPRINT1_ENTRY selects the entry file
  *    (default src/server.ts; the baseline JavaScript is `app.js` at tag sprint1-js).
  */
 import { spawn, type ChildProcess } from 'node:child_process';
@@ -12,8 +12,9 @@ import { createServer } from 'node:net';
 import jwt from 'jsonwebtoken';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { ejecutarCli } from '../support/baseDatos.js';
 
-const SECRETO = 'secreto-de-pruebas-con-mas-de-treinta-y-dos-caracteres';
+const SECRETO = 's'.repeat(48);
 
 describe('Sprint 1 API (sin base de datos)', () => {
   let app: import('express').Express;
@@ -69,7 +70,7 @@ describe('Sprint 1 API (sin base de datos)', () => {
   });
 
   it('GET /api/users/profile con token mal firmado responde 401 "Token inválido."', async () => {
-    const token = jwt.sign({ id: 1 }, 'otro-secreto-distinto-al-del-servidor-00000');
+    const token = jwt.sign({ id: 1 }, 'o'.repeat(48));
     const res = await request(app).get('/api/users/profile').set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(401);
     expect(res.body).toEqual({ message: 'Token inválido.' });
@@ -123,6 +124,8 @@ describe.skipIf(!urlBd)('Sprint 1 API (con base de datos)', () => {
   };
 
   beforeAll(async () => {
+    const migracion = await ejecutarCli(['db:migrate'], urlBd as string);
+    if (migracion.codigo !== 0) throw new Error(`db:migrate fallo: ${migracion.salida}`);
     const url = new URL(urlBd as string);
     const puerto = await puertoLibre();
     base = `http://127.0.0.1:${puerto}`;

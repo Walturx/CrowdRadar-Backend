@@ -1,6 +1,5 @@
 import { DataTypes, Model } from 'sequelize';
-import type { InferAttributes, InferCreationAttributes, CreationOptional } from 'sequelize';
-import sequelize from '../config/database.js';
+import type { InferAttributes, InferCreationAttributes, CreationOptional, Sequelize } from 'sequelize';
 
 class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   declare id: CreationOptional<number>;
@@ -14,24 +13,30 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   declare status: CreationOptional<string | null>;
 }
 
-User.init(
-  {
-    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
-    nombre: { type: DataTypes.STRING, allowNull: false },
-    apellido: { type: DataTypes.STRING, allowNull: false },
-    email: { type: DataTypes.STRING, allowNull: false, unique: true },
-    passwordHash: { type: DataTypes.STRING, allowNull: false },
-    telefono: { type: DataTypes.STRING },
-    rol: { type: DataTypes.STRING },
-    distrito: { type: DataTypes.STRING },
-    status: { type: DataTypes.STRING },
-  },
-  {
-    sequelize,
-    modelName: 'User',
-    tableName: 'users',
-    timestamps: true,
-  },
-);
+/**
+ * Sprint 1 model mapped onto the `usuario` table (migration 01). Replaced by UsuarioModel in BE-05a.
+ */
+export function initUser(sequelize: Sequelize): void {
+  User.init(
+    {
+      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+      nombre: { type: DataTypes.STRING, allowNull: false },
+      apellido: { type: DataTypes.STRING, allowNull: false },
+      email: { type: DataTypes.STRING, allowNull: false, unique: true },
+      passwordHash: { type: DataTypes.STRING, allowNull: false },
+      telefono: { type: DataTypes.STRING },
+      rol: { type: DataTypes.STRING },
+      distrito: { type: DataTypes.STRING },
+      status: { type: DataTypes.STRING },
+    },
+    {
+      sequelize,
+      modelName: 'User',
+      tableName: 'usuario',
+      underscored: true,
+      timestamps: true,
+    },
+  );
+}
 
 export default User;
