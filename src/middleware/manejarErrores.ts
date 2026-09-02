@@ -31,8 +31,18 @@ const sobre = (code: string, message: string, errors: readonly DetalleError[] = 
   errors,
 });
 
+/**
+ * body-parser (and other http-errors) failures that are the client's fault: unsupported
+ * encoding/charset (415) or an aborted request (400). They carry a 4xx `status` and
+ * `expose: true`; anything else with a status stays a 500.
+ */
+function statusDeClienteHttp(error: Error): number | undefined {
+  const { status, expose } = error as { status?: unknown; expose?: unknown };
+  return typeof status === 'number' && status >= 400 && status < 500 && expose === true ? status : undefined;
+}
+
 /** Pure mapping from any thrown value to the HTTP status and the error envelope. */
-export function traducirError(error: unknown): ErrorTraducido {
+export function traducirError(error: unknown, requestId?: string): ErrorTraducido {
   if (error instanceof AppException) {
     return { status: error.status, body: sobre(error.code, error.message, error.errors), esInterno: false };
   }
@@ -66,8 +76,17 @@ export function traducirError(error: unknown): ErrorTraducido {
         esInterno: false,
       };
     }
+    const statusCliente = statusDeClienteHttp(error);
+    if (statusCliente !== undefined) {
+      return {
+        status: statusCliente,
+        body: sobre(CodigoError.VALIDACION_FALLIDA, 'La solicitud no es válida.'),
+        esInterno: false,
+      };
+    }
   }
-  return { status: 500, body: sobre(CodigoError.ERROR_INTERNO, 'Error interno del servidor.'), esInterno: true };
+  const interno = sobre(CodigoError.ERROR_INTERNO, 'Error interno del servidor.');
+  return { status: 500, body: requestId ? { ...interno, requestId } : interno, esInterno: true };
 }
 
 /**
@@ -81,7 +100,7 @@ export function crearManejadorErrores(logger: Logger): ErrorRequestHandler {
       next(error);
       return;
     }
-    const { status, body } = traducirError(error);
+    const { status, body } = traducirError(error, req.id === undefined ? undefined : String(req.id));
     if (status >= 500 && status !== 501) {
       (req.log ?? logger).error({ err: error }, 'Error al atender la petición');
     }

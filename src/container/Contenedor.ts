@@ -12,5 +12,9 @@ export interface MontajeRuta {
 export interface Contenedor {
   conexion: ConexionBD;
   logger: Logger;
+  /** CORS whitelist (exact origins). */
+  corsOrigenes: readonly string[];
+  /** Express `trust proxy` value: how the client IP is derived behind proxies. */
+  trustProxy: boolean | number | string;
   rutas: readonly MontajeRuta[];
 }

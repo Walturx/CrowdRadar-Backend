@@ -5,4 +5,6 @@ export interface ErrorResponseDTO {
   message: string;
   code: string;
   errors: readonly DetalleError[];
+  /** Only on 500: correlates the response with the server log line (same value as X-Request-Id). */
+  requestId?: string;
 }

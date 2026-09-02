@@ -47,6 +47,7 @@ export class ConfiguracionApp {
       corsOrigenes: env.CORS_ORIGENES,
       logNivel: env.LOG_NIVEL,
       zonaHoraria: env.ZONA_HORARIA,
+      trustProxy: env.TRUST_PROXY,
     });
     this.bd = congelar({
       host: env.DB_HOST,
