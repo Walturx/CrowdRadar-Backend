@@ -1,0 +1,97 @@
+/**
+ * Environment keys added for runtime hardening and secret hygiene: pool and timeouts, boot retry,
+ * placeholder rejection (R1-207), suspension days vs the migration CHECK (R3-202), JWT expiry format.
+ */
+import { describe, expect, it } from 'vitest';
+import { validarEntorno } from '../../src/config/esquemaEntorno.js';
+import { configPrueba } from '../support/configPrueba.js';
+
+const base = { DB_PASSWORD: 'clave-bd', JWT_SECRETO: 'j'.repeat(40) };
+const claves = (env: Record<string, string>) => {
+  const r = validarEntorno({ ...base, ...env });
+  return r.ok ? [] : r.claves;
+};
+
+describe('valores por defecto de runtime', () => {
+  it('pool, statement_timeout, reintentos de arranque y timeouts del servidor', () => {
+    const cfg = configPrueba();
+    expect(cfg.bd).toMatchObject({
+      pool: { max: 10, min: 0, acquireMs: 30000, idleMs: 10000 },
+      statementTimeoutMs: 15000,
+      reintentos: 5,
+      reintentoEsperaMs: 500,
+    });
+    expect(cfg.servidor.timeouts).toEqual({ requestMs: 30000, headersMs: 15000, keepAliveMs: 5000, apagadoMs: 10000 });
+  });
+
+  it('se pueden sobrescribir desde el entorno', () => {
+    const cfg = configPrueba({ DB_POOL_MAX: 3, DB_STATEMENT_TIMEOUT_MS: 2000, DB_REINTENTOS: 2, APAGADO_TIMEOUT_MS: 500 });
+    expect(cfg.bd.pool.max).toBe(3);
+    expect(cfg.bd.statementTimeoutMs).toBe(2000);
+    expect(cfg.bd.reintentos).toBe(2);
+    expect(cfg.servidor.timeouts.apagadoMs).toBe(500);
+  });
+});
+
+describe('coherencia entre claves', () => {
+  it('DB_POOL_MIN no puede superar DB_POOL_MAX', () => {
+    expect(claves({ DB_POOL_MIN: '5', DB_POOL_MAX: '2' })).toContain('DB_POOL_MIN');
+    expect(claves({ DB_POOL_MIN: '2', DB_POOL_MAX: '2' })).toEqual([]);
+  });
+
+  it('headersTimeout no puede superar requestTimeout (Node lo rechaza)', () => {
+    expect(claves({ SERVIDOR_HEADERS_TIMEOUT_MS: '40000', SERVIDOR_REQUEST_TIMEOUT_MS: '30000' })).toContain(
+      'SERVIDOR_HEADERS_TIMEOUT_MS',
+    );
+  });
+
+  it('DB_REINTENTOS exige al menos 1 intento', () => {
+    expect(claves({ DB_REINTENTOS: '0' })).toContain('DB_REINTENTOS');
+  });
+});
+
+describe('SUSPENSION_DIAS_PERMITIDOS frente al CHECK dias IN (3,7,30) de sancion_usuario', () => {
+  it.each(['3,7,30', '7,3', '30', '3'])('acepta %s (subconjunto de 3,7,30)', (valor) => {
+    expect(claves({ SUSPENSION_DIAS_PERMITIDOS: valor })).toEqual([]);
+  });
+
+  it.each(['1,2', '3,5', '14', '3,7,30,60'])('rechaza %s y nombra la clave', (valor) => {
+    const r = validarEntorno({ ...base, SUSPENSION_DIAS_PERMITIDOS: valor });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.claves).toContain('SUSPENSION_DIAS_PERMITIDOS');
+      expect(r.mensaje).toContain('3, 7, 30');
+    }
+  });
+});
+
+describe('JWT_EXPIRA_EN', () => {
+  it.each(['2h', '15m', '7d', '90s'])('acepta %s', (valor) => {
+    expect(claves({ JWT_EXPIRA_EN: valor })).toEqual([]);
+  });
+
+  it.each(['dos horas', '3600', '0h', '-1h', ''])('rechaza "%s" cuando se informa', (valor) => {
+    // an empty value counts as absent (default 2h), so only non-empty values must fail
+    const esperado = valor === '' ? [] : ['JWT_EXPIRA_EN'];
+    expect(claves({ JWT_EXPIRA_EN: valor })).toEqual(esperado);
+  });
+});
+
+describe('placeholders de .env.example (R1-207)', () => {
+  it.each(['DB_PASSWORD', 'JWT_SECRETO'] as const)('%s que empieza con CAMBIAR es invalido', (clave) => {
+    const valor = `CAMBIAR_${'x'.repeat(40)}`;
+    expect(claves({ ...base, [clave]: valor })).toContain(clave);
+  });
+
+  it('ADMIN_PASSWORD con placeholder o de menos de 10 caracteres es invalido; una real es valida', () => {
+    expect(claves({ ADMIN_PASSWORD: 'CAMBIAR_PASSWORD_ADMIN' })).toContain('ADMIN_PASSWORD');
+    expect(claves({ ADMIN_PASSWORD: 'Corta123' })).toContain('ADMIN_PASSWORD');
+    expect(claves({ ADMIN_PASSWORD: 'UnaClaveLarga123' })).toEqual([]);
+  });
+
+  it('el mensaje de error no repite el valor del secreto', () => {
+    const r = validarEntorno({ ...base, JWT_SECRETO: `CAMBIAR_${'z'.repeat(40)}` });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.mensaje).not.toContain('zzzz');
+  });
+});

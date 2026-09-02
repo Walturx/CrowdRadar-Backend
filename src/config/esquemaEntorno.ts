@@ -19,11 +19,29 @@ const lista = (porDefecto: string) =>
         .filter((item) => item.length > 0),
     );
 
+/**
+ * sancion_usuario.dias has a database CHECK (dias IN (3, 7, 30)) in migration 06, which is frozen.
+ * A configured value outside that set would pass validation here and fail at INSERT time, so the
+ * environment is only valid when SUSPENSION_DIAS_PERMITIDOS is a subset of it.
+ */
+const DIAS_SOPORTADOS_POR_LA_BD = [3, 7, 30];
+
 const diasDeSuspension = z
   .string()
   .default('3,7,30')
   .transform((texto) => texto.split(',').map((item) => Number(item.trim())))
-  .pipe(z.array(z.number().int().positive()).min(1));
+  .pipe(
+    z
+      .array(z.number().int().positive())
+      .min(1)
+      .refine((dias) => dias.every((dia) => DIAS_SOPORTADOS_POR_LA_BD.includes(dia)), {
+        message: `solo admite valores de ${DIAS_SOPORTADOS_POR_LA_BD.join(', ')} (CHECK de sancion_usuario.dias)`,
+      }),
+  );
+
+/** Secrets must be replaced: values copied from .env.example start with CAMBIAR and are rejected. */
+const sinPlaceholder = (valor: string) => !valor.startsWith('CAMBIAR');
+const MENSAJE_PLACEHOLDER = 'es un valor de ejemplo (empieza con CAMBIAR); defina uno real';
 
 /** Express `trust proxy`: true/false, a number of hops, or a name/CIDR list such as "loopback". */
 const confiarProxy = z
@@ -52,20 +70,35 @@ export const esquemaEntorno = z
     LOG_NIVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
     ZONA_HORARIA: z.string().default('America/Lima'),
     TRUST_PROXY: confiarProxy,
+    SERVIDOR_REQUEST_TIMEOUT_MS: entero(30000, 1000),
+    SERVIDOR_HEADERS_TIMEOUT_MS: entero(15000, 1000),
+    SERVIDOR_KEEPALIVE_TIMEOUT_MS: entero(5000, 1),
+    APAGADO_TIMEOUT_MS: entero(10000, 1),
 
     // database
     DB_HOST: z.string().default('localhost'),
     DB_PUERTO: entero(5432, 1, 65535),
     DB_NOMBRE: z.string().default('crowdradar'),
     DB_USUARIO: z.string().default('crowdradar'),
-    DB_PASSWORD: requerida('es obligatoria'),
+    DB_PASSWORD: requerida('es obligatoria').refine(sinPlaceholder, MENSAJE_PLACEHOLDER),
     DB_SSL: z.stringbool().default(false),
+    DB_POOL_MAX: entero(10, 1),
+    DB_POOL_MIN: entero(0, 0),
+    DB_POOL_ACQUIRE_MS: entero(30000, 1),
+    DB_POOL_IDLE_MS: entero(10000, 1),
+    DB_STATEMENT_TIMEOUT_MS: entero(15000, 1),
+    DB_REINTENTOS: entero(5, 1),
+    DB_REINTENTO_ESPERA_MS: entero(500, 1),
 
     // security
     JWT_SECRETO: z
       .string({ error: 'es obligatorio' })
-      .min(32, 'debe tener al menos 32 caracteres'),
-    JWT_EXPIRA_EN: z.string().default('2h'),
+      .min(32, 'debe tener al menos 32 caracteres')
+      .refine(sinPlaceholder, MENSAJE_PLACEHOLDER),
+    JWT_EXPIRA_EN: z
+      .string()
+      .regex(/^[1-9]\d*(s|m|h|d)$/, 'debe ser un entero positivo con unidad s, m, h o d (ej. 2h)')
+      .default('2h'),
     BCRYPT_COSTO: entero(10, 4, 15),
     POLITICA_MENSAJES_AUTH: z.enum(['GENERICA', 'DETALLADA']).default('GENERICA'),
     LIMITE_VENTANA_MIN: entero(15, 1),
@@ -109,10 +142,21 @@ export const esquemaEntorno = z
 
     // seeds
     ADMIN_EMAIL: z.string().optional(),
-    ADMIN_PASSWORD: z.string().optional(),
+    ADMIN_PASSWORD: z.string().min(10, 'debe tener al menos 10 caracteres').refine(sinPlaceholder, MENSAJE_PLACEHOLDER).optional(),
     SEED_DEMO: z.stringbool().default(false),
   })
   .superRefine((entorno, ctx) => {
+    if (entorno.DB_POOL_MIN > entorno.DB_POOL_MAX) {
+      ctx.addIssue({ code: 'custom', path: ['DB_POOL_MIN'], message: 'no puede superar DB_POOL_MAX' });
+    }
+    // Node rejects a headersTimeout above requestTimeout.
+    if (entorno.SERVIDOR_HEADERS_TIMEOUT_MS > entorno.SERVIDOR_REQUEST_TIMEOUT_MS) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['SERVIDOR_HEADERS_TIMEOUT_MS'],
+        message: 'no puede superar SERVIDOR_REQUEST_TIMEOUT_MS',
+      });
+    }
     if (entorno.CORREO_PROVEEDOR === 'smtp') {
       for (const clave of ['SMTP_HOST', 'SMTP_USUARIO', 'SMTP_PASSWORD'] as const) {
         if (!entorno[clave]) {

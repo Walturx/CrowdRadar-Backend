@@ -2,8 +2,9 @@ import type { Router } from 'express';
 import type { ConexionBD } from '../datasource/ConexionBD.js';
 import type { Logger } from '../util/logger.js';
 
-/** A router and the path it is mounted at; `Contenedor.rutas` is mounted in order. */
+/** A router, the module that owns it and the path it is mounted at; `Contenedor.rutas` is mounted in order. */
 export interface MontajeRuta {
+  modulo: string;
   ruta: string;
   router: Router;
 }

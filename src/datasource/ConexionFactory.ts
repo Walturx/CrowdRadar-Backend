@@ -16,7 +16,8 @@ export abstract class ConexionFactory {
     try {
       await conexion.verificar();
     } catch (error) {
-      await conexion.cerrar();
+      // A failure while closing the half-open connection must not mask the original error.
+      await conexion.cerrar().catch(() => undefined);
       throw error;
     }
     return conexion;

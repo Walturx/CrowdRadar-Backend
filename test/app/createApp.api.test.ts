@@ -17,7 +17,7 @@ function crear(opciones: OpcionesContenedorPrueba = {}, extra?: (router: Router)
   if (extra) {
     const router = Router();
     extra(router);
-    contenedor.rutas = [...contenedor.rutas, { ruta: '/prueba', router }];
+    contenedor.rutas = [...contenedor.rutas, { modulo: 'prueba', ruta: '/prueba', router }];
   }
   return { ctx, app: createApp(contenedor) };
 }

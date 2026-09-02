@@ -1,4 +1,4 @@
-import { Sequelize } from 'sequelize';
+import { Sequelize, type Options } from 'sequelize';
 import type { ConfiguracionApp } from '../../config/ConfiguracionApp.js';
 import { initModels } from '../../dao/impl/sequelize/model/initModels.js';
 import type { Logger } from '../../util/logger.js';
@@ -9,6 +9,25 @@ import { ConexionSequelize } from './ConexionSequelize.js';
 /** Keeps the statement shape for debug logs and drops bound values (they may hold secrets). */
 export function sqlSinValores(sql: string): string {
   return sql.split(/ VALUES | SET | WHERE /)[0] ?? sql;
+}
+
+/**
+ * Sequelize options derived from configuration: explicit pool, server-side statement_timeout
+ * and, with DB_SSL, TLS with certificate verification ON (use NODE_EXTRA_CA_CERTS for a private CA).
+ */
+export function opcionesSequelize(bd: ConfiguracionApp['bd'], logger: Logger): Options {
+  return {
+    host: bd.host,
+    port: bd.puerto,
+    dialect: 'postgres',
+    logging: (sql) => logger.debug({ sql: sqlSinValores(sql) }, 'sql'),
+    define: { underscored: true, freezeTableName: true },
+    pool: { max: bd.pool.max, min: bd.pool.min, acquire: bd.pool.acquireMs, idle: bd.pool.idleMs },
+    dialectOptions: {
+      statement_timeout: bd.statementTimeoutMs,
+      ...(bd.ssl ? { ssl: { require: true, rejectUnauthorized: true } } : {}),
+    },
+  };
 }
 
 /**
@@ -25,15 +44,7 @@ export class ConexionPostgresFactory extends ConexionFactory {
   }
 
   protected crearConexion(): ConexionBD {
-    const { host, puerto, nombre, usuario, password, ssl } = this.bd;
-    const sequelize = new Sequelize(nombre, usuario, password, {
-      host,
-      port: puerto,
-      dialect: 'postgres',
-      logging: (sql) => this.logger.debug({ sql: sqlSinValores(sql) }, 'sql'),
-      define: { underscored: true, freezeTableName: true },
-      dialectOptions: ssl ? { ssl: { require: true, rejectUnauthorized: false } } : {},
-    });
+    const sequelize = new Sequelize(this.bd.nombre, this.bd.usuario, this.bd.password, opcionesSequelize(this.bd, this.logger));
     initModels(sequelize);
     return new ConexionSequelize(sequelize);
   }
