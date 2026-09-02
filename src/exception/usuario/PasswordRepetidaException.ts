@@ -1,5 +1,5 @@
 import { CodigoError } from '../CodigoError.js';
-import { ReglaNegocioException } from '../base/ReglaNegocioException.js';
+import { ReglaNegocioException } from '../http/ReglaNegocioException.js';
 
 /** 422: the new password equals the current one. */
 export class PasswordRepetidaException extends ReglaNegocioException {

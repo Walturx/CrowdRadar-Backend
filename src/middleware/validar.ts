@@ -1,7 +1,7 @@
 import type { RequestHandler } from 'express';
 import { z, type ZodType } from 'zod';
 import type { DetalleError } from '../exception/AppException.js';
-import { ValidacionException } from '../exception/base/ValidacionException.js';
+import { ValidacionException } from '../exception/http/ValidacionException.js';
 
 // Default zod messages in Spanish; schemas can still override them per field.
 z.config(z.locales.es());

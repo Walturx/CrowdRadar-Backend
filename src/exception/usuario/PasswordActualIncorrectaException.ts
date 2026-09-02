@@ -1,5 +1,5 @@
 import { CodigoError } from '../CodigoError.js';
-import { ReglaNegocioException } from '../base/ReglaNegocioException.js';
+import { ReglaNegocioException } from '../http/ReglaNegocioException.js';
 
 /** 422: the current password given when changing it does not match. */
 export class PasswordActualIncorrectaException extends ReglaNegocioException {

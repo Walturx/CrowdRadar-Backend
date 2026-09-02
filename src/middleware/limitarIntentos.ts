@@ -1,6 +1,6 @@
 import type { RequestHandler } from 'express';
 import { ipKeyGenerator, rateLimit } from 'express-rate-limit';
-import { DemasiadasSolicitudesException } from '../exception/base/DemasiadasSolicitudesException.js';
+import { DemasiadasSolicitudesException } from '../exception/http/DemasiadasSolicitudesException.js';
 
 export interface OpcionesLimite {
   /** Attempts allowed inside the window. */

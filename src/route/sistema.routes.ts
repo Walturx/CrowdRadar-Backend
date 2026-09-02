@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import type { ConexionBD } from '../datasource/ConexionBD.js';
 import { respuesta } from '../dto/RespuestaDTO.js';
-import { ServicioNoDisponibleException } from '../exception/base/ServicioNoDisponibleException.js';
+import { ServicioNoDisponibleException } from '../exception/http/ServicioNoDisponibleException.js';
 
 /** Public liveness routes, mounted at "/": the API banner and the database health check. */
 export function crearSistemaRouter(conexion: ConexionBD): Router {

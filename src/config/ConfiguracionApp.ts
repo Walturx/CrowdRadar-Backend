@@ -1,15 +1,4 @@
-import { esquemaEntorno, validarEntorno, type Entorno } from './esquemaEntorno.js';
-
-/** Overrides keyed by environment variable name, used by tests. */
-export type SobrescritosEntorno = Partial<Record<keyof typeof esquemaEntorno.shape, string | number | boolean>>;
-
-/** Valid baseline for tests: cheap bcrypt, silent logs, no real secrets. */
-const ENTORNO_PRUEBAS: Record<string, string> = {
-  DB_PASSWORD: 'prueba',
-  JWT_SECRETO: 'p'.repeat(48),
-  BCRYPT_COSTO: '4',
-  LOG_NIVEL: 'silent',
-};
+import { validarEntorno, type Entorno } from './esquemaEntorno.js';
 
 function congelar<T>(valor: T): Readonly<T> {
   if (typeof valor === 'object' && valor !== null && !Object.isFrozen(valor)) {
@@ -26,7 +15,6 @@ function congelar<T>(valor: T): Readonly<T> {
  * `getInstance()` is called only from server.ts and container/ (dependency rule 4);
  * everything else receives the configuration by injection. An invalid environment
  * prints every offending key and exits with code 1 before the server listens.
- * `paraPruebas` builds an isolated instance for tests without touching process.env.
  */
 export class ConfiguracionApp {
   private static instancia: ConfiguracionApp | undefined;
@@ -113,14 +101,6 @@ export class ConfiguracionApp {
       ConfiguracionApp.instancia = new ConfiguracionApp(resultado.valor);
     }
     return ConfiguracionApp.instancia;
-  }
-
-  /** Isolated instance for tests; throws (never exits) when an override is invalid. */
-  static paraPruebas(sobrescritos: SobrescritosEntorno = {}): ConfiguracionApp {
-    const texto = Object.fromEntries(Object.entries(sobrescritos).map(([clave, valor]) => [clave, String(valor)]));
-    const resultado = validarEntorno({ ...ENTORNO_PRUEBAS, ...texto });
-    if (!resultado.ok) throw new Error(resultado.mensaje);
-    return new ConfiguracionApp(resultado.valor);
   }
 
   /** Drops the cached singleton. Only tests should call this. */

@@ -4,13 +4,13 @@
  */
 import type { Sequelize } from 'sequelize';
 import { describe, expect, it, vi } from 'vitest';
-import { ConfiguracionApp } from '../../src/config/ConfiguracionApp.js';
 import type { ConexionBD } from '../../src/datasource/ConexionBD.js';
 import { ConexionFactory } from '../../src/datasource/ConexionFactory.js';
 import { ConexionPostgresFactory, sqlSinValores } from '../../src/datasource/impl/ConexionPostgresFactory.js';
 import { ConexionSequelize } from '../../src/datasource/impl/ConexionSequelize.js';
 import { crearLogger } from '../../src/util/logger.js';
 import { ConexionFalsa } from '../support/ConexionFalsa.js';
+import { configPrueba } from '../support/configPrueba.js';
 
 class FabricaFalsa extends ConexionFactory {
   creadas = 0;
@@ -101,7 +101,7 @@ describe('ConexionSequelize', () => {
 
 describe('ConexionPostgresFactory', () => {
   it('conectar falla con un error de conectividad cuando Postgres no responde (puerto cerrado)', async () => {
-    const cfg = ConfiguracionApp.paraPruebas({ DB_HOST: '127.0.0.1', DB_PUERTO: 1 });
+    const cfg = configPrueba({ DB_HOST: '127.0.0.1', DB_PUERTO: 1 });
     const fabrica = new ConexionPostgresFactory(cfg.bd, crearLogger('silent'));
 
     const error = await fabrica.conectar().then(
