@@ -9,6 +9,9 @@ handler answers `501 NO_IMPLEMENTADO` until the owning stream delivers it.
 
 ## Conventions
 
+- **Frozen paths.** `/api/auth/*` and `/api/users/*` keep the Sprint 1 names because the shipped Flutter app calls them;
+  the rest of the API is Spanish (`/api/lugares`, `/api/reportes`, ...). Do not rename them to match the other resources.
+
 - Success envelope: `{ "message": string, "data": object }`. Operations with nothing to return answer `{ "message": string }`.
 - Error envelope, every failure: `{ "message": string, "code": string, "errors": [{ "campo": string, "mensaje": string }] }`.
   `errors` is `[]` unless the code is `VALIDACION_FALLIDA` (one entry per failing field). A `500` also carries
@@ -20,7 +23,7 @@ handler answers `501 NO_IMPLEMENTADO` until the owning stream delivers it.
   `{ items, page, size, total, totalPaginas }`.
 - Authentication: `Authorization: Bearer <jwt>` (strict: exact scheme, one space). JWT HS256, 2 h, no refresh.
   Authorization decisions are made from the database row, never from token claims.
-- Request bodies are validated with zod, are `strict` (unknown keys are rejected) and limited to 100 kb.
+- Request bodies are validated with zod, are `strict` (unknown keys are rejected) and limited to `SERVIDOR_LIMITE_CUERPO` (100 kb by default).
 - Request id: `X-Request-Id` is echoed (if it matches `[A-Za-z0-9_-]{1,64}`) or generated.
 
 ### Access chains

@@ -1,5 +1,8 @@
 import { validarEntorno, type Entorno } from './esquemaEntorno.js';
 
+/** Milliseconds in a minute, to turn the `*_MIN` settings into timer values. */
+const MS_POR_MINUTO = 60_000;
+
 function congelar<T>(valor: T): Readonly<T> {
   if (typeof valor === 'object' && valor !== null && !Object.isFrozen(valor)) {
     Object.values(valor).forEach(congelar);
@@ -36,6 +39,7 @@ export class ConfiguracionApp {
       logNivel: env.LOG_NIVEL,
       zonaHoraria: env.ZONA_HORARIA,
       trustProxy: env.TRUST_PROXY,
+      limiteCuerpo: env.SERVIDOR_LIMITE_CUERPO,
       timeouts: {
         requestMs: env.SERVIDOR_REQUEST_TIMEOUT_MS,
         headersMs: env.SERVIDOR_HEADERS_TIMEOUT_MS,
@@ -62,6 +66,7 @@ export class ConfiguracionApp {
       politicaMensajesAuth: env.POLITICA_MENSAJES_AUTH,
       limites: {
         ventanaMin: env.LIMITE_VENTANA_MIN,
+        ventanaMs: env.LIMITE_VENTANA_MIN * MS_POR_MINUTO,
         login: env.LIMITE_LOGIN,
         registro: env.LIMITE_REGISTRO,
         recuperar: env.LIMITE_RECUPERAR,

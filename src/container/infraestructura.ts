@@ -7,7 +7,7 @@ import type { ConexionBD } from '../datasource/ConexionBD.js';
 import { Rol } from '../enum/Rol.js';
 import { crearAutenticar } from '../middleware/autenticar.js';
 import { requerirRol } from '../middleware/requerirRol.js';
-import type { MiddlewaresRuta } from '../route/middlewaresRuta.js';
+import type { MiddlewareRuta } from '../route/middlewareRuta.js';
 import { crearSistemaRouter } from '../route/sistema.routes.js';
 import { VerificadorEstadoCuentaImpl } from '../service/impl/VerificadorEstadoCuentaImpl.js';
 import type { VerificadorEstadoCuenta } from '../service/VerificadorEstadoCuenta.js';
@@ -34,7 +34,7 @@ export interface Infraestructura extends Omit<DependenciasInfraestructura, 'esta
   verificador: VerificadorEstadoCuenta;
   autenticar: RequestHandler;
   /** Route guards handed to routers (auth chain, admin chain). */
-  guardas: MiddlewaresRuta;
+  guardas: MiddlewareRuta;
 }
 
 /** Shared pieces built once: clock, account-status check, `autenticar` and the role guard. */

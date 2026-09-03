@@ -1,9 +1,9 @@
 /** Unit tests of the bcrypt Adapter behind the Hasher port (design 4.1; spec R-B1 bcrypt cost from config). */
 import { describe, expect, it } from 'vitest';
-import { BcryptHasher } from '../../../src/adapter/seguridad/impl/BcryptHasher.js';
+import { BcryptHasherAdapter } from '../../../src/adapter/seguridad/impl/BcryptHasherAdapter.js';
 
-describe('BcryptHasher', () => {
-  const hasher = new BcryptHasher(4);
+describe('BcryptHasherAdapter', () => {
+  const hasher = new BcryptHasherAdapter(4);
 
   it('genera un hash bcrypt con el costo configurado, distinto en cada llamada (salt)', async () => {
     const a = await hasher.generar('Secreta123');

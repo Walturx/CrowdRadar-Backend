@@ -1,9 +1,9 @@
 import { Router } from 'express';
-import type { MiddlewaresRuta } from './middlewaresRuta.js';
+import type { MiddlewareRuta } from './middlewareRuta.js';
 import { noImplementado } from './stub.js';
 
 /** Report validation and reporting abuse (M5), auth chain, mounted at /api AFTER the report router. */
-export function crearValidacionRouter({ autenticar }: MiddlewaresRuta): Router {
+export function crearValidacionRouter({ autenticar }: MiddlewareRuta): Router {
   const router = Router();
   router.get('/validaciones/pendientes', autenticar, noImplementado('validacion.listarPendientes'));
   router.get('/reportes/:id', autenticar, noImplementado('validacion.obtenerReporte'));

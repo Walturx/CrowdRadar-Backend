@@ -19,7 +19,7 @@ export interface TokenEmitido {
 }
 
 /**
- * Pattern: Adapter (port). Issues and verifies session tokens; JwtEmisorToken adapts
+ * Pattern: Adapter (port). Issues and verifies session tokens; JwtEmisorTokenAdapter adapts
  * jsonwebtoken (BE-05a). `verificar` throws when the token is expired, malformed or
  * badly signed.
  */

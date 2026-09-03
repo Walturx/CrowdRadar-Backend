@@ -99,7 +99,7 @@ src/
   controller/          HTTP adapters: call a service, wrap the result in a response envelope
   service/             use-case interfaces; impl/ holds the implementations
   facade/              (later) Recuperacion, Reporte, Moderacion facades
-  dao/                 DAO interfaces; impl/sequelize/ holds Sequelize DAOs and models
+  dao/                 DAO interfaces and Paginacion (page types and helpers); impl/sequelize/ holds Sequelize DAOs and models
   entity/              domain entities (plain TypeScript, no ORM)
   dto/                 request schemas (zod) and response shapes
   mapper/              entity -> response DTO
@@ -109,13 +109,29 @@ src/
   datasource/          ConexionBD port, ConexionFactory (Factory Method), impl/ (PostgreSQL + Sequelize)
   enum/                domain enumerations as const objects
   types/               ambient Express typings (req.usuario)
-  util/                logger, Reloj, paginacion, reintentar, servidorHttp
+  util/                logger, Reloj, EstadoServicio, reintentar, servidorHttp
 database/              sequelize-cli: config.cjs, migrations/, seeders/, data/
 test/                  mirrors src/; support/ holds fakes and builders
 docs/api-contract.md   the frozen API contract
 ```
 
-Layer folders are singular and one type lives in one PascalCase file. `datasource/`, `enum/` and `types/` are the
+Layer folders are singular and one type lives in one PascalCase file.
+
+### File naming
+
+| What | Rule | Examples |
+|---|---|---|
+| A class, interface or type that is the module's main export | PascalCase file named after it | `UsuarioDAO.ts`, `AuthServiceImpl.ts`, `Contenedor.ts` |
+| Concrete adapters (`adapter/**/impl/`) | PascalCase ending in `Adapter`; the port keeps the plain name | port `Hasher.ts`, adapter `BcryptHasherAdapter.ts` |
+| Functions and middleware | camelCase, singular | `autenticar.ts`, `limitarIntentos.ts`, `reintentar.ts` |
+| Routers | `*.routes.ts` (`<resource>.routes.ts`), lowercase; helpers `middlewareRuta.ts`, `stub.ts` | `usuario.routes.ts` |
+| Composition root | `container/<stream>.ts`, lowercase, one per stream, plus `Contenedor.ts` | `container/reporte.ts` |
+| Tests | mirror `src/` and carry the kind before `.test.ts`: `.unit` (no I/O), `.api` (HTTP through supertest or a spawned server), `.contract` (shared DAO contract, real PostgreSQL migrations) | `autenticar.unit.test.ts`, `auth.usuario.api.test.ts`, `UsuarioDAOMemoria.contract.test.ts` |
+
+`test/ops/convenciones.unit.test.ts` enforces the test suffix, the `Adapter` suffix and the route and container names.
+`Paginacion` (types plus `armarPagina` and `desplazamiento`) lives in one module, `dao/Paginacion.ts`, because the page
+shape is part of the DAO contract.
+ `datasource/`, `enum/` and `types/` are the
 three folders that do not map to one request-chain layer: `datasource/` is the connection port plus its Factory Method
 (infrastructure), `enum/` holds the shared domain vocabulary (const objects, no logic) and `types/` only extends
 Express's `Request`. They are intentional and listed in the design tree.
@@ -142,7 +158,7 @@ finds nothing; `rg "console\.log" src` finds nothing.
 | Singleton | `config/ConfiguracionApp`: immutable, validated once, fail-fast |
 | Factory Method | `datasource/ConexionFactory.conectar()` -> `ConexionPostgresFactory.crearConexion()` |
 | DAO | `dao/*DAO` ports with `dao/impl/sequelize/*DAOSequelize` and in-memory fakes in `test/support/dao/memoria` |
-| Adapter | `adapter/seguridad` (`BcryptHasher`, `JwtEmisorToken`), `datasource/impl/ConexionSequelize`; correo and push to come |
+| Adapter | `adapter/seguridad` (`BcryptHasherAdapter`, `JwtEmisorTokenAdapter`), `datasource/impl/ConexionSequelize`; correo and push to come |
 | Mapper | `mapper/UsuarioMapper` (entity -> response DTO) |
 | Service Layer | `service/*Service` interfaces with `service/impl/*Impl`; controllers never touch DAOs |
 | Facade | placeholders for `RecuperacionFacade`, `ReporteFacade`, `ModeracionFacade` (streams M1, M4, M6) |
@@ -163,6 +179,7 @@ or missing value prints every offending key (never its value) and exits with cod
 | `CORS_ORIGENES` | Comma separated allowed origins; others get no CORS headers (http://localhost:3000) |
 | `LOG_NIVEL` | pino level: fatal, error, warn, info, debug, trace, silent (info) |
 | `ZONA_HORARIA` | Time zone for aggregations (America/Lima) |
+| `SERVIDOR_LIMITE_CUERPO` | Maximum JSON body, integer plus `b`, `kb` or `mb` (100kb) |
 | `TRUST_PROXY` | Proxy hops trusted for the client IP: `false`, a number, or a name such as `loopback`; `true` is too permissive (false) |
 | `SERVIDOR_REQUEST_TIMEOUT_MS` | Time to receive a whole request (30000) |
 | `SERVIDOR_HEADERS_TIMEOUT_MS` | Time to receive the headers; must exceed the keep-alive timeout (66000) |
@@ -255,7 +272,7 @@ Migrations 01-10 and 12 are frozen once released; fixes go forward as new migrat
 
 ## Security notes
 
-- `helmet` headers, CORS allow-list, `x-powered-by` disabled, 100 kb JSON limit, request ids on every response.
+- `helmet` headers, CORS allow-list, `x-powered-by` disabled, JSON body limit (`SERVIDOR_LIMITE_CUERPO`, 100 kb by default), request ids on every response.
 - Passwords are bcrypt hashes (cost from config); login always runs a hash comparison, with a decoy hash for unknown emails.
 - JWT is HS256 only (pinned on sign and verify), its payload is validated, and `autenticar` re-reads the user so a
   suspended account loses access immediately.

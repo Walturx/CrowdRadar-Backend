@@ -4,8 +4,7 @@ import type { Usuario } from '../../../entity/Usuario.js';
 import type { EstadoCuenta } from '../../../enum/EstadoCuenta.js';
 import type { Rol } from '../../../enum/Rol.js';
 import { EmailYaRegistradoException } from '../../../exception/usuario/EmailYaRegistradoException.js';
-import { armarPagina, desplazamiento } from '../../../util/paginacion.js';
-import type { Pagina, Paginacion } from '../../Paginacion.js';
+import { armarPagina, desplazamiento, type Pagina, type Paginacion } from '../../Paginacion.js';
 import type { DatosPerfil, FiltroUsuarios, NuevoUsuario, OrdenUsuarios, UsuarioDAO } from '../../UsuarioDAO.js';
 import { UsuarioModel } from './model/UsuarioModel.js';
 

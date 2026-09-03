@@ -1,7 +1,6 @@
 import type { AlertaDAO, NuevaAlerta } from '../../../../src/dao/AlertaDAO.js';
-import type { Pagina, Paginacion } from '../../../../src/dao/Paginacion.js';
+import { armarPagina, desplazamiento, type Pagina, type Paginacion } from '../../../../src/dao/Paginacion.js';
 import type { Alerta } from '../../../../src/entity/Alerta.js';
-import { armarPagina, desplazamiento } from '../../../../src/util/paginacion.js';
 
 /** In-memory AlertaDAO for tests; behaves like the Sequelize one (shared contract test). */
 export class AlertaDAOMemoria implements AlertaDAO {

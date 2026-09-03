@@ -1,4 +1,4 @@
-import type { Pagina, Paginacion } from '../../../../src/dao/Paginacion.js';
+import { armarPagina, desplazamiento, type Pagina, type Paginacion } from '../../../../src/dao/Paginacion.js';
 import type {
   AgregadoHora,
   ConsultaAgregada,
@@ -11,7 +11,6 @@ import { EstadoReporte } from '../../../../src/enum/EstadoReporte.js';
 import { FiltroDias } from '../../../../src/enum/FiltroDias.js';
 import type { MotivoSinPuntos } from '../../../../src/enum/MotivoSinPuntos.js';
 import { NivelSaturacion } from '../../../../src/enum/NivelSaturacion.js';
-import { armarPagina, desplazamiento } from '../../../../src/util/paginacion.js';
 
 const VALOR: Record<NivelSaturacion, number> = { TRANQUILO: 1, MODERADO: 2, SATURADO: 3 };
 const masNuevoPrimero = (a: ReporteSaturacion, b: ReporteSaturacion) =>

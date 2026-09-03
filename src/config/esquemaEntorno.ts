@@ -70,6 +70,11 @@ export const esquemaEntorno = z
     LOG_NIVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
     ZONA_HORARIA: z.string().default('America/Lima'),
     TRUST_PROXY: confiarProxy,
+    // body-parser size string: integer + b, kb or mb (e.g. 100kb)
+    SERVIDOR_LIMITE_CUERPO: z
+      .string()
+      .regex(/^[1-9]\d*(b|kb|mb)$/i, 'debe ser un entero positivo con unidad b, kb o mb (ej. 100kb)')
+      .default('100kb'),
     SERVIDOR_REQUEST_TIMEOUT_MS: entero(30000, 1000),
     SERVIDOR_HEADERS_TIMEOUT_MS: entero(66000, 1000),
     // Above the usual load balancer idle timeout (60 s) so the balancer, not Node, closes idle connections.

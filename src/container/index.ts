@@ -1,5 +1,5 @@
-import { BcryptHasher } from '../adapter/seguridad/impl/BcryptHasher.js';
-import { JwtEmisorToken } from '../adapter/seguridad/impl/JwtEmisorToken.js';
+import { BcryptHasherAdapter } from '../adapter/seguridad/impl/BcryptHasherAdapter.js';
+import { JwtEmisorTokenAdapter } from '../adapter/seguridad/impl/JwtEmisorTokenAdapter.js';
 import type { ConfiguracionApp } from '../config/ConfiguracionApp.js';
 import { UsuarioDAOSequelize } from '../dao/impl/sequelize/UsuarioDAOSequelize.js';
 import { ConexionPostgresFactory } from '../datasource/impl/ConexionPostgresFactory.js';
@@ -27,6 +27,7 @@ export function ensamblar(dependencias: DependenciasInfraestructura): Contenedor
     logger,
     corsOrigenes: cfg.servidor.corsOrigenes,
     trustProxy: cfg.servidor.trustProxy,
+    limiteCuerpo: cfg.servidor.limiteCuerpo,
     rutas: [
       ...construirSistema(infra),
       ...construirSeguridad(infra),
@@ -48,7 +49,7 @@ export async function crearContenedor(cfg: ConfiguracionApp, logger: Logger, est
     conexion,
     estado,
     usuarioDAO: new UsuarioDAOSequelize(),
-    hasher: new BcryptHasher(cfg.seguridad.bcryptCosto),
-    emisorToken: new JwtEmisorToken(cfg.seguridad),
+    hasher: new BcryptHasherAdapter(cfg.seguridad.bcryptCosto),
+    emisorToken: new JwtEmisorTokenAdapter(cfg.seguridad),
   });
 }

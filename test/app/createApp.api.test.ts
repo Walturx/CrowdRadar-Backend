@@ -97,6 +97,14 @@ describe('cuerpos y errores de transporte', () => {
     expect(res.body.code).toBe('VALIDACION_FALLIDA');
   });
 
+  it('el limite del cuerpo sale de SERVIDOR_LIMITE_CUERPO (R2-402)', async () => {
+    const { app } = crear({ cfg: { SERVIDOR_LIMITE_CUERPO: '1kb' } });
+    const res = await request(app).post('/api/auth/login').send({ email: 'a@b.pe', password: 'x'.repeat(2000) });
+    expect(res.status).toBe(413);
+    const cabe = await request(app).post('/api/auth/login').send({ email: 'a@b.pe', password: 'x'.repeat(100) });
+    expect(cabe.status).not.toBe(413);
+  });
+
   it('charset no soportado (body-parser 415) responde 415 y no 500', async () => {
     const { app } = crear();
     const res = await request(app)

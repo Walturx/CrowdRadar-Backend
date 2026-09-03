@@ -1,7 +1,7 @@
 import type { EmisorToken } from '../../src/adapter/seguridad/EmisorToken.js';
 import type { Hasher } from '../../src/adapter/seguridad/Hasher.js';
-import { BcryptHasher } from '../../src/adapter/seguridad/impl/BcryptHasher.js';
-import { JwtEmisorToken } from '../../src/adapter/seguridad/impl/JwtEmisorToken.js';
+import { BcryptHasherAdapter } from '../../src/adapter/seguridad/impl/BcryptHasherAdapter.js';
+import { JwtEmisorTokenAdapter } from '../../src/adapter/seguridad/impl/JwtEmisorTokenAdapter.js';
 import type { ConfiguracionApp } from '../../src/config/ConfiguracionApp.js';
 import type { Contenedor } from '../../src/container/Contenedor.js';
 import { ensamblar } from '../../src/container/index.js';
@@ -39,8 +39,8 @@ export interface ContenedorPrueba {
 export function crearContenedorPrueba(opciones: OpcionesContenedorPrueba = {}): ContenedorPrueba {
   const cfg = configPrueba(opciones.cfg);
   const usuarioDAO = opciones.usuarioDAO ?? new UsuarioDAOMemoria();
-  const hasher = opciones.hasher ?? new BcryptHasher(cfg.seguridad.bcryptCosto);
-  const emisorToken = opciones.emisorToken ?? new JwtEmisorToken(cfg.seguridad);
+  const hasher = opciones.hasher ?? new BcryptHasherAdapter(cfg.seguridad.bcryptCosto);
+  const emisorToken = opciones.emisorToken ?? new JwtEmisorTokenAdapter(cfg.seguridad);
   const conexion = opciones.conexion ?? new ConexionFalsa();
   const contenedor = ensamblar({
     cfg,
