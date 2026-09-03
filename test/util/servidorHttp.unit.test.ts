@@ -2,6 +2,7 @@
 import { EventEmitter } from 'node:events';
 import { createServer } from 'node:http';
 import { describe, expect, it, vi } from 'vitest';
+import { EstadoServicio } from '../../src/util/EstadoServicio.js';
 import { configurarTimeouts, crearApagado, instalarHooksProceso } from '../../src/util/servidorHttp.js';
 import { ConexionFalsa } from '../support/ConexionFalsa.js';
 import { crearLoggerEspia } from '../support/LoggerEspia.js';
@@ -71,6 +72,29 @@ describe('crearApagado', () => {
     expect(salir).toHaveBeenCalledWith(1);
   });
 
+  it('marca el servicio como "apagando" en cuanto empieza el apagado, antes de cerrar el servidor (R4-410)', async () => {
+    const estado = new EstadoServicio();
+    let apagandoAlCerrar: boolean | undefined;
+    const servidor = {
+      close: (cb: (e?: Error) => void) => {
+        apagandoAlCerrar = estado.apagando;
+        cb();
+      },
+    };
+    const apagar = crearApagado({
+      servidor,
+      conexion: new ConexionFalsa(),
+      logger: crearLoggerEspia().logger,
+      timeoutMs: 1000,
+      salir: () => undefined,
+      estado,
+    });
+    expect(estado.apagando).toBe(false);
+    await apagar('SIGTERM');
+    expect(apagandoAlCerrar).toBe(true);
+    expect(estado.apagando).toBe(true);
+  });
+
   it('fuerza la salida con 1 si el cierre no termina dentro del timeout', async () => {
     const { apagar, salir, espia } = entornoApagado({ cierreServidor: () => undefined, timeoutMs: 30 });
     await apagar('SIGTERM');
@@ -81,7 +105,7 @@ describe('crearApagado', () => {
 
 describe('instalarHooksProceso', () => {
   function proceso() {
-    return Object.assign(new EventEmitter(), { exit: vi.fn() });
+    return Object.assign(new EventEmitter(), { exit: vi.fn<(codigo?: number) => unknown>() });
   }
 
   it.each(['SIGTERM', 'SIGINT'])('%s inicia el apagado ordenado con codigo 0', (senal) => {
@@ -102,14 +126,83 @@ describe('instalarHooksProceso', () => {
     expect(espia.lineas.some((l) => l.level === 50 && JSON.stringify(l).includes('promesa rota'))).toBe(true);
   });
 
-  it('uncaughtException se registra como fatal y sale de inmediato con 1', () => {
+  it('una segunda senal durante el apagado fuerza la salida inmediata con 1 y lo registra (R4-411)', () => {
     const p = proceso();
     const apagar = vi.fn(async () => undefined);
     const espia = crearLoggerEspia();
     instalarHooksProceso({ proceso: p, logger: espia.logger, apagar });
-    p.emit('uncaughtException', new Error('estado corrupto'));
-    expect(espia.lineas.some((l) => l.level === 60 && JSON.stringify(l).includes('estado corrupto'))).toBe(true);
+    p.emit('SIGTERM');
+    expect(p.exit).not.toHaveBeenCalled();
+    p.emit('SIGINT');
     expect(p.exit).toHaveBeenCalledWith(1);
-    expect(apagar).not.toHaveBeenCalled();
+    expect(apagar).toHaveBeenCalledTimes(1);
+    expect(espia.lineas.some((l) => l.level === 50 && String(l.msg).includes('segunda'))).toBe(true);
+  });
+
+  it('dos senales iguales tambien cuentan como segunda senal', () => {
+    const p = proceso();
+    instalarHooksProceso({ proceso: p, logger: crearLoggerEspia().logger, apagar: vi.fn(async () => undefined) });
+    p.emit('SIGTERM');
+    p.emit('SIGTERM');
+    expect(p.exit).toHaveBeenCalledWith(1);
+  });
+
+  describe('uncaughtException', () => {
+    it('se registra como fatal y sale con 1 sin pasar por el apagado ordenado', async () => {
+      const p = proceso();
+      const apagar = vi.fn(async () => undefined);
+      const espia = crearLoggerEspia();
+      instalarHooksProceso({ proceso: p, logger: espia.logger, apagar });
+      p.emit('uncaughtException', new Error('estado corrupto'));
+      await vi.waitFor(() => expect(p.exit).toHaveBeenCalledWith(1));
+      expect(espia.lineas.some((l) => l.level === 60 && JSON.stringify(l).includes('estado corrupto'))).toBe(true);
+      expect(apagar).not.toHaveBeenCalled();
+    });
+
+    it('intenta cerrar el pool antes de salir (R4-411)', async () => {
+      const p = proceso();
+      const orden: string[] = [];
+      p.exit.mockImplementation(() => void orden.push('exit'));
+      const cerrarRecursos = vi.fn(async () => void orden.push('cerrar'));
+      instalarHooksProceso({ proceso: p, logger: crearLoggerEspia().logger, apagar: vi.fn(), cerrarRecursos });
+      p.emit('uncaughtException', new Error('x'));
+      await vi.waitFor(() => expect(p.exit).toHaveBeenCalledWith(1));
+      expect(orden).toEqual(['cerrar', 'exit']);
+    });
+
+    it('si cerrar falla sale igual con 1', async () => {
+      const p = proceso();
+      instalarHooksProceso({
+        proceso: p,
+        logger: crearLoggerEspia().logger,
+        apagar: vi.fn(),
+        cerrarRecursos: async () => {
+          throw new Error('pool roto');
+        },
+      });
+      p.emit('uncaughtException', new Error('x'));
+      await vi.waitFor(() => expect(p.exit).toHaveBeenCalledWith(1));
+    });
+
+    it('si cerrar no termina dentro del plazo corto sale con 1 de todos modos', async () => {
+      vi.useFakeTimers();
+      try {
+        const p = proceso();
+        instalarHooksProceso({
+          proceso: p,
+          logger: crearLoggerEspia().logger,
+          apagar: vi.fn(),
+          cerrarRecursos: () => new Promise<void>(() => undefined),
+          plazoCierreMs: 1500,
+        });
+        p.emit('uncaughtException', new Error('x'));
+        await vi.advanceTimersByTimeAsync(1400);
+        expect(p.exit).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(200);
+        expect(p.exit).toHaveBeenCalledWith(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 });

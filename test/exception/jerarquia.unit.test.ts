@@ -59,6 +59,7 @@ const CODIGOS_CONGELADOS = [
   'ERROR_INTERNO',
   'NO_IMPLEMENTADO',
   'SERVICIO_NO_DISPONIBLE',
+  'APAGANDO',
 ];
 
 describe('CodigoError', () => {

@@ -3,16 +3,18 @@ import { createServer } from 'node:http';
 import { createApp } from './app.js';
 import { ConfiguracionApp } from './config/ConfiguracionApp.js';
 import { crearContenedor } from './container/index.js';
+import { EstadoServicio } from './util/EstadoServicio.js';
 import { crearLogger } from './util/logger.js';
 import { reintentar } from './util/reintentar.js';
 import { configurarTimeouts, crearApagado, instalarHooksProceso } from './util/servidorHttp.js';
 
 const cfg = ConfiguracionApp.getInstance();
 const logger = crearLogger(cfg.servidor.logNivel);
+const estado = new EstadoServicio();
 
 async function iniciar(): Promise<void> {
   // The database may still be starting (docker compose, managed restarts): retry with backoff.
-  const contenedor = await reintentar(() => crearContenedor(cfg, logger), {
+  const contenedor = await reintentar(() => crearContenedor(cfg, logger, estado), {
     intentos: cfg.bd.reintentos,
     esperaInicialMs: cfg.bd.reintentoEsperaMs,
     alFallar: (error, intento, proximaEsperaMs) =>
@@ -28,8 +30,9 @@ async function iniciar(): Promise<void> {
     logger,
     timeoutMs: cfg.servidor.timeouts.apagadoMs,
     salir: (codigo) => process.exit(codigo),
+    estado,
   });
-  instalarHooksProceso({ proceso: process, logger, apagar });
+  instalarHooksProceso({ proceso: process, logger, apagar, cerrarRecursos: () => contenedor.conexion.cerrar() });
 
   servidor.listen(cfg.servidor.puerto, () => {
     logger.info({ puerto: cfg.servidor.puerto }, 'Servidor ejecutandose');

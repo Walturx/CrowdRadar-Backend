@@ -1,4 +1,5 @@
 import type { ConexionBD } from '../datasource/ConexionBD.js';
+import type { EstadoServicio } from './EstadoServicio.js';
 import type { Logger } from './logger.js';
 
 export interface TimeoutsServidor {
@@ -24,6 +25,8 @@ export interface DependenciasApagado {
   /** Hard limit; when the orderly close takes longer the process exits with 1. */
   timeoutMs: number;
   salir: (codigo: number) => void;
+  /** Flipped to "apagando" when the shutdown starts (readiness answers 503). */
+  estado?: EstadoServicio;
 }
 
 /**
@@ -31,7 +34,7 @@ export interface DependenciasApagado {
  * then close the database connection, then exit. Idempotent while running; always exits, with 1
  * when anything failed or the close exceeded `timeoutMs`.
  */
-export function crearApagado({ servidor, conexion, logger, timeoutMs, salir }: DependenciasApagado) {
+export function crearApagado({ servidor, conexion, logger, timeoutMs, salir, estado }: DependenciasApagado) {
   let enCurso: Promise<void> | undefined;
 
   const cerrarServidor = () =>
@@ -59,6 +62,7 @@ export function crearApagado({ servidor, conexion, logger, timeoutMs, salir }: D
   }
 
   return (motivo: string, codigo = 0): Promise<void> => {
+    estado?.marcarApagando();
     enCurso ??= (async () => {
       let temporizador: NodeJS.Timeout | undefined;
       const limite = new Promise<void>((resolver) => {
@@ -82,27 +86,62 @@ export interface ProcesoLike {
   exit(codigo?: number): unknown;
 }
 
+/** Longest an uncaught exception waits for the pool to close before the process exits. */
+const PLAZO_CIERRE_FATAL_MS = 2000;
+
 /**
- * Process-level hooks: SIGTERM/SIGINT start the orderly shutdown; an unhandled rejection is
- * logged and shuts down with 1; an uncaught exception leaves the process in an unknown state, so
- * it is logged as fatal and the process exits immediately.
+ * Process-level hooks: the first SIGTERM/SIGINT starts the orderly shutdown and a second one forces an
+ * immediate exit with 1 (an operator who signals twice wants out now); an unhandled rejection is logged and
+ * shuts down with 1; an uncaught exception leaves the process in an unknown state, so it is logged as fatal,
+ * the pool gets a short deadline to close (releases connections instead of waiting for Postgres to time them
+ * out) and the process exits with 1 either way.
  */
 export function instalarHooksProceso({
   proceso,
   logger,
   apagar,
+  cerrarRecursos,
+  plazoCierreMs = PLAZO_CIERRE_FATAL_MS,
 }: {
   proceso: ProcesoLike;
   logger: Logger;
   apagar: (motivo: string, codigo?: number) => Promise<void>;
+  cerrarRecursos?: () => Promise<void>;
+  plazoCierreMs?: number;
 }): void {
-  for (const senal of ['SIGTERM', 'SIGINT']) proceso.on(senal, () => void apagar(senal, 0));
+  let senales = 0;
+  for (const senal of ['SIGTERM', 'SIGINT']) {
+    proceso.on(senal, () => {
+      senales += 1;
+      if (senales > 1) {
+        logger.error({ senal }, 'Se recibio una segunda senal de apagado; se fuerza la salida');
+        proceso.exit(1);
+        return;
+      }
+      void apagar(senal, 0);
+    });
+  }
   proceso.on('unhandledRejection', (razon) => {
     logger.error({ err: razon }, 'Promesa rechazada sin manejar');
     void apagar('unhandledRejection', 1);
   });
   proceso.on('uncaughtException', (error) => {
     logger.fatal({ err: error }, 'Excepcion no capturada');
-    proceso.exit(1);
+    if (!cerrarRecursos) {
+      proceso.exit(1);
+      return;
+    }
+    let terminado = false;
+    const terminar = () => {
+      if (terminado) return;
+      terminado = true;
+      clearTimeout(limite);
+      proceso.exit(1);
+    };
+    const limite = setTimeout(terminar, plazoCierreMs);
+    Promise.resolve()
+      .then(cerrarRecursos)
+      .catch((fallo: unknown) => logger.error({ err: fallo }, 'Error al cerrar la conexion tras una excepcion no capturada'))
+      .finally(terminar);
   });
 }

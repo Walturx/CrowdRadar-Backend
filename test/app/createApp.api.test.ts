@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { createApp } from '../../src/app.js';
 import { ConexionFalsa } from '../support/ConexionFalsa.js';
 import { crearContenedorPrueba, type OpcionesContenedorPrueba } from '../support/crearContenedorPrueba.js';
+import { EstadoServicio } from '../../src/util/EstadoServicio.js';
 import { crearLoggerEspia } from '../support/LoggerEspia.js';
 
 function crear(opciones: OpcionesContenedorPrueba = {}, extra?: (router: Router) => void) {
@@ -200,6 +201,16 @@ describe('registro de peticiones rechazadas por el parser (R3-406)', () => {
 });
 
 describe('GET /api/salud', () => {
+  it('el estado compartido con el apagado llega al router: 503 APAGANDO', async () => {
+    const estado = new EstadoServicio();
+    const { app } = crear({ estado });
+    expect((await request(app).get('/api/salud')).status).toBe(200);
+    estado.marcarApagando();
+    const res = await request(app).get('/api/salud');
+    expect(res.status).toBe(503);
+    expect(res.body.code).toBe('APAGANDO');
+  });
+
   it('200 cuando la base de datos responde', async () => {
     const { app, ctx } = crear();
     const res = await request(app).get('/api/salud');

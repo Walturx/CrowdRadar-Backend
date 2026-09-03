@@ -20,12 +20,32 @@ services:
       timeout: 3s
       retries: 10
 
-  api:
+  # One-shot: applies pending migrations and exits. Only this service migrates; api replicas must never
+  # run migrations (concurrent runs race on SequelizeMeta and on DDL locks).
+  migrate:
     build: .
-    restart: unless-stopped
+    restart: "no"
     depends_on:
       postgres:
         condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DB_HOST: postgres
+      DB_PUERTO: "5432"
+      NODE_ENV: production
+    command: ["npm", "run", "db:migrate"]
+
+  api:
+    build: .
+    restart: unless-stopped
+    # Longer than APAGADO_TIMEOUT_MS (35 s): docker must not SIGKILL while the graceful shutdown still runs.
+    stop_grace_period: 40s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     env_file:
       - .env
     environment:
@@ -35,7 +55,6 @@ services:
       NODE_ENV: production
     ports:
       - "${PUERTO:-3000}:3000"
-    command: ["sh", "-c", "npm run db:migrate && node dist/server.js"]
 
 volumes:
   pgdata:

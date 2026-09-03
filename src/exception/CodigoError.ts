@@ -48,6 +48,7 @@ export const CodigoError = {
   ERROR_INTERNO: 'ERROR_INTERNO',
   NO_IMPLEMENTADO: 'NO_IMPLEMENTADO',
   SERVICIO_NO_DISPONIBLE: 'SERVICIO_NO_DISPONIBLE',
+  APAGANDO: 'APAGANDO',
 } as const;
 
 export type CodigoErrorValor = (typeof CodigoError)[keyof typeof CodigoError];

@@ -11,6 +11,7 @@ import type { MiddlewaresRuta } from '../route/middlewaresRuta.js';
 import { crearSistemaRouter } from '../route/sistema.routes.js';
 import { VerificadorEstadoCuentaImpl } from '../service/impl/VerificadorEstadoCuentaImpl.js';
 import type { VerificadorEstadoCuenta } from '../service/VerificadorEstadoCuenta.js';
+import { EstadoServicio } from '../util/EstadoServicio.js';
 import type { Logger } from '../util/logger.js';
 import { relojSistema, type Reloj } from '../util/Reloj.js';
 import type { MontajeRuta } from './Contenedor.js';
@@ -23,9 +24,12 @@ export interface DependenciasInfraestructura {
   usuarioDAO: UsuarioDAO;
   hasher: Hasher;
   emisorToken: EmisorToken;
+  /** Readiness flag shared with the shutdown; a fresh one when omitted (tests). */
+  estado?: EstadoServicio;
 }
 
-export interface Infraestructura extends DependenciasInfraestructura {
+export interface Infraestructura extends Omit<DependenciasInfraestructura, 'estado'> {
+  estado: EstadoServicio;
   reloj: Reloj;
   verificador: VerificadorEstadoCuenta;
   autenticar: RequestHandler;
@@ -43,6 +47,7 @@ export function construirInfraestructura(dependencias: DependenciasInfraestructu
   });
   return {
     ...dependencias,
+    estado: dependencias.estado ?? new EstadoServicio(),
     reloj: relojSistema,
     verificador,
     autenticar,
@@ -51,6 +56,6 @@ export function construirInfraestructura(dependencias: DependenciasInfraestructu
 }
 
 /** `GET /` and `GET /api/salud`: mounted first, public. */
-export function construirSistema({ conexion }: Infraestructura): MontajeRuta[] {
-  return [{ modulo: 'sistema', ruta: '/', router: crearSistemaRouter(conexion) }];
+export function construirSistema({ conexion, estado }: Infraestructura): MontajeRuta[] {
+  return [{ modulo: 'sistema', ruta: '/', router: crearSistemaRouter(conexion, estado) }];
 }

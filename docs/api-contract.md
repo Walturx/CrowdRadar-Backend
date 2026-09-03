@@ -187,4 +187,5 @@ Changing the password stamps `usuario.password_cambiada_en`: tokens issued befor
 | 429 | DEMASIADOS_INTENTOS | Too many failed logins for this email; account locked until the window ends (`Retry-After`) |
 | 500 | ERROR_INTERNO | Unexpected failure (body carries `requestId`, no detail) |
 | 501 | NO_IMPLEMENTADO | Frozen route not delivered yet |
+| 503 | APAGANDO | The process is shutting down; `GET /api/salud` answers it so the balancer drains traffic (`Retry-After`) |
 | 503 | SERVICIO_NO_DISPONIBLE | The database is unreachable, the pool is exhausted or a query hit `statement_timeout` (`Retry-After`) |

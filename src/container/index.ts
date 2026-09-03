@@ -3,6 +3,7 @@ import { JwtEmisorToken } from '../adapter/seguridad/impl/JwtEmisorToken.js';
 import type { ConfiguracionApp } from '../config/ConfiguracionApp.js';
 import { UsuarioDAOSequelize } from '../dao/impl/sequelize/UsuarioDAOSequelize.js';
 import { ConexionPostgresFactory } from '../datasource/impl/ConexionPostgresFactory.js';
+import type { EstadoServicio } from '../util/EstadoServicio.js';
 import type { Logger } from '../util/logger.js';
 import type { Contenedor } from './Contenedor.js';
 import { construirFavoritoAlerta } from './favoritoAlerta.js';
@@ -39,12 +40,13 @@ export function ensamblar(dependencias: DependenciasInfraestructura): Contenedor
 }
 
 /** Production composition: connects to PostgreSQL (fails fast when unreachable) and wires the real adapters. */
-export async function crearContenedor(cfg: ConfiguracionApp, logger: Logger): Promise<Contenedor> {
+export async function crearContenedor(cfg: ConfiguracionApp, logger: Logger, estado?: EstadoServicio): Promise<Contenedor> {
   const conexion = await new ConexionPostgresFactory(cfg.bd, logger).conectar();
   return ensamblar({
     cfg,
     logger,
     conexion,
+    estado,
     usuarioDAO: new UsuarioDAOSequelize(),
     hasher: new BcryptHasher(cfg.seguridad.bcryptCosto),
     emisorToken: new JwtEmisorToken(cfg.seguridad),
