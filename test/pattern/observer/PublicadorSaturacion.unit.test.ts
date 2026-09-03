@@ -92,4 +92,39 @@ describe('PublicadorSaturacion', () => {
     await new PublicadorSaturacion(logger).notificar(evento);
     expect(lineas.filter((l) => l.level === 50)).toEqual([]);
   });
+
+  it('suscribir el mismo observador dos veces lo entrega una sola vez', async () => {
+    const publicador = new PublicadorSaturacion(crearLoggerEspia().logger);
+    const unico = observador('unico');
+    publicador.suscribir(unico);
+    publicador.suscribir(unico);
+    await publicador.notificar(evento);
+    expect(unico.recibidos).toEqual([evento]);
+  });
+
+  it('un suscriptor que suscribe a otro durante la notificacion no altera la ronda en curso', async () => {
+    const publicador = new PublicadorSaturacion(crearLoggerEspia().logger);
+    const tardio = observador('tardio');
+    const sembrador = observador('sembrador', () => publicador.suscribir(tardio));
+    publicador.suscribir(sembrador);
+    await publicador.notificar(evento);
+    expect(tardio.recibidos).toEqual([]);
+    await publicador.notificar(evento);
+    expect(tardio.recibidos).toEqual([evento]);
+  });
+
+  it('espera a cada suscriptor antes de llamar al siguiente (un suscriptor lento retiene a los demas)', async () => {
+    const orden: string[] = [];
+    const publicador = new PublicadorSaturacion(crearLoggerEspia().logger);
+    publicador.suscribir(
+      observador('lento', async () => {
+        orden.push('lento:inicio');
+        await new Promise((resolver) => setTimeout(resolver, 20));
+        orden.push('lento:fin');
+      }),
+    );
+    publicador.suscribir(observador('rapido', () => void orden.push('rapido')));
+    await publicador.notificar(evento);
+    expect(orden).toEqual(['lento:inicio', 'lento:fin', 'rapido']);
+  });
 });
