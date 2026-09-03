@@ -69,12 +69,14 @@ export interface ReporteDAO {
     motivo: MotivoSinPuntos | null,
     tx?: ContextoTx,
   ): Promise<ReporteSaturacion | null>;
+  /** Newest first (SQL: `ORDER BY fecha_hora DESC, id DESC`). */
   listarPorUsuario(usuarioId: number, paginacion: Paginacion, tx?: ContextoTx): Promise<Pagina<ReporteSaturacion>>;
   actualizarEstado(id: number, estado: EstadoReporte, tx?: ContextoTx): Promise<ReporteSaturacion | null>;
   /** 0..100; null return when the report does not exist (M5). */
   actualizarConfiabilidad(id: number, nivel: number, tx?: ContextoTx): Promise<ReporteSaturacion | null>;
   /** Buckets by (day, hour) in the query zone, ordered by day then hour; empty buckets are omitted. */
   agregarPorHora(consulta: ConsultaAgregada, tx?: ContextoTx): Promise<AgregadoHora[]>;
+  /** Newest first (SQL: `ORDER BY fecha_hora DESC, id DESC`). */
   listarPendientesDeValidar(
     filtro: FiltroPendientes,
     paginacion: Paginacion,

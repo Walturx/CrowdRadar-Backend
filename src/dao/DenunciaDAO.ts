@@ -33,7 +33,8 @@ export interface ResumenMotivo {
 export interface DenunciaDAO {
   crear(datos: NuevaDenuncia, tx?: ContextoTx): Promise<Denuncia>;
   existe(usuarioId: number, reporteId: number, tx?: ContextoTx): Promise<boolean>;
-  /** Reports with PENDIENTE complaints: most pending first, then most recent complaint first. */
+  /** Reports with PENDIENTE complaints: most pending first, then most recent complaint first, then `reporteId` DESC
+   * (SQL: `ORDER BY pendientes DESC, ultima_denuncia_en DESC, reporte_id DESC`). */
   listarReportesConPendientes(paginacion: Paginacion, tx?: ContextoTx): Promise<Pagina<ReporteDenunciado>>;
   /** PENDIENTE complaints of the report grouped by reason. */
   resumirMotivos(reporteId: number, tx?: ContextoTx): Promise<ResumenMotivo[]>;

@@ -2,4 +2,7 @@ import { DispositivoDAOMemoria } from '../support/dao/memoria/DispositivoDAOMemo
 import { crearSembradorMemoria } from '../support/dao/memoria/SembradorMemoria.js';
 import { contratoDispositivoDAO } from './DispositivoDAO.contract.js';
 
-contratoDispositivoDAO('memoria', async () => ({ dao: new DispositivoDAOMemoria(), sembrador: crearSembradorMemoria() }));
+contratoDispositivoDAO('memoria', async () => {
+  const sembrador = crearSembradorMemoria();
+  return { dao: new DispositivoDAOMemoria({ sembrador }), sembrador };
+});

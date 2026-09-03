@@ -1,7 +1,9 @@
 /** Shared contract for AlertaDAO (M3). Spec M3 R5, R6: caller-scoped list, unread count, idempotent mark-as-read. */
 import { beforeEach, describe, expect, it } from 'vitest';
+import { ForeignKeyConstraintError } from 'sequelize';
 import type { AlertaDAO } from '../../src/dao/AlertaDAO.js';
-import type { Sembrador } from './Sembrador.js';
+import { casosPaginacion } from './paginacion.contract.js';
+import { ID_INEXISTENTE, type Sembrador } from './Sembrador.js';
 
 export interface EntornoAlertaDAO {
   dao: AlertaDAO;
@@ -80,6 +82,30 @@ export function contratoAlertaDAO(nombre: string, crearEntorno: () => Promise<En
       expect(await dao.contarNoLeidas(usuarioId)).toBe(2);
       await dao.marcarLeida(a.id, usuarioId);
       expect(await dao.contarNoLeidas(usuarioId)).toBe(1);
+    });
+
+    it('crear con favorito, usuario o lugar inexistente lanza ForeignKeyConstraintError', async () => {
+      const favoritoId = await sembrador.favorito(usuarioId, lugarId);
+      const base = {
+        favoritoId,
+        usuarioId,
+        lugarId,
+        nivelAnterior: null,
+        nivelNuevo: 'SATURADO' as const,
+        mensaje: 'x',
+        fechaHora: T0,
+      };
+      await expect(dao.crear({ ...base, favoritoId: ID_INEXISTENTE })).rejects.toBeInstanceOf(ForeignKeyConstraintError);
+      await expect(dao.crear({ ...base, usuarioId: ID_INEXISTENTE })).rejects.toBeInstanceOf(ForeignKeyConstraintError);
+      await expect(dao.crear({ ...base, lugarId: ID_INEXISTENTE })).rejects.toBeInstanceOf(ForeignKeyConstraintError);
+      expect(await dao.contarNoLeidas(usuarioId)).toBe(0);
+    });
+
+    casosPaginacion('listarPorUsuario', async () => {
+      await alertar(T0);
+      await alertar(T0);
+      await alertar(T0);
+      return (paginacion) => dao.listarPorUsuario(usuarioId, paginacion);
     });
   });
 }

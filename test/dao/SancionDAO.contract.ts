@@ -1,7 +1,8 @@
 /** Shared contract for SancionDAO (M6). Design 3, 4.7: the active sanction is the source of truth. */
 import { beforeEach, describe, expect, it } from 'vitest';
+import { ForeignKeyConstraintError } from 'sequelize';
 import type { SancionDAO } from '../../src/dao/SancionDAO.js';
-import type { Sembrador } from './Sembrador.js';
+import { ID_INEXISTENTE, type Sembrador } from './Sembrador.js';
 
 export interface EntornoSancionDAO {
   dao: SancionDAO;
@@ -59,6 +60,10 @@ export function contratoSancionDAO(nombre: string, crearEntorno: () => Promise<E
       expect(levantada).toMatchObject({ fechaLevantamiento: dias(1), levantadaPor: adminId });
       expect(await dao.buscarVigente(usuarioId, dias(2))).toBeNull();
       expect(await dao.levantar(sancion.id + 1000, adminId, dias(1))).toBeNull();
+    });
+
+    it('crear para un usuario inexistente lanza ForeignKeyConstraintError', async () => {
+      await expect(sancionar(3, { usuarioId: ID_INEXISTENTE })).rejects.toBeInstanceOf(ForeignKeyConstraintError);
     });
   });
 }

@@ -4,5 +4,5 @@ import { contratoDenunciaDAO } from './DenunciaDAO.contract.js';
 
 contratoDenunciaDAO('memoria', async () => {
   const sembrador = crearSembradorMemoria();
-  return { dao: new DenunciaDAOMemoria((reporteId) => sembrador.autorDe(reporteId)), sembrador };
+  return { dao: new DenunciaDAOMemoria({ sembrador }), sembrador };
 });

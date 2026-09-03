@@ -3,30 +3,38 @@ import { armarPagina, desplazamiento, type Pagina, type Paginacion } from '../..
 import type { Denuncia } from '../../../../src/entity/Denuncia.js';
 import { EstadoDenuncia } from '../../../../src/enum/EstadoDenuncia.js';
 import { ConflictoException } from '../../../../src/exception/http/ConflictoException.js';
+import { relojSistema, type Reloj } from '../../../../src/util/Reloj.js';
+import { copia, sellosNuevos, type OpcionesMemoria } from './comun.js';
 
-/**
- * In-memory DenunciaDAO for tests; behaves like the Sequelize one (shared contract test).
- * `autorDe` resolves the author of a report, which the real DAO obtains with a join.
- */
+export interface OpcionesDenunciaMemoria extends OpcionesMemoria {
+  /** Resolves the author of a report, which the real DAO obtains with a join (defaults to `sembrador.autorDe`). */
+  autorDe?: (reporteId: number) => number | undefined;
+}
+
+/** In-memory DenunciaDAO for tests; behaves like the Sequelize one (shared contract test). */
 export class DenunciaDAOMemoria implements DenunciaDAO {
   private readonly filas: Denuncia[] = [];
+  private siguienteId = 1;
+  private readonly reloj: Reloj;
+  private readonly autorDe: (reporteId: number) => number | undefined;
 
-  constructor(private readonly autorDe: (reporteId: number) => number | undefined = () => undefined) {}
+  constructor(opciones: OpcionesDenunciaMemoria = {}) {
+    this.reloj = opciones.reloj ?? relojSistema;
+    this.autorDe = opciones.autorDe ?? ((reporteId) => opciones.sembrador?.autorDe(reporteId));
+  }
 
   async crear(datos: NuevaDenuncia): Promise<Denuncia> {
     if (await this.existe(datos.usuarioId, datos.reporteId)) throw new ConflictoException();
-    const ahora = new Date();
-    const denuncia: Denuncia = {
+    const denuncia: Denuncia = copia({
       ...datos,
-      id: this.filas.length + 1,
+      id: this.siguienteId++,
       estado: EstadoDenuncia.PENDIENTE,
       resueltaPor: null,
       resueltaEn: null,
-      createdAt: ahora,
-      updatedAt: ahora,
-    };
+      ...sellosNuevos(this.reloj),
+    });
     this.filas.push(denuncia);
-    return denuncia;
+    return copia(denuncia);
   }
 
   async existe(usuarioId: number, reporteId: number): Promise<boolean> {
@@ -44,10 +52,13 @@ export class DenunciaDAOMemoria implements DenunciaDAO {
       });
     }
     const ordenados = [...porReporte.values()].sort(
-      (a, b) => b.pendientes - a.pendientes || b.ultimaDenunciaEn.getTime() - a.ultimaDenunciaEn.getTime(),
+      (a, b) =>
+        b.pendientes - a.pendientes ||
+        b.ultimaDenunciaEn.getTime() - a.ultimaDenunciaEn.getTime() ||
+        b.reporteId - a.reporteId,
     );
     const desde = desplazamiento(paginacion);
-    return armarPagina(ordenados.slice(desde, desde + paginacion.size), ordenados.length, paginacion);
+    return armarPagina(copia(ordenados.slice(desde, desde + paginacion.size)), ordenados.length, paginacion);
   }
 
   async resumirMotivos(reporteId: number): Promise<ResumenMotivo[]> {
@@ -61,7 +72,7 @@ export class DenunciaDAOMemoria implements DenunciaDAO {
   async resolverPendientes(reporteId: number, estado: EstadoDenuncia, resueltaPor: number, resueltaEn: Date) {
     const objetivo = this.pendientes().filter((d) => d.reporteId === reporteId);
     for (const d of objetivo) {
-      Object.assign(d, { estado, resueltaPor, resueltaEn, updatedAt: new Date() });
+      Object.assign(d, { estado, resueltaPor, resueltaEn: new Date(resueltaEn), updatedAt: this.reloj.ahora() });
     }
     return objetivo.length;
   }

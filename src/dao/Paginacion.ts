@@ -4,7 +4,14 @@ export interface Paginacion {
   size: number;
 }
 
-/** Page of results, the `data` shape of every paginated endpoint. */
+/**
+ * Page of results, the `data` shape of every paginated endpoint.
+ *
+ * Ordering rule for every paginated DAO method: the documented sort key and then `id` as the last tie-break
+ * (SQL implementations must `ORDER BY <key>, id`, e.g. `fecha_hora DESC, id DESC`), otherwise rows that tie on
+ * the key can repeat or vanish between pages. A page past the end is an empty `items` with the real `total`.
+ * The shared check is `test/dao/paginacion.contract.ts`.
+ */
 export interface Pagina<T> {
   items: T[];
   page: number;

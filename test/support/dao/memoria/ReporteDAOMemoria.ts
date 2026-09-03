@@ -11,6 +11,9 @@ import { EstadoReporte } from '../../../../src/enum/EstadoReporte.js';
 import { FiltroDias } from '../../../../src/enum/FiltroDias.js';
 import type { MotivoSinPuntos } from '../../../../src/enum/MotivoSinPuntos.js';
 import { NivelSaturacion } from '../../../../src/enum/NivelSaturacion.js';
+import { relojSistema, type Reloj } from '../../../../src/util/Reloj.js';
+import { copia, exigirReferencia, sellosNuevos, type OpcionesMemoria } from './comun.js';
+import type { SembradorMemoria } from './SembradorMemoria.js';
 
 const VALOR: Record<NivelSaturacion, number> = { TRANQUILO: 1, MODERADO: 2, SATURADO: 3 };
 const masNuevoPrimero = (a: ReporteSaturacion, b: ReporteSaturacion) =>
@@ -42,16 +45,24 @@ function enZona(fecha: Date, zona: string): { dia: string; hora: number; finDeSe
 export class ReporteDAOMemoria implements ReporteDAO {
   private readonly filas = new Map<number, ReporteSaturacion>();
   private siguienteId = 1;
+  private readonly reloj: Reloj;
+  private readonly sembrador?: SembradorMemoria;
+
+  constructor(opciones: OpcionesMemoria = {}) {
+    this.reloj = opciones.reloj ?? relojSistema;
+    this.sembrador = opciones.sembrador;
+  }
 
   /** Seeds a ready-made entity (tests that need specific ids or states). */
   agregar(reporte: ReporteSaturacion): ReporteSaturacion {
-    this.filas.set(reporte.id, reporte);
+    this.filas.set(reporte.id, copia(reporte));
     this.siguienteId = Math.max(this.siguienteId, reporte.id + 1);
-    return reporte;
+    return copia(reporte);
   }
 
   async crear(datos: NuevoReporte): Promise<ReporteSaturacion> {
-    const ahora = new Date();
+    exigirReferencia(this.sembrador, 'usuario', 'usuario_id', datos.usuarioId, 'reporte_saturacion');
+    exigirReferencia(this.sembrador, 'lugar', 'lugar_id', datos.lugarId, 'reporte_saturacion');
     return this.agregar({
       ...datos,
       id: this.siguienteId,
@@ -59,27 +70,28 @@ export class ReporteDAOMemoria implements ReporteDAO {
       estado: EstadoReporte.ACTIVO,
       puntosOtorgados: 0,
       motivoSinPuntos: null,
-      createdAt: ahora,
-      updatedAt: ahora,
+      ...sellosNuevos(this.reloj),
     });
   }
 
   async buscarPorId(id: number): Promise<ReporteSaturacion | null> {
-    return this.filas.get(id) ?? null;
+    const reporte = this.filas.get(id);
+    return reporte ? copia(reporte) : null;
   }
 
   async buscarUltimoDeUsuarioEnLugar(usuarioId: number, lugarId: number): Promise<ReporteSaturacion | null> {
-    return (
-      this.todos()
-        .filter((r) => r.usuarioId === usuarioId && r.lugarId === lugarId)
-        .sort(masNuevoPrimero)[0] ?? null
-    );
+    const ultimo = this.todos()
+      .filter((r) => r.usuarioId === usuarioId && r.lugarId === lugarId)
+      .sort(masNuevoPrimero)[0];
+    return ultimo ? copia(ultimo) : null;
   }
 
   async listarRecientesPorLugar(lugarId: number, desde: Date): Promise<ReporteSaturacion[]> {
-    return this.todos()
-      .filter((r) => r.lugarId === lugarId && r.fechaHora >= desde)
-      .sort(masNuevoPrimero);
+    return copia(
+      this.todos()
+        .filter((r) => r.lugarId === lugarId && r.fechaHora >= desde)
+        .sort(masNuevoPrimero),
+    );
   }
 
   async contarPorLugarDesde(lugarId: number, desde: Date): Promise<number> {
@@ -147,14 +159,14 @@ export class ReporteDAOMemoria implements ReporteDAO {
   private paginar(filas: ReporteSaturacion[], paginacion: Paginacion): Pagina<ReporteSaturacion> {
     const ordenadas = filas.sort(masNuevoPrimero);
     const desde = desplazamiento(paginacion);
-    return armarPagina(ordenadas.slice(desde, desde + paginacion.size), ordenadas.length, paginacion);
+    return armarPagina(copia(ordenadas.slice(desde, desde + paginacion.size)), ordenadas.length, paginacion);
   }
 
   private async modificar(id: number, cambios: Partial<ReporteSaturacion>): Promise<ReporteSaturacion | null> {
     const actual = this.filas.get(id);
     if (!actual) return null;
-    const nuevo = { ...actual, ...cambios, updatedAt: new Date() };
+    const nuevo = { ...actual, ...cambios, updatedAt: this.reloj.ahora() };
     this.filas.set(id, nuevo);
-    return nuevo;
+    return copia(nuevo);
   }
 }

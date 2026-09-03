@@ -18,7 +18,7 @@ export interface NuevaAlerta {
 export interface AlertaDAO {
   /** Inserts an unread alert. */
   crear(datos: NuevaAlerta, tx?: ContextoTx): Promise<Alerta>;
-  /** Alerts of the user, newest first. */
+  /** Alerts of the user, newest first (SQL: `ORDER BY fecha_hora DESC, id DESC`). */
   listarPorUsuario(usuarioId: number, paginacion: Paginacion, tx?: ContextoTx): Promise<Pagina<Alerta>>;
   /** Idempotent; null when the alert does not exist or belongs to someone else. */
   marcarLeida(id: number, usuarioId: number, tx?: ContextoTx): Promise<Alerta | null>;

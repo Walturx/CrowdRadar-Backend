@@ -10,6 +10,8 @@ import type { Usuario } from '../../../../src/entity/Usuario.js';
 import { EstadoCuenta } from '../../../../src/enum/EstadoCuenta.js';
 import { Rol } from '../../../../src/enum/Rol.js';
 import { EmailYaRegistradoException } from '../../../../src/exception/usuario/EmailYaRegistradoException.js';
+import { relojSistema, type Reloj } from '../../../../src/util/Reloj.js';
+import { copia, sellosNuevos, type OpcionesMemoria } from './comun.js';
 
 const comparadores: Record<OrdenUsuarios, (a: Usuario, b: Usuario) => number> = {
   RECIENTES: (a, b) => b.createdAt.getTime() - a.createdAt.getTime() || b.id - a.id,
@@ -21,14 +23,19 @@ const comparadores: Record<OrdenUsuarios, (a: Usuario, b: Usuario) => number> = 
 export class UsuarioDAOMemoria implements UsuarioDAO {
   private readonly filas = new Map<number, Usuario>();
   private siguienteId = 1;
+  private readonly reloj: Reloj;
   /** Error to throw from every call, to simulate a database outage. */
   fallo?: Error;
 
+  constructor(opciones: OpcionesMemoria = {}) {
+    this.reloj = opciones.reloj ?? relojSistema;
+  }
+
   /** Seeds a ready-made entity (tests that need a specific id, role or status). */
   agregar(usuario: Usuario): Usuario {
-    this.filas.set(usuario.id, usuario);
+    this.filas.set(usuario.id, copia(usuario));
     this.siguienteId = Math.max(this.siguienteId, usuario.id + 1);
-    return usuario;
+    return copia(usuario);
   }
 
   private verificarFallo(): void {
@@ -37,21 +44,22 @@ export class UsuarioDAOMemoria implements UsuarioDAO {
 
   async buscarPorId(id: number): Promise<Usuario | null> {
     this.verificarFallo();
-    return this.filas.get(id) ?? null;
+    const usuario = this.filas.get(id);
+    return usuario ? copia(usuario) : null;
   }
 
   async buscarPorEmail(email: string): Promise<Usuario | null> {
     this.verificarFallo();
     const buscado = email.toLowerCase();
-    return [...this.filas.values()].find((u) => u.email === buscado) ?? null;
+    const usuario = [...this.filas.values()].find((u) => u.email === buscado);
+    return usuario ? copia(usuario) : null;
   }
 
   async crear(datos: NuevoUsuario): Promise<Usuario> {
     this.verificarFallo();
     const email = datos.email.toLowerCase();
     if ([...this.filas.values()].some((u) => u.email === email)) throw new EmailYaRegistradoException();
-    const ahora = new Date();
-    const usuario: Usuario = {
+    const usuario: Usuario = copia({
       ...datos,
       email,
       id: this.siguienteId++,
@@ -59,11 +67,10 @@ export class UsuarioDAOMemoria implements UsuarioDAO {
       status: EstadoCuenta.ACTIVO,
       puntosKarma: 0,
       passwordCambiadaEn: null,
-      createdAt: ahora,
-      updatedAt: ahora,
-    };
+      ...sellosNuevos(this.reloj),
+    });
     this.filas.set(usuario.id, usuario);
-    return usuario;
+    return copia(usuario);
   }
 
   async actualizarPerfil(id: number, datos: DatosPerfil): Promise<Usuario | null> {
@@ -71,7 +78,7 @@ export class UsuarioDAOMemoria implements UsuarioDAO {
   }
 
   async actualizarPasswordHash(id: number, passwordHash: string): Promise<boolean> {
-    return (await this.modificar(id, { passwordHash, passwordCambiadaEn: new Date() })) !== null;
+    return (await this.modificar(id, { passwordHash, passwordCambiadaEn: this.reloj.ahora() })) !== null;
   }
 
   async actualizarStatus(id: number, status: EstadoCuenta): Promise<Usuario | null> {
@@ -94,7 +101,7 @@ export class UsuarioDAOMemoria implements UsuarioDAO {
       .filter((u) => !q || [u.nombre, u.apellido, u.email].some((campo) => campo.toLowerCase().includes(q)))
       .sort(comparadores[filtro.orden ?? 'RECIENTES']);
     const desde = desplazamiento(paginacion);
-    return armarPagina(coincidentes.slice(desde, desde + paginacion.size), coincidentes.length, paginacion);
+    return armarPagina(copia(coincidentes.slice(desde, desde + paginacion.size)), coincidentes.length, paginacion);
   }
 
   private async modificar(id: number, cambios: Partial<Usuario>): Promise<Usuario | null> {
@@ -102,8 +109,8 @@ export class UsuarioDAOMemoria implements UsuarioDAO {
     const actual = this.filas.get(id);
     if (!actual) return null;
     const definidos = Object.fromEntries(Object.entries(cambios).filter(([, valor]) => valor !== undefined));
-    const nuevo = { ...actual, ...definidos, updatedAt: new Date() };
+    const nuevo = { ...actual, ...definidos, updatedAt: this.reloj.ahora() };
     this.filas.set(id, nuevo);
-    return nuevo;
+    return copia(nuevo);
   }
 }
