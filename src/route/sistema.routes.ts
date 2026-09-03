@@ -25,10 +25,19 @@ async function conLimite(sonda: Promise<void>, limiteMs: number): Promise<void> 
 /**
  * Public liveness routes, mounted at "/": the API banner and the readiness check. `/api/salud` answers
  * 503 APAGANDO once the shutdown started and otherwise probes the database with its own short limit,
- * so a saturated pool cannot make the probe hang until the pool's acquire timeout.
+ * so a saturated pool cannot make the probe hang until the pool's acquire timeout. Only one probe runs at a
+ * time (concurrent requests share its promise) and its query carries the same limit as a server-side
+ * `statement_timeout`, so a probe that lost the race neither piles up in the pool queue nor keeps running.
  */
 export function crearSistemaRouter(conexion: ConexionBD, estado: EstadoServicio, timeoutMs = TIMEOUT_SALUD_MS): Router {
   const router = Router();
+  let sondaEnCurso: Promise<void> | undefined;
+  const sondear = (): Promise<void> => {
+    sondaEnCurso ??= conexion.verificar(timeoutMs).finally(() => {
+      sondaEnCurso = undefined;
+    });
+    return sondaEnCurso;
+  };
 
   router.get('/', (_req, res) => {
     res.json({ message: 'CrowdRadar API' });
@@ -37,7 +46,7 @@ export function crearSistemaRouter(conexion: ConexionBD, estado: EstadoServicio,
   router.get('/api/salud', async (_req, res) => {
     if (estado.apagando) throw new ApagandoException();
     try {
-      await conLimite(conexion.verificar(), timeoutMs);
+      await conLimite(sondear(), timeoutMs);
     } catch {
       throw new ServicioNoDisponibleException();
     }

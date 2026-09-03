@@ -12,8 +12,17 @@ export class ConexionSequelize implements ConexionBD {
     return this.sequelize.transaction((tx: Transaction) => trabajo(tx as unknown as ContextoTx));
   }
 
-  async verificar(): Promise<void> {
-    await this.sequelize.authenticate();
+  async verificar(limiteMs?: number): Promise<void> {
+    if (limiteMs === undefined) {
+      await this.sequelize.authenticate();
+      return;
+    }
+    // SET LOCAL lives only inside this transaction, so the short timeout never leaks to other pool users.
+    const timeout = Math.max(1, Math.trunc(limiteMs));
+    await this.sequelize.transaction(async (tx) => {
+      await this.sequelize.query(`SET LOCAL statement_timeout = ${timeout}`, { transaction: tx });
+      await this.sequelize.query('SELECT 1', { transaction: tx });
+    });
   }
 
   async cerrar(): Promise<void> {

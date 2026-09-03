@@ -61,6 +61,7 @@ describe('ConexionSequelize', () => {
       sequelize: {
         transaction: vi.fn(async (trabajo: (t: unknown) => Promise<unknown>) => trabajo(tx)),
         authenticate: vi.fn(async () => undefined),
+        query: vi.fn<(sql: string, opciones?: unknown) => Promise<undefined>>(async () => undefined),
         close: vi.fn(async () => undefined),
       },
     };
@@ -90,6 +91,27 @@ describe('ConexionSequelize', () => {
 
     sequelize.authenticate.mockRejectedValueOnce(new Error('sin conexion'));
     await expect(conexion.verificar()).rejects.toThrow('sin conexion');
+  });
+
+  it('verificar con limite corre la sonda en una transaccion con statement_timeout local (el servidor la cancela)', async () => {
+    const { sequelize, tx } = crearSequelizeFalso();
+    const conexion = new ConexionSequelize(sequelize as unknown as Sequelize);
+
+    await conexion.verificar(1500);
+
+    expect(sequelize.authenticate).not.toHaveBeenCalled();
+    expect(sequelize.transaction).toHaveBeenCalledTimes(1);
+    expect(sequelize.query.mock.calls).toEqual([
+      ['SET LOCAL statement_timeout = 1500', { transaction: tx }],
+      ['SELECT 1', { transaction: tx }],
+    ]);
+  });
+
+  it('verificar con limite propaga el rechazo de la sonda', async () => {
+    const { sequelize } = crearSequelizeFalso();
+    sequelize.query.mockRejectedValueOnce(new Error('canceling statement due to statement timeout'));
+    const conexion = new ConexionSequelize(sequelize as unknown as Sequelize);
+    await expect(conexion.verificar(2000)).rejects.toThrow('statement timeout');
   });
 
   it('cerrar delega en close', async () => {

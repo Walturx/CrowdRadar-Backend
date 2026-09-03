@@ -6,12 +6,12 @@ import { crearAppPrueba } from '../support/appPrueba.js';
 
 const VENTANA = 15 * 60 * 1000;
 
-/** POST /login answers 200 when body.ok is true and 401 otherwise. */
+/** POST /login answers `body.status` when given, else 200 when body.ok is true and 401 otherwise. */
 const appCon = (opciones: Parameters<typeof limitarIntentos>[0]) =>
   crearAppPrueba({
     montar: (app) => {
       app.post('/login', limitarIntentos(opciones), (req, res) => {
-        res.status(req.body.ok ? 200 : 401).json({ ok: Boolean(req.body.ok) });
+        res.status(req.body.status ?? (req.body.ok ? 200 : 401)).json({ ok: Boolean(req.body.ok) });
       });
     },
   });
@@ -96,6 +96,34 @@ describe('limitarIntentos', () => {
       for (const email of ['a@x.pe', 'A@X.PE', ' a@x.pe ']) expect((await enviar(app, email)).status).toBe(401);
       expect((await enviar(app, 'a@X.pe')).status).toBe(429);
       expect((await enviar(app, 'b@x.pe', true)).status).toBe(200);
+    });
+
+    it('solo cuentan los fallos de autenticacion: 503 y 400 no avanzan el bloqueo, 401 y 404 si (R3-512b)', async () => {
+      const app = appBloqueo();
+      const con = (status: number) => request(app).post('/login').send({ email: 'a@x.pe', status });
+      for (let i = 0; i < 5; i += 1) expect((await con(503)).status).toBe(503);
+      for (let i = 0; i < 5; i += 1) expect((await con(400)).status).toBe(400);
+      expect((await con(401)).status).toBe(401);
+      expect((await con(404)).status).toBe(404);
+      expect((await con(401)).status).toBe(401);
+      expect((await con(503)).status).toBe(429);
+    });
+
+    describe('compromiso documentado: quien conoce el email puede bloquear a la victima durante la ventana', () => {
+      afterEach(() => vi.useRealTimers());
+
+      it('la victima con la password correcta recibe 429 hasta que vence la ventana', async () => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(new Date('2026-10-05T10:00:00Z'));
+        const app = appBloqueo();
+        for (const ip of ['1.1.1.1', '2.2.2.2', '3.3.3.3']) await enviar(app, 'victima@x.pe', false, ip);
+
+        expect((await enviar(app, 'victima@x.pe', true, '9.9.9.9')).status).toBe(429);
+        vi.setSystemTime(new Date('2026-10-05T10:14:00Z'));
+        expect((await enviar(app, 'victima@x.pe', true, '9.9.9.9')).status).toBe(429);
+        vi.setSystemTime(new Date('2026-10-05T10:15:01Z'));
+        expect((await enviar(app, 'victima@x.pe', true, '9.9.9.9')).status).toBe(200);
+      });
     });
 
     it('sin email en el cuerpo no se aplica el bloqueo (no se agrupa a todos los anonimos en una clave)', async () => {

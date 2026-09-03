@@ -58,6 +58,36 @@ describe('GET /api/salud', () => {
     }
   });
 
+  it('la sonda lleva el limite al servidor para que cancele la consulta (statement_timeout <= 2 s)', async () => {
+    const conexion = new ConexionFalsa();
+    await request(appCon(conexion)).get('/api/salud');
+    expect(conexion.ultimoLimiteMs).toBe(TIMEOUT_SALUD_MS);
+    await request(appCon(conexion, new EstadoServicio(), 750)).get('/api/salud');
+    expect(conexion.ultimoLimiteMs).toBe(750);
+  });
+
+  it('dos sondas concurrentes ejecutan una sola consulta; cuando termina, la siguiente sonda vuelve a consultar', async () => {
+    const conexion = new ConexionFalsa();
+    conexion.demoraVerificacionMs = 40;
+    const app = appCon(conexion);
+
+    const [a, b, c] = await Promise.all([1, 2, 3].map(() => request(app).get('/api/salud')));
+    expect([a.status, b.status, c.status]).toEqual([200, 200, 200]);
+    expect(conexion.verificaciones).toBe(1);
+
+    await request(app).get('/api/salud');
+    expect(conexion.verificaciones).toBe(2);
+  });
+
+  it('una sonda colgada se reutiliza hasta que termina: no se apilan consultas en el pool', async () => {
+    const conexion = new ConexionFalsa();
+    conexion.verificacionColgada = true;
+    const app = appCon(conexion, new EstadoServicio(), 30);
+    expect((await request(app).get('/api/salud')).status).toBe(503);
+    expect((await request(app).get('/api/salud')).status).toBe(503);
+    expect(conexion.verificaciones).toBe(1);
+  });
+
   it('503 SERVICIO_NO_DISPONIBLE si la base falla rapido', async () => {
     const res = await request(appCon(new ConexionFalsa(new Error('connect ECONNREFUSED')))).get('/api/salud');
     expect(res.status).toBe(503);
