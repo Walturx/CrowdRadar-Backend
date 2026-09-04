@@ -1,4 +1,5 @@
-import type { Bbox, ConteoCategoria, FiltroExploracion, FiltroLugares, LugarDAO } from '../../../../src/dao/LugarDAO.js';
+import type { ConteoCategoria, FiltroExploracion, FiltroLugares, LugarDAO } from '../../../../src/dao/LugarDAO.js';
+import type { Bbox } from '../../../../src/entity/Bbox.js';
 import type { Lugar } from '../../../../src/entity/Lugar.js';
 import { CategoriaLugar } from '../../../../src/enum/CategoriaLugar.js';
 import { NivelEfectivo, type NivelSaturacion } from '../../../../src/enum/NivelSaturacion.js';

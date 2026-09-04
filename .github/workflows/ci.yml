@@ -16,6 +16,7 @@ jobs:
   verificar:
     name: Lint, build and unit tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -30,6 +31,7 @@ jobs:
   base-de-datos:
     name: Database-backed tests
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:16-alpine
@@ -54,4 +56,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # test:db reruns the full suite on purpose: the database-backed cases live inside files that also hold
+      # database-free cases (describe.skipIf), so selecting files would need a second list to keep in sync and
+      # could silently drop a new contract. The extra ~5 s buys the guarantee that nothing is skipped.
       - run: npm run test:db

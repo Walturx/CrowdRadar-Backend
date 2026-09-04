@@ -31,7 +31,8 @@ export interface FiltroUsuarios {
 }
 
 /**
- * Pattern: DAO (port). Persistence contract for `usuario`; implementations live in
+ * Pattern: DAO (port). Owner: C0 (delivered); M1, M4 and M6 consume it through contract PRs.
+ * Persistence contract for `usuario`; implementations live in
  * dao/impl (Sequelize) and test/support (in-memory). Emails are stored and searched in
  * lowercase. `tx` is the opaque transaction handle of ConexionBD.transaccion.
  */

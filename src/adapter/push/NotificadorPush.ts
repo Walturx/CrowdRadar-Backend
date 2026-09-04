@@ -12,7 +12,7 @@ export interface ResultadoPush {
 }
 
 /**
- * Pattern: Adapter (port). Sends push notifications to device tokens (M3 favorite alerts).
+ * Pattern: Adapter (port). Owner: M3. Sends push notifications to device tokens (M3 favorite alerts).
  * Rejects when the provider is down; the observer publisher isolates that failure.
  * Implementations: ConsolaNotificadorAdapter.
  */

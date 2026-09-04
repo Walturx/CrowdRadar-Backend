@@ -1,15 +1,8 @@
 import type { ContextoTx } from '../datasource/ConexionBD.js';
+import type { Bbox } from '../entity/Bbox.js';
 import type { Lugar } from '../entity/Lugar.js';
 import type { CategoriaLugar } from '../enum/CategoriaLugar.js';
 import type { NivelEfectivo, NivelSaturacion } from '../enum/NivelSaturacion.js';
-
-/** Bounding box in decimal degrees; edges are inclusive. */
-export interface Bbox {
-  minLng: number;
-  minLat: number;
-  maxLng: number;
-  maxLat: number;
-}
 
 /** Map/search filter (M2). All given criteria combine with AND; results are ordered by nombre. */
 export interface FiltroLugares {

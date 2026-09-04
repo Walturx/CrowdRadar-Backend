@@ -1,3 +1,5 @@
+import type { TipoSancion } from '../enum/TipoSancion.js';
+
 /** Suspension lengths in days allowed by ck_sancion_dias (migration 06). */
 export const DIAS_SUSPENSION = [3, 7, 30] as const;
 
@@ -8,8 +10,8 @@ export interface SancionUsuario {
   id: number;
   usuarioId: number;
   administradorId: number;
-  tipo: 'SUSPENSION_TEMPORAL';
-  dias: number;
+  tipo: TipoSancion;
+  dias: DiasSuspension;
   motivo: string;
   fechaInicio: Date;
   fechaFin: Date;

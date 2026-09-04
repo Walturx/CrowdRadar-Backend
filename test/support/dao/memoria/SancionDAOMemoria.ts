@@ -1,4 +1,5 @@
 import type { NuevaSancion, SancionDAO } from '../../../../src/dao/SancionDAO.js';
+import { TipoSancion } from '../../../../src/enum/TipoSancion.js';
 import type { SancionUsuario } from '../../../../src/entity/SancionUsuario.js';
 import { relojSistema, type Reloj } from '../../../../src/util/Reloj.js';
 import { copia, exigirReferencia, sellosNuevos, type OpcionesMemoria } from './comun.js';
@@ -22,7 +23,7 @@ export class SancionDAOMemoria implements SancionDAO {
     const sancion: SancionUsuario = copia({
       ...datos,
       id: this.siguienteId++,
-      tipo: 'SUSPENSION_TEMPORAL',
+      tipo: TipoSancion.SUSPENSION_TEMPORAL,
       fechaLevantamiento: null,
       levantadaPor: null,
       ...sellosNuevos(this.reloj),

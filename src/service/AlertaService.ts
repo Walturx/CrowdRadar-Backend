@@ -8,6 +8,7 @@ import type { Pagina, Paginacion } from '../dao/Paginacion.js';
  * Throws AlertaNoEncontradaException (404) when the alert is not the caller's.
  */
 export interface AlertaService {
+  /** Alerts of the caller, newest first; with `soloNoLeidas` only the unread ones. */
   listar(usuarioId: number, paginacion: Paginacion, soloNoLeidas: boolean): Promise<Pagina<Alerta>>;
   marcarLeida(usuarioId: number, alertaId: number): Promise<Alerta>;
   /** Upsert by token: a token moves to the latest user that registers it. */

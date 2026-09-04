@@ -335,6 +335,9 @@ describe('API de cuentas (contenedor de prueba)', () => {
     });
 
     it('429 al superar LIMITE_PASSWORD por IP: cuentan todos los intentos, tambien los exitosos (R1-401, R3-408)', async () => {
+      // Pinned clock: the token (second resolution iat) must not straddle a second boundary under load (R1-402).
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-10-05T10:00:00Z'));
       preparar({ cfg: { LIMITE_PASSWORD: 2 } });
       token = (await registrar()).token;
       const cambiar = (actual: string, nueva: string) =>
@@ -345,6 +348,7 @@ describe('API de cuentas (contenedor de prueba)', () => {
       expect(res.status).toBe(429);
       expect(res.body.code).toBe('DEMASIADAS_SOLICITUDES');
       expect(Number(res.headers['retry-after'])).toBeGreaterThan(0);
+      vi.useRealTimers();
     });
 
     describe('invalidacion de tokens anteriores (R1-402)', () => {

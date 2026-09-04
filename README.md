@@ -81,10 +81,17 @@ to it. Use `npm run test:db` in CI so those tests can never be skipped silently.
 (`allowOnly: false`).
 
 CI (`.github/workflows/ci.yml`) runs `lint`, `build` and `npm test`, then `npm run test:db` against a Postgres 16
-service. Which interfaces each stream (M1 to M6) implements, and which files it owns, is in `docs/contratos-streams.md`.
+service; each job has a `timeout-minutes` limit, and `test:db` reruns the whole suite on purpose (the database cases
+share files with database-free ones, so no file list has to be kept in sync). Which interfaces each stream (M1 to M6) implements, and which files it owns, is in `docs/contratos-streams.md`.
 
 Tests follow strict TDD (red, green, refactor). `test/support` holds the in-memory DAOs, fakes and
-`crearContenedorPrueba`, which assembles the real composition root with fakes instead of a database.
+`crearContenedorPrueba`, which assembles the real composition root with fakes instead of a database. The in-memory
+DAOs return copies, use the injected `Reloj`, and enforce foreign keys when given a `crearSembradorMemoria()` registry.
+To run a DAO contract against a Sequelize implementation use `ejecutarContratoDAO` (`test/dao/`) and the template
+`test/dao/plantilla.sequelize.contract.test.ts.md`.
+
+Mappers own the DTO <-> entity translation; services take and return domain types, so streams must not duplicate
+service request shapes in `dto/` (it only holds the HTTP request and response shapes).
 
 ## Project layout
 
@@ -244,6 +251,11 @@ Test tooling only: `DATABASE_URL_TEST` (see Test).
 
 ## Production notes
 
+- **`/api/salud` is single-flight and bounded**: concurrent probes share one `SELECT 1` and the query carries a
+  server-side `statement_timeout` of 2 s (`SET LOCAL` inside its own transaction), so a saturated pool or a slow
+  database cannot pile up probes. A probe can still wait for a free pool connection (up to the pool acquire timeout)
+  but only one ever does. The per-email login lockout counts only authentication failures (401/404): validation
+  errors and outages (400/503) never lock an account.
 - **Behind a proxy or load balancer set `TRUST_PROXY`** to the number of hops (for example `1`). Left at `false`, every
   client shares the proxy's address and the per-IP rate limits throttle everybody together; `true` trusts any
   `X-Forwarded-For` and lets clients dodge the limits.

@@ -33,6 +33,24 @@ describe('.github/workflows/ci.yml', () => {
     expect(ci).toMatch(/run:\s*npm run test:db/);
   });
 
+  it('el servicio postgres espera hasta 10 reintentos de 5 s antes de dar el job por fallido (R3-513)', () => {
+    expect(ci).toMatch(/--health-retries 10/);
+    expect(ci).toMatch(/--health-interval 5s/);
+    expect(ci).toMatch(/--health-timeout 5s/);
+  });
+
+  it('cada job declara timeout-minutes para que un runner colgado no consuma minutos (R3-511)', () => {
+    const jobs = ci.split(/^jobs:\s*$/m)[1] ?? '';
+    const bloques = jobs.split(/^ {2}(?=[a-z][\w-]*:\s*$)/m).filter((b) => /runs-on:/.test(b));
+    expect(bloques).toHaveLength(2);
+    for (const bloque of bloques) expect(bloque).toMatch(/^ {4}timeout-minutes:\s*\d+/m);
+  });
+
+  it('explica por que test:db vuelve a correr toda la suite en vez de un subconjunto (R3-512)', () => {
+    expect(ci).toMatch(/#.*full suite/i);
+    expect(readFileSync(resolve(RAIZ, 'scripts/test-db.ts'), 'utf8')).toMatch(/whole suite/);
+  });
+
   it('no incrusta secretos reales: la contrasena del servicio es solo de CI y no hay JWT_SECRETO', () => {
     expect(ci).not.toMatch(/JWT_SECRETO/);
     expect(ci).not.toMatch(/ADMIN_PASSWORD/);
