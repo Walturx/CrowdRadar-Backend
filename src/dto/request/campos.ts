@@ -22,11 +22,8 @@ export const textoOpcional = (max: number) =>
 /** Email normalised before it is validated: trimmed, lowercase, at most 120 characters. */
 export const emailSchema = z.string().trim().toLowerCase().pipe(z.email().max(120));
 
-const maxBytes = (valor: string) => Buffer.byteLength(valor, 'utf8') <= MAX_BYTES_PASSWORD;
-const MENSAJE_BYTES = `La contraseña no puede superar ${MAX_BYTES_PASSWORD} bytes.`;
-
-/** Password being created or changed: 8 characters minimum, 72 bytes maximum (bcrypt limit). */
-export const passwordNuevaSchema = z.string().min(8).refine(maxBytes, MENSAJE_BYTES);
-
-/** Password being checked (login, current password): required, same upper bound. */
-export const passwordExistenteSchema = z.string().min(1).refine(maxBytes, MENSAJE_BYTES);
+/** Password being checked (login, current password): required, 72 bytes maximum. A NEW password uses passwordSeguraSchema. */
+export const passwordExistenteSchema = z
+  .string()
+  .min(1)
+  .refine((valor) => Buffer.byteLength(valor, 'utf8') <= MAX_BYTES_PASSWORD, `La contraseña no puede superar ${MAX_BYTES_PASSWORD} bytes.`);
