@@ -13,12 +13,15 @@ import type { Logger } from '../../src/util/logger.js';
 import type { Reloj } from '../../src/util/Reloj.js';
 import { ConexionFalsa } from './ConexionFalsa.js';
 import { crearLoggerSilencioso } from './LoggerSilencioso.js';
+import { CorreoEspia } from './adapter/CorreoEspia.js';
+import { GeneradorTokenFijo } from './adapter/GeneradorTokenFijo.js';
 import { NotificadorEspia } from './adapter/NotificadorEspia.js';
 import { AlertaDAOMemoria } from './dao/memoria/AlertaDAOMemoria.js';
 import { DispositivoDAOMemoria } from './dao/memoria/DispositivoDAOMemoria.js';
 import { FavoritoDAOMemoria } from './dao/memoria/FavoritoDAOMemoria.js';
 import { LugarDAOMemoria } from './dao/memoria/LugarDAOMemoria.js';
 import { ReporteDAOMemoria } from './dao/memoria/ReporteDAOMemoria.js';
+import { TokenRecuperacionDAOMemoria } from './dao/memoria/TokenRecuperacionDAOMemoria.js';
 import { UsuarioDAOMemoria } from './dao/memoria/UsuarioDAOMemoria.js';
 import { configPrueba, type SobrescritosEntorno } from './configPrueba.js';
 
@@ -34,6 +37,9 @@ export interface OpcionesContenedorPrueba {
   hasher?: Hasher;
   emisorToken?: EmisorToken;
   conexion?: ConexionFalsa;
+  /** Recovery stream (M1): in-memory token DAO, mail spy and a generator that hands out these tokens in order. */
+  tokenDAO?: TokenRecuperacionDAOMemoria;
+  tokensRecuperacion?: readonly string[];
   logger?: Logger;
   estado?: EstadoServicio;
   /** Subject shared by publishers and subscribers; a fresh publisher when omitted. Tests subscribe extra observers to it. */
@@ -55,6 +61,9 @@ export interface ContenedorPrueba {
   alertaDAO: AlertaDAOMemoria;
   dispositivoDAO: DispositivoDAOMemoria;
   notificador: NotificadorEspia;
+  /** M1 stream: the in-memory token DAO and the mail spy the container was built with. */
+  tokenDAO: TokenRecuperacionDAOMemoria;
+  correo: CorreoEspia;
 }
 
 /**
@@ -73,6 +82,8 @@ export function crearContenedorPrueba(opciones: OpcionesContenedorPrueba = {}): 
   const favoritoDAO = opciones.favoritoDAO ?? new FavoritoDAOMemoria({ alertas: alertaDAO });
   const dispositivoDAO = new DispositivoDAOMemoria();
   const notificador = new NotificadorEspia();
+  const tokenDAO = opciones.tokenDAO ?? new TokenRecuperacionDAOMemoria();
+  const correo = new CorreoEspia();
   const favoritoAlerta = {
     favoritoDAO,
     alertaDAO,
@@ -93,6 +104,7 @@ export function crearContenedorPrueba(opciones: OpcionesContenedorPrueba = {}): 
       reporteDAO,
       hasher,
       emisorToken,
+      seguridad: { tokenDAO, correo, generador: new GeneradorTokenFijo(opciones.tokensRecuperacion ?? ['token-recuperacion-1', 'token-recuperacion-2', 'token-recuperacion-3', 'token-recuperacion-4']) },
     },
     { favoritoAlerta },
   );
@@ -110,5 +122,7 @@ export function crearContenedorPrueba(opciones: OpcionesContenedorPrueba = {}): 
     alertaDAO,
     dispositivoDAO,
     notificador,
+    tokenDAO,
+    correo,
   };
 }

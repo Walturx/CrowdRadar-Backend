@@ -1,5 +1,15 @@
+import type { EnviadorCorreo } from '../adapter/correo/EnviadorCorreo.js';
+import { ConsolaCorreoAdapter } from '../adapter/correo/impl/ConsolaCorreoAdapter.js';
+import type { GeneradorToken } from '../adapter/seguridad/GeneradorToken.js';
+import { CryptoGeneradorTokenAdapter } from '../adapter/seguridad/impl/CryptoGeneradorTokenAdapter.js';
+import type { ConfiguracionApp } from '../config/ConfiguracionApp.js';
 import { AuthController } from '../controller/AuthController.js';
 import { UsuarioController } from '../controller/UsuarioController.js';
+import type { TokenRecuperacionDAO } from '../dao/TokenRecuperacionDAO.js';
+import { TokenRecuperacionDAOSequelize } from '../dao/impl/sequelize/TokenRecuperacionDAOSequelize.js';
+import { RecuperacionFacadeImpl } from '../facade/impl/RecuperacionFacadeImpl.js';
+import type { RecuperacionFacade } from '../facade/RecuperacionFacade.js';
+import type { Logger } from '../util/logger.js';
 import { limitarIntentos } from '../middleware/limitarIntentos.js';
 import { crearAuthRouter } from '../route/auth.routes.js';
 import { crearRecuperacionRouter } from '../route/recuperacion.routes.js';
@@ -8,6 +18,40 @@ import { AuthServiceImpl } from '../service/impl/AuthServiceImpl.js';
 import { UsuarioServiceImpl } from '../service/impl/UsuarioServiceImpl.js';
 import type { MontajeRuta } from './Contenedor.js';
 import type { Infraestructura } from './infraestructura.js';
+
+/** Ports of the password recovery stream (M1); tests replace any of them (`infra.seguridad`). */
+export interface DependenciasSeguridad {
+  tokenDAO: TokenRecuperacionDAO;
+  generador: GeneradorToken;
+  correo: EnviadorCorreo;
+}
+
+/**
+ * Mail provider named by CORREO_PROVEEDOR: the console adapter by default. `smtp` is configuration-valid but its
+ * adapter (Nodemailer, optional slice BE-05) is not delivered yet: failing at assembly is better than a silent
+ * fallback that would "send" recovery links to the console in an environment that expects real mail.
+ */
+export function crearEnviadorCorreo({ proveedor }: ConfiguracionApp['correo'], logger: Logger): EnviadorCorreo {
+  if (proveedor === 'smtp') throw new Error('CORREO_PROVEEDOR=smtp no está disponible todavía: falta NodemailerCorreoAdapter. Usa CORREO_PROVEEDOR=consola.');
+  return new ConsolaCorreoAdapter(logger);
+}
+
+/** RecuperacionFacade over the injected ports and, for the rest, the production ones (Sequelize DAO, crypto generator, mail provider). */
+export function crearRecuperacionFacade({ cfg, logger, conexion, reloj, usuarioDAO, hasher, seguridad = {} }: Infraestructura): RecuperacionFacade {
+  return new RecuperacionFacadeImpl({
+    usuarioDAO,
+    hasher,
+    conexion,
+    reloj,
+    logger,
+    tokenDAO: seguridad.tokenDAO ?? new TokenRecuperacionDAOSequelize(),
+    generador: seguridad.generador ?? new CryptoGeneradorTokenAdapter(),
+    correo: seguridad.correo ?? crearEnviadorCorreo(cfg.correo, logger),
+    expiraMin: cfg.reglas.recuperacionExpiraMin,
+    urlPublica: cfg.servidor.urlPublica,
+    politicaMensajes: cfg.seguridad.politicaMensajesAuth,
+  });
+}
 
 /**
  * Account stream: register/login, own profile and password, and the password recovery stubs (M1).
