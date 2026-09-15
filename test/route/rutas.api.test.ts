@@ -36,7 +36,14 @@ describe('tabla de rutas congelada', () => {
   });
 
   describe.each(TABLA_RUTAS)('$metodo $ruta ($acceso)', (fila) => {
-    if (fila.acceso === 'publica') {
+    if (fila.acceso === 'publica' && fila.entregada) {
+      it('sin token ya no responde 501 ni RUTA_NO_ENCONTRADA: lo atiende su controlador', async () => {
+        const res = await llamar(fila);
+        expect(res.status).not.toBe(501);
+        expect(res.body.code).not.toBe('NO_IMPLEMENTADO');
+        expect(res.body.code).not.toBe('RUTA_NO_ENCONTRADA');
+      });
+    } else if (fila.acceso === 'publica') {
       it('sin token responde 501 NO_IMPLEMENTADO del handler correcto', async () => {
         esNoImplementado(await llamar(fila), fila);
       });
