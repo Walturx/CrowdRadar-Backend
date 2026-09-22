@@ -15,6 +15,7 @@ import { EstadoServicio } from '../util/EstadoServicio.js';
 import type { Logger } from '../util/logger.js';
 import { relojSistema, type Reloj } from '../util/Reloj.js';
 import type { MontajeRuta } from './Contenedor.js';
+import type { DependenciasLugar } from './lugar.js';
 
 /** Ports every stream builder may use. Streams add their own DAOs in their builder, never here. */
 export interface DependenciasInfraestructura {
@@ -24,6 +25,8 @@ export interface DependenciasInfraestructura {
   usuarioDAO: UsuarioDAO;
   hasher: Hasher;
   emisorToken: EmisorToken;
+  /** Places-stream ports to replace (tests); omitted ones are built by `container/lugar.ts`. */
+  lugar?: Partial<DependenciasLugar>;
   /** Readiness flag shared with the shutdown; a fresh one when omitted (tests). */
   estado?: EstadoServicio;
 }
