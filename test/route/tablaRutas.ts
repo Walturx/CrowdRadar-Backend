@@ -11,10 +11,18 @@ export interface FilaRuta {
   ruta: string;
   acceso: Acceso;
   nombre: string;
+  /** True once the owning stream replaced the 501 stub with a real handler (the route no longer answers 501). */
+  entregada?: boolean;
 }
 
 const publica = (metodo: Metodo, ruta: string, nombre: string): FilaRuta => ({ metodo, ruta, acceso: 'publica', nombre });
-const auth = (metodo: Metodo, ruta: string, nombre: string): FilaRuta => ({ metodo, ruta, acceso: 'auth', nombre });
+const auth = (metodo: Metodo, ruta: string, nombre: string, entregada = false): FilaRuta => ({
+  metodo,
+  ruta,
+  acceso: 'auth',
+  nombre,
+  ...(entregada ? { entregada } : {}),
+});
 const admin = (metodo: Metodo, ruta: string, nombre: string): FilaRuta => ({ metodo, ruta, acceso: 'admin', nombre });
 
 export const TABLA_RUTAS: readonly FilaRuta[] = [
@@ -24,10 +32,10 @@ export const TABLA_RUTAS: readonly FilaRuta[] = [
   publica('post', '/api/auth/restablecer', 'recuperacion.restablecer'),
   publica('get', '/recuperar/restablecer', 'recuperacion.mostrarPagina'),
   // lugar (M2) and exploracion (M3): explorar and categorias BEFORE /:id
-  auth('get', '/api/lugares', 'lugar.buscar'),
+  auth('get', '/api/lugares', 'lugar.buscar', true),
   auth('get', '/api/lugares/explorar', 'exploracion.explorar'),
   auth('get', '/api/lugares/categorias', 'exploracion.listarCategorias'),
-  auth('get', '/api/lugares/12', 'lugar.obtenerDetalle'),
+  auth('get', '/api/lugares/12', 'lugar.obtenerDetalle', true),
   // analitica (M4)
   auth('get', '/api/lugares/12/historial', 'analitica.obtenerHistorial'),
   auth('get', '/api/lugares/12/comparar', 'analitica.compararPeriodos'),

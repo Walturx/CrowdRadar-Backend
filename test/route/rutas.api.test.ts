@@ -48,9 +48,18 @@ describe('tabla de rutas congelada', () => {
       });
     }
 
-    if (fila.acceso === 'auth') {
+    if (fila.acceso === 'auth' && !fila.entregada) {
       it('con token de USUARIO llega al 501 del handler correcto', async () => {
         esNoImplementado(await llamar(fila, TOKEN_USUARIO), fila);
+      });
+    }
+
+    if (fila.acceso === 'auth' && fila.entregada) {
+      it('con token de USUARIO ya no responde 501 ni RUTA_NO_ENCONTRADA: lo atiende su controlador', async () => {
+        const res = await llamar(fila, TOKEN_USUARIO);
+        expect(res.status).not.toBe(501);
+        expect(res.body.code).not.toBe('NO_IMPLEMENTADO');
+        expect(res.body.code).not.toBe('RUTA_NO_ENCONTRADA');
       });
     }
 
@@ -65,6 +74,13 @@ describe('tabla de rutas congelada', () => {
         esNoImplementado(await llamar(fila, TOKEN_ADMIN), fila);
       });
     }
+  });
+
+  it('M2 entregada: GET /api/lugares sin criterio es 400 y GET /api/lugares/:id desconocido es 404 LUGAR_NO_ENCONTRADO', async () => {
+    const sinCriterio = await request(app).get('/api/lugares').set('Authorization', TOKEN_USUARIO);
+    expect([sinCriterio.status, sinCriterio.body.code]).toEqual([400, 'VALIDACION_FALLIDA']);
+    const desconocido = await request(app).get('/api/lugares/12').set('Authorization', TOKEN_USUARIO);
+    expect([desconocido.status, desconocido.body.code]).toEqual([404, 'LUGAR_NO_ENCONTRADO']);
   });
 
   it('un token invalido en una ruta stub protegida responde 401 TOKEN_INVALIDO', async () => {

@@ -1,3 +1,4 @@
+import { LugarController } from '../controller/LugarController.js';
 import type { FavoritoDAO } from '../dao/FavoritoDAO.js';
 import { LugarDAOSequelize } from '../dao/impl/sequelize/LugarDAOSequelize.js';
 import type { LugarDAO } from '../dao/LugarDAO.js';
@@ -33,7 +34,8 @@ export function crearLugarService({ cfg, reloj, lugar = {} }: Infraestructura): 
   });
 }
 
-/** Places stream (M2; exploration M3 shares the router). The router is still the stub until the controller lands. */
-export function construirLugar({ guardas }: Infraestructura): MontajeRuta[] {
-  return [{ modulo: 'lugar', ruta: '/api', router: crearLugarRouter(guardas) }];
+/** Places stream (M2; exploration M3 shares the router: its two literal routes stay 501 stubs until M3 replaces them). */
+export function construirLugar(infra: Infraestructura): MontajeRuta[] {
+  const controller = new LugarController(crearLugarService(infra));
+  return [{ modulo: 'lugar', ruta: '/api', router: crearLugarRouter(infra.guardas, controller) }];
 }
