@@ -194,6 +194,23 @@ How to run tests: `npm test` (strategies and services with `ReporteDAOMemoria`, 
 `npm run test:db` with `DATABASE_URL_TEST` runs `ReporteDAOSequelize` through `ejecutarContratoDAO` and
 `contratoReporteDAO` (it covers `agregarPorHora` buckets and the pagination tie-break: `ORDER BY fecha_hora DESC, id DESC`).
 
+M4 notes (delivered in the BE-01..03 slices):
+
+- The cooldown runs inside the report transaction: `ReporteService.validarCooldown(usuarioId, lugarId, tx)` calls
+  `ReporteDAO.buscarUltimoDeUsuarioEnLugar(..., tx)`, which in PostgreSQL takes `pg_advisory_xact_lock(usuarioId, lugarId)`
+  until the transaction ends, so two simultaneous reports of the same pair never both pass the check. No port signature
+  changed (both already received `tx`); `ReporteFacade.registrar` checks the place first (404, nothing written), then opens
+  the transaction.
+- `ReporteDAOMemoria` emulates that lock per transaction handle: use `ConexionFalsa.transaccion` (it opens and closes the
+  handle) when a test needs the mutual exclusion. Shared cases: `test/dao/ReporteDAO.concurrencia.contract.ts`.
+- `container/reporte.ts` exports `construirServiciosReporte` and `elegirEstrategiaSaturacion` (strategy picked by
+  `SATURACION_ESTRATEGIA`). M5 and M6 take `karmaService` and `saturacionService` from it. The facade is not instantiated
+  by `construirReporte` until the controllers land (they need the Sequelize `LugarDAO` of M2 and the shared subject).
+- `ReporteService.listarMios` is an interim first page (50); the paginated contract with place names arrives with the
+  controller slice and will be announced as a contract PR.
+- Test file names: rubric kinds end in `.unit.test.ts` (e.g. `SaturacionPonderadaStrategy.whitebox.unit.test.ts`), since
+  `convenciones.unit.test.ts` only accepts `.unit`, `.api` and `.contract`.
+
 ## M5 Validation and complaints
 
 Interfaces to implement:
