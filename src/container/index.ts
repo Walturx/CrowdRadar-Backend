@@ -1,6 +1,8 @@
 import { BcryptHasherAdapter } from '../adapter/seguridad/impl/BcryptHasherAdapter.js';
 import { JwtEmisorTokenAdapter } from '../adapter/seguridad/impl/JwtEmisorTokenAdapter.js';
 import type { ConfiguracionApp } from '../config/ConfiguracionApp.js';
+import { LugarDAOSequelize } from '../dao/impl/sequelize/LugarDAOSequelize.js';
+import { ReporteDAOSequelize } from '../dao/impl/sequelize/ReporteDAOSequelize.js';
 import { UsuarioDAOSequelize } from '../dao/impl/sequelize/UsuarioDAOSequelize.js';
 import { ConexionPostgresFactory } from '../datasource/impl/ConexionPostgresFactory.js';
 import type { EstadoServicio } from '../util/EstadoServicio.js';
@@ -49,6 +51,8 @@ export async function crearContenedor(cfg: ConfiguracionApp, logger: Logger, est
     conexion,
     estado,
     usuarioDAO: new UsuarioDAOSequelize(),
+    lugarDAO: new LugarDAOSequelize(),
+    reporteDAO: new ReporteDAOSequelize(),
     hasher: new BcryptHasherAdapter(cfg.seguridad.bcryptCosto),
     emisorToken: new JwtEmisorTokenAdapter(cfg.seguridad),
   });

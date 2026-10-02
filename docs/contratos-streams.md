@@ -204,10 +204,14 @@ M4 notes (delivered in the BE-01..03 slices):
 - `ReporteDAOMemoria` emulates that lock per transaction handle: use `ConexionFalsa.transaccion` (it opens and closes the
   handle) when a test needs the mutual exclusion. Shared cases: `test/dao/ReporteDAO.concurrencia.contract.ts`.
 - `container/reporte.ts` exports `construirServiciosReporte` and `elegirEstrategiaSaturacion` (strategy picked by
-  `SATURACION_ESTRATEGIA`). M5 and M6 take `karmaService` and `saturacionService` from it. The facade is not instantiated
-  by `construirReporte` until the controllers land (they need the Sequelize `LugarDAO` of M2 and the shared subject).
-- `ReporteService.listarMios` is an interim first page (50); the paginated contract with place names arrives with the
-  controller slice and will be announced as a contract PR.
+  `SATURACION_ESTRATEGIA`). M5 and M6 take `karmaService` and `saturacionService` from it. `construirReporte` now builds
+  the facade and mounts `ReporteController` (POST /reportes, GET /reportes/mios).
+- Contract touch (M4-BE-04): `DependenciasInfraestructura` gained `lugarDAO` and `reporteDAO` (Sequelize in
+  `crearContenedor`, in memory in `crearContenedorPrueba`) and `Infraestructura` gained the shared `subject`
+  (`PublicadorSaturacion`, one instance for M3 to subscribe to and M4/M6 to publish through). When M2 wires its own
+  `lugarDAO` in `crearContenedor` the line is the same one: keep a single instance.
+- Contract touch (M4-BE-04): `ReporteService.listarMios(usuarioId, paginacion)` now returns
+  `Pagina<{ reporte, lugarNombre }>` (the interim first page of 50 is gone); `ReporteServiceImpl` takes a `LugarDAO`.
 - Test file names: rubric kinds end in `.unit.test.ts` (e.g. `SaturacionPonderadaStrategy.whitebox.unit.test.ts`), since
   `convenciones.unit.test.ts` only accepts `.unit`, `.api` and `.contract`.
 

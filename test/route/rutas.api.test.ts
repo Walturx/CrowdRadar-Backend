@@ -48,9 +48,18 @@ describe('tabla de rutas congelada', () => {
       });
     }
 
-    if (fila.acceso === 'auth') {
+    if (fila.acceso === 'auth' && !fila.implementada) {
       it('con token de USUARIO llega al 501 del handler correcto', async () => {
         esNoImplementado(await llamar(fila, TOKEN_USUARIO), fila);
+      });
+    }
+
+    if (fila.acceso === 'auth' && fila.implementada) {
+      it('con token de USUARIO ya no responde 501 NO_IMPLEMENTADO ni RUTA_NO_ENCONTRADA', async () => {
+        const res = await llamar(fila, TOKEN_USUARIO);
+        expect(res.status).not.toBe(501);
+        expect(res.body.code).not.toBe('NO_IMPLEMENTADO');
+        expect(res.body.code).not.toBe('RUTA_NO_ENCONTRADA');
       });
     }
 

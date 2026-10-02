@@ -3,6 +3,8 @@
  * The unique constraint, not an application-level check, decides the winner: exactly one succeeds, the rest
  * get EmailYaRegistradoException, and one row remains.
  */
+import { LugarDAOMemoria } from '../support/dao/memoria/LugarDAOMemoria.js';
+import { ReporteDAOMemoria } from '../support/dao/memoria/ReporteDAOMemoria.js';
 import { Sequelize } from 'sequelize';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -72,7 +74,7 @@ describe.skipIf(!URL_BD_TEST)('registro concurrente (PostgreSQL real)', () => {
   });
 
   it('HTTP: dos POST /api/auth/register simultaneos -> exactamente un 201 y un 409 EMAIL_DUPLICADO', async () => {
-    const contenedor = ensamblar({ cfg, logger: crearLoggerSilencioso(), conexion: new ConexionFalsa(), usuarioDAO, hasher, emisorToken });
+    const contenedor = ensamblar({ cfg, logger: crearLoggerSilencioso(), conexion: new ConexionFalsa(), usuarioDAO, lugarDAO: new LugarDAOMemoria(), reporteDAO: new ReporteDAOMemoria(), hasher, emisorToken });
     const app = createApp(contenedor);
     const email = 'http@crowdradar.pe';
     const respuestas = await Promise.all([
