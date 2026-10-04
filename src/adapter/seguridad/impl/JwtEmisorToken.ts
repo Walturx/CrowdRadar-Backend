@@ -1,0 +1,52 @@
+import jwt, { type SignOptions } from 'jsonwebtoken';
+import { z } from 'zod';
+import type { Usuario } from '../../../entity/Usuario.js';
+import { EstadoCuenta } from '../../../enum/EstadoCuenta.js';
+import { Rol } from '../../../enum/Rol.js';
+import type { ClaimsToken, EmisorToken, TokenEmitido } from '../EmisorToken.js';
+
+/** The algorithm is pinned on sign and verify: tokens signed with any other (or `none`) are rejected. */
+const ALGORITMO = 'HS256';
+
+const esquemaClaims = z.object({
+  sub: z.string(),
+  id: z.number().int().positive(),
+  email: z.string(),
+  rol: z.enum([Rol.USUARIO, Rol.ADMIN]),
+  status: z.enum([EstadoCuenta.ACTIVO, EstadoCuenta.SUSPENDIDO]),
+});
+
+export interface OpcionesJwt {
+  jwtSecreto: string;
+  /** `ms`-style duration (e.g. "2h"), from JWT_EXPIRA_EN. */
+  jwtExpiraEn: string;
+}
+
+/**
+ * Pattern: Adapter. jsonwebtoken behind the EmisorToken port. The payload is validated
+ * with zod before anything trusts `id`; even then `autenticar` re-reads the user.
+ */
+export class JwtEmisorToken implements EmisorToken {
+  constructor(private readonly opciones: OpcionesJwt) {}
+
+  emitir(usuario: Usuario): TokenEmitido {
+    const claims: ClaimsToken = {
+      sub: String(usuario.id),
+      id: usuario.id,
+      email: usuario.email,
+      rol: usuario.rol,
+      status: usuario.status,
+    };
+    const token = jwt.sign(claims, this.opciones.jwtSecreto, {
+      algorithm: ALGORITMO,
+      expiresIn: this.opciones.jwtExpiraEn as SignOptions['expiresIn'],
+    });
+    const { exp } = jwt.decode(token) as { exp: number };
+    return { token, expiraEn: new Date(exp * 1000) };
+  }
+
+  verificar(token: string): ClaimsToken {
+    const payload = jwt.verify(token, this.opciones.jwtSecreto, { algorithms: [ALGORITMO] });
+    return esquemaClaims.parse(payload);
+  }
+}
