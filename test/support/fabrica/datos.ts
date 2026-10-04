@@ -37,6 +37,7 @@ export function aLugar(sobrescritos: Partial<Lugar> = {}): Lugar {
   secuencia += 1;
   return {
     id: secuencia,
+    osmTipo: 'node',
     osmId: null,
     nombre: `Lugar ${secuencia}`,
     direccion: null,

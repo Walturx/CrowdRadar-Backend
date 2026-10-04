@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 interface LugarSemilla {
+  osmTipo: string;
   osmId: number;
   nombre: string;
   direccion: string | null;
@@ -31,15 +32,16 @@ describe('database/data/lugares-lima.json', () => {
     }
   });
 
-  it('solo usa categorias validas, osmId unicos y nombres no vacios', () => {
+  it('solo usa categorias validas, (osmTipo, osmId) unicos y nombres no vacios', () => {
     expect(lugares.length).toBeGreaterThan(0);
     for (const lugar of lugares) {
       expect(CATEGORIAS).toContain(lugar.categoria);
+      expect(['node', 'way', 'relation']).toContain(lugar.osmTipo);
       expect(Number.isInteger(lugar.osmId) && lugar.osmId > 0, lugar.nombre).toBe(true);
       expect(lugar.nombre.trim().length).toBeGreaterThan(0);
       expect(lugar.nombre.length).toBeLessThanOrEqual(120);
     }
-    expect(new Set(lugares.map((lugar) => lugar.osmId)).size).toBe(lugares.length);
+    expect(new Set(lugares.map((lugar) => `${lugar.osmTipo}/${lugar.osmId}`)).size).toBe(lugares.length);
   });
 
   it('todas las coordenadas caen dentro del bbox de Lima', () => {
