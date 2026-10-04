@@ -1,5 +1,6 @@
 [
   {
+    "osmTipo": "relation",
     "osmId": 3570374,
     "nombre": "Parque El Olivar",
     "direccion": "San Isidro, Lima",
@@ -8,43 +9,399 @@
     "categoria": "PARQUE"
   },
   {
+    "osmTipo": "way",
+    "osmId": 28798160,
+    "nombre": "Parque John F. Kennedy",
+    "direccion": "Miraflores, Lima",
+    "latitud": -12.121791,
+    "longitud": -77.030453,
+    "categoria": "PARQUE"
+  },
+  {
+    "osmTipo": "way",
+    "osmId": 28798174,
+    "nombre": "Parque 7 de Junio",
+    "direccion": "Miraflores, Lima",
+    "latitud": -12.120612,
+    "longitud": -77.029566,
+    "categoria": "PARQUE"
+  },
+  {
+    "osmTipo": "way",
+    "osmId": 318334704,
+    "nombre": "Parque Islas Malvinas",
+    "direccion": "Santiago de Surco, Lima",
+    "latitud": -12.126554,
+    "longitud": -77.001855,
+    "categoria": "PARQUE"
+  },
+  {
+    "osmTipo": "way",
+    "osmId": 39413088,
+    "nombre": "Parque de la Exposición",
+    "direccion": "Cercado de Lima, Lima",
+    "latitud": -12.06195,
+    "longitud": -77.036005,
+    "categoria": "PARQUE"
+  },
+  {
+    "osmTipo": "relation",
+    "osmId": 12175742,
+    "nombre": "Parque de la Reserva",
+    "direccion": "Cercado de Lima, Lima",
+    "latitud": -12.07116,
+    "longitud": -77.034234,
+    "categoria": "PARQUE"
+  },
+  {
+    "osmTipo": "way",
+    "osmId": 44364384,
+    "nombre": "Parque de La Muralla",
+    "direccion": "Cercado de Lima, Lima",
+    "latitud": -12.044524,
+    "longitud": -77.025351,
+    "categoria": "PARQUE"
+  },
+  {
+    "osmTipo": "way",
+    "osmId": 172243636,
+    "nombre": "Parque Universitario",
+    "direccion": "Cercado de Lima, Lima",
+    "latitud": -12.054154,
+    "longitud": -77.031452,
+    "categoria": "PARQUE"
+  },
+  {
+    "osmTipo": "way",
     "osmId": 28993402,
     "nombre": "Larcomar",
-    "direccion": "Malecón de la Reserva, Miraflores",
+    "direccion": "Miraflores, Lima",
     "latitud": -12.132219,
     "longitud": -77.030549,
     "categoria": "CENTRO_COMERCIAL"
   },
   {
+    "osmTipo": "node",
+    "osmId": 1278915822,
+    "nombre": "Real Plaza",
+    "direccion": "Cercado de Lima, Lima",
+    "latitud": -12.056575,
+    "longitud": -77.037594,
+    "categoria": "CENTRO_COMERCIAL"
+  },
+  {
+    "osmTipo": "node",
+    "osmId": 4311948389,
+    "nombre": "Mall Plaza Bellavista",
+    "direccion": "Bellavista, Lima",
+    "latitud": -12.056009,
+    "longitud": -77.102464,
+    "categoria": "CENTRO_COMERCIAL"
+  },
+  {
+    "osmTipo": "node",
+    "osmId": 4411814464,
+    "nombre": "Gamarra Moda Plaza",
+    "direccion": "La Victoria, Lima",
+    "latitud": -12.070858,
+    "longitud": -77.012481,
+    "categoria": "CENTRO_COMERCIAL"
+  },
+  {
+    "osmTipo": "node",
+    "osmId": 2670622746,
+    "nombre": "Centro Comercial Balta",
+    "direccion": "Miraflores, Lima",
+    "latitud": -12.12293,
+    "longitud": -77.032247,
+    "categoria": "CENTRO_COMERCIAL"
+  },
+  {
+    "osmTipo": "node",
+    "osmId": 4343120772,
+    "nombre": "Centro Comercial Esperanza",
+    "direccion": "Miraflores, Lima",
+    "latitud": -12.120552,
+    "longitud": -77.027865,
+    "categoria": "CENTRO_COMERCIAL"
+  },
+  {
+    "osmTipo": "node",
+    "osmId": 4029952258,
+    "nombre": "Galeria La estrella de Caquetá",
+    "direccion": "Rímac, Lima",
+    "latitud": -12.033896,
+    "longitud": -77.042639,
+    "categoria": "CENTRO_COMERCIAL"
+  },
+  {
+    "osmTipo": "node",
     "osmId": 4119559799,
     "nombre": "Mercado Central",
-    "direccion": "Cercado de Lima",
+    "direccion": "Cercado de Lima, Lima",
     "latitud": -12.052679,
     "longitud": -77.027573,
     "categoria": "MERCADO"
   },
   {
+    "osmTipo": "node",
+    "osmId": 4780235064,
+    "nombre": "Mercado La Merced",
+    "direccion": "Cercado de Lima, Lima",
+    "latitud": -12.045507,
+    "longitud": -77.039291,
+    "categoria": "MERCADO"
+  },
+  {
+    "osmTipo": "node",
+    "osmId": 4139070892,
+    "nombre": "Mercado Municipal Manco Cápac",
+    "direccion": "La Victoria, Lima",
+    "latitud": -12.068884,
+    "longitud": -77.028972,
+    "categoria": "MERCADO"
+  },
+  {
+    "osmTipo": "node",
+    "osmId": 4077383012,
+    "nombre": "Mercado de Productores de San Isidro",
+    "direccion": "San Isidro, Lima",
+    "latitud": -12.108776,
+    "longitud": -77.05375,
+    "categoria": "MERCADO"
+  },
+  {
+    "osmTipo": "node",
+    "osmId": 4597434109,
+    "nombre": "Bioferia de Miraflores",
+    "direccion": "Miraflores, Lima",
+    "latitud": -12.127075,
+    "longitud": -77.02228,
+    "categoria": "MERCADO"
+  },
+  {
+    "osmTipo": "node",
+    "osmId": 3010730359,
+    "nombre": "Mercado Productores de Santa Anita",
+    "direccion": "Santa Anita, Lima",
+    "latitud": -12.041881,
+    "longitud": -76.948245,
+    "categoria": "MERCADO"
+  },
+  {
+    "osmTipo": "node",
+    "osmId": 5322983139,
+    "nombre": "Mercado El Trebol",
+    "direccion": "Rímac, Lima",
+    "latitud": -12.034909,
+    "longitud": -77.042964,
+    "categoria": "MERCADO"
+  },
+  {
+    "osmTipo": "node",
     "osmId": 1418823155,
     "nombre": "Estación Central",
-    "direccion": "Av. Paseo de la República, Cercado de Lima",
+    "direccion": "Cercado de Lima, Lima",
     "latitud": -12.05773,
     "longitud": -77.035979,
     "categoria": "TRANSPORTE"
   },
   {
+    "osmTipo": "node",
+    "osmId": 1418822748,
+    "nombre": "Estación 2 de Mayo",
+    "direccion": "Cercado de Lima, Lima",
+    "latitud": -12.045665,
+    "longitud": -77.042812,
+    "categoria": "TRANSPORTE"
+  },
+  {
+    "osmTipo": "node",
+    "osmId": 1418824475,
+    "nombre": "Estación Canadá",
+    "direccion": "La Victoria, Lima",
+    "latitud": -12.082414,
+    "longitud": -77.02658,
+    "categoria": "TRANSPORTE"
+  },
+  {
+    "osmTipo": "node",
+    "osmId": 1418824477,
+    "nombre": "Estación México",
+    "direccion": "La Victoria, Lima",
+    "latitud": -12.076102,
+    "longitud": -77.029224,
+    "categoria": "TRANSPORTE"
+  },
+  {
+    "osmTipo": "node",
+    "osmId": 1418826609,
+    "nombre": "Estación UNI",
+    "direccion": "Rímac, Lima",
+    "latitud": -12.024053,
+    "longitud": -77.049108,
+    "categoria": "TRANSPORTE"
+  },
+  {
+    "osmTipo": "node",
+    "osmId": 1418826159,
+    "nombre": "Estación Bulevar",
+    "direccion": "Barranco, Lima",
+    "latitud": -12.148492,
+    "longitud": -77.020138,
+    "categoria": "TRANSPORTE"
+  },
+  {
+    "osmTipo": "node",
+    "osmId": 1418826163,
+    "nombre": "Estación Escuela Militar",
+    "direccion": "Chorrillos, Lima",
+    "latitud": -12.159523,
+    "longitud": -77.018924,
+    "categoria": "TRANSPORTE"
+  },
+  {
+    "osmTipo": "node",
+    "osmId": 1278915817,
+    "nombre": "Estación Estadio Nacional",
+    "direccion": "Cercado de Lima, Lima",
+    "latitud": -12.06853,
+    "longitud": -77.032139,
+    "categoria": "TRANSPORTE"
+  },
+  {
+    "osmTipo": "way",
     "osmId": 44364378,
     "nombre": "Plaza San Martín",
-    "direccion": "Cercado de Lima",
+    "direccion": "Cercado de Lima, Lima",
     "latitud": -12.051649,
     "longitud": -77.034606,
     "categoria": "PLAZA"
   },
   {
+    "osmTipo": "way",
+    "osmId": 172097116,
+    "nombre": "Plaza Mayor de Lima",
+    "direccion": "Cercado de Lima, Lima",
+    "latitud": -12.045936,
+    "longitud": -77.030568,
+    "categoria": "PLAZA"
+  },
+  {
+    "osmTipo": "way",
+    "osmId": 676915917,
+    "nombre": "Plaza Dos de Mayo",
+    "direccion": "Cercado de Lima, Lima",
+    "latitud": -12.04637,
+    "longitud": -77.042771,
+    "categoria": "PLAZA"
+  },
+  {
+    "osmTipo": "way",
+    "osmId": 194875166,
+    "nombre": "Plaza Francisco Bolognesi",
+    "direccion": "Cercado de Lima, Lima",
+    "latitud": -12.060249,
+    "longitud": -77.04156,
+    "categoria": "PLAZA"
+  },
+  {
+    "osmTipo": "way",
+    "osmId": 293642352,
+    "nombre": "Plaza de Armas del Rímac",
+    "direccion": "Rímac, Lima",
+    "latitud": -12.042267,
+    "longitud": -77.026474,
+    "categoria": "PLAZA"
+  },
+  {
+    "osmTipo": "node",
+    "osmId": 5694077424,
+    "nombre": "Plaza Manco Cápac",
+    "direccion": "La Victoria, Lima",
+    "latitud": -12.063947,
+    "longitud": -77.030098,
+    "categoria": "PLAZA"
+  },
+  {
+    "osmTipo": "way",
+    "osmId": 194875167,
+    "nombre": "Plaza de la Bandera",
+    "direccion": "Pueblo Libre, Lima",
+    "latitud": -12.067501,
+    "longitud": -77.061208,
+    "categoria": "PLAZA"
+  },
+  {
+    "osmTipo": "way",
     "osmId": 396258998,
     "nombre": "Playa Makaha",
-    "direccion": "Costa Verde, Miraflores",
+    "direccion": "Miraflores, Lima",
     "latitud": -12.129079,
     "longitud": -77.036446,
+    "categoria": "PLAYA"
+  },
+  {
+    "osmTipo": "way",
+    "osmId": 396258999,
+    "nombre": "Waikiki",
+    "direccion": "Miraflores, Lima",
+    "latitud": -12.127353,
+    "longitud": -77.037905,
+    "categoria": "PLAYA"
+  },
+  {
+    "osmTipo": "way",
+    "osmId": 396259001,
+    "nombre": "La Pampilla",
+    "direccion": "Miraflores, Lima",
+    "latitud": -12.123997,
+    "longitud": -77.041314,
+    "categoria": "PLAYA"
+  },
+  {
+    "osmTipo": "way",
+    "osmId": 1314528583,
+    "nombre": "Playa Barranco",
+    "direccion": "Barranco, Lima",
+    "latitud": -12.149575,
+    "longitud": -77.024826,
+    "categoria": "PLAYA"
+  },
+  {
+    "osmTipo": "way",
+    "osmId": 396255683,
+    "nombre": "Redondo I",
+    "direccion": "Barranco, Lima",
+    "latitud": -12.138307,
+    "longitud": -77.02877,
+    "categoria": "PLAYA"
+  },
+  {
+    "osmTipo": "way",
+    "osmId": 298016070,
+    "nombre": "Playa Agua Dulce",
+    "direccion": "Chorrillos, Lima",
+    "latitud": -12.162313,
+    "longitud": -77.026978,
+    "categoria": "PLAYA"
+  },
+  {
+    "osmTipo": "way",
+    "osmId": 298016072,
+    "nombre": "Playa Pescadores",
+    "direccion": "Chorrillos, Lima",
+    "latitud": -12.165615,
+    "longitud": -77.030442,
+    "categoria": "PLAYA"
+  },
+  {
+    "osmTipo": "way",
+    "osmId": 165080724,
+    "nombre": "Playa La Herradura",
+    "direccion": "Chorrillos, Lima",
+    "latitud": -12.174601,
+    "longitud": -77.033798,
     "categoria": "PLAYA"
   }
 ]
