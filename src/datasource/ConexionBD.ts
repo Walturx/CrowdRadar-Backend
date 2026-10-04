@@ -12,7 +12,10 @@ export interface ContextoTx {
 export interface ConexionBD {
   /** Runs `trabajo` inside a transaction: commit on resolve, rollback on reject. */
   transaccion<T>(trabajo: (tx: ContextoTx) => Promise<T>): Promise<T>;
-  /** Resolves when the database answers; rejects (connectivity error) otherwise. */
-  verificar(): Promise<void>;
+  /**
+   * Resolves when the database answers; rejects (connectivity error) otherwise. With `limiteMs` the probe
+   * query also carries that server-side timeout, so the database cancels it instead of leaving it running.
+   */
+  verificar(limiteMs?: number): Promise<void>;
   cerrar(): Promise<void>;
 }

@@ -12,12 +12,18 @@ export interface OpcionesLimite {
   ventanaMs: number;
   /** Default `ip`. */
   clave?: ClaveLimite;
-  /** Count only failed responses (status >= 400); successful ones give their slot back. Used by the per-email lockout. */
+  /**
+   * Count only authentication failures (401, 404); every other response gives its slot back. A 400 validation
+   * error or a 503 outage says nothing about guessing, so it must not lock an account. Used by the per-email lockout.
+   */
   soloFallidos?: boolean;
   /** Answer 429 DEMASIADOS_INTENTOS (account lockout) instead of DEMASIADAS_SOLICITUDES. */
   bloqueo?: boolean;
   mensaje?: string;
 }
+
+/** Statuses that mean "wrong credentials / no such account": the only ones the lockout counts. */
+const ESTADOS_DE_FALLO_DE_AUTENTICACION = new Set([401, 404]);
 
 /** Longest email the API accepts; longer keys are cut so a client cannot grow the counter store. */
 const LARGO_MAXIMO_CLAVE = 120;
@@ -45,6 +51,7 @@ export function limitarIntentos({ max, ventanaMs, clave = 'ip', soloFallidos = f
     standardHeaders: 'draft-7',
     legacyHeaders: false,
     skipSuccessfulRequests: soloFallidos,
+    requestWasSuccessful: (_req, res) => !soloFallidos || !ESTADOS_DE_FALLO_DE_AUTENTICACION.has(res.statusCode),
     // Without an email there is nothing to lock out; validation answers 400 and the IP limiter still applies.
     skip: (req) => clave === 'email' && emailDe(req.body) === '',
     keyGenerator: (req) => {
