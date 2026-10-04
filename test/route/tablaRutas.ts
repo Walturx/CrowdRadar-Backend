@@ -11,10 +11,14 @@ export interface FilaRuta {
   ruta: string;
   acceso: Acceso;
   nombre: string;
+  /** True once the owning stream replaced the 501 stub with a real handler. */
+  real?: boolean;
 }
 
 const publica = (metodo: Metodo, ruta: string, nombre: string): FilaRuta => ({ metodo, ruta, acceso: 'publica', nombre });
 const auth = (metodo: Metodo, ruta: string, nombre: string): FilaRuta => ({ metodo, ruta, acceso: 'auth', nombre });
+/** An authenticated route already delivered by its stream: it must not answer 501 any more. */
+const authReal = (metodo: Metodo, ruta: string, nombre: string): FilaRuta => ({ metodo, ruta, acceso: 'auth', nombre, real: true });
 const admin = (metodo: Metodo, ruta: string, nombre: string): FilaRuta => ({ metodo, ruta, acceso: 'admin', nombre });
 
 export const TABLA_RUTAS: readonly FilaRuta[] = [
@@ -37,8 +41,8 @@ export const TABLA_RUTAS: readonly FilaRuta[] = [
   auth('post', '/api/favoritos', 'favorito.agregar'),
   auth('delete', '/api/favoritos/12', 'favorito.eliminar'),
   auth('patch', '/api/favoritos/12/alertas', 'favorito.configurarAlertas'),
-  auth('get', '/api/alertas', 'alerta.listar'),
-  auth('patch', '/api/alertas/12/leida', 'alerta.marcarLeida'),
+  authReal('get', '/api/alertas', 'alerta.listar'),
+  authReal('patch', '/api/alertas/12/leida', 'alerta.marcarLeida'),
   auth('post', '/api/dispositivos', 'alerta.registrarDispositivo'),
   auth('delete', '/api/dispositivos/token-fcm', 'alerta.eliminarDispositivo'),
   // reporte (M4): /reportes/mios BEFORE /reportes/:id (validacion router, M5)

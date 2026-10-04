@@ -7,6 +7,8 @@ import type { ConexionBD } from '../datasource/ConexionBD.js';
 import { Rol } from '../enum/Rol.js';
 import { crearAutenticar } from '../middleware/autenticar.js';
 import { requerirRol } from '../middleware/requerirRol.js';
+import { PublicadorSaturacion } from '../pattern/observer/PublicadorSaturacion.js';
+import type { SaturacionSubject } from '../pattern/observer/SaturacionSubject.js';
 import type { MiddlewareRuta } from '../route/middlewareRuta.js';
 import { crearSistemaRouter } from '../route/sistema.routes.js';
 import { VerificadorEstadoCuentaImpl } from '../service/impl/VerificadorEstadoCuentaImpl.js';
@@ -26,10 +28,13 @@ export interface DependenciasInfraestructura {
   emisorToken: EmisorToken;
   /** Readiness flag shared with the shutdown; a fresh one when omitted (tests). */
   estado?: EstadoServicio;
+  /** Saturation-change subject shared by publishers (M4, M6) and subscribers (M3); a new publisher when omitted. */
+  subject?: SaturacionSubject;
 }
 
-export interface Infraestructura extends Omit<DependenciasInfraestructura, 'estado'> {
+export interface Infraestructura extends Omit<DependenciasInfraestructura, 'estado' | 'subject'> {
   estado: EstadoServicio;
+  subject: SaturacionSubject;
   reloj: Reloj;
   verificador: VerificadorEstadoCuenta;
   autenticar: RequestHandler;
@@ -48,6 +53,7 @@ export function construirInfraestructura(dependencias: DependenciasInfraestructu
   return {
     ...dependencias,
     estado: dependencias.estado ?? new EstadoServicio(),
+    subject: dependencias.subject ?? new PublicadorSaturacion(dependencias.logger),
     reloj: relojSistema,
     verificador,
     autenticar,

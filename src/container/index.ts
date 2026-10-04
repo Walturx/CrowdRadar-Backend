@@ -6,7 +6,7 @@ import { ConexionPostgresFactory } from '../datasource/impl/ConexionPostgresFact
 import type { EstadoServicio } from '../util/EstadoServicio.js';
 import type { Logger } from '../util/logger.js';
 import type { Contenedor } from './Contenedor.js';
-import { construirFavoritoAlerta } from './favoritoAlerta.js';
+import { construirFavoritoAlerta, type DaosFavoritoAlerta } from './favoritoAlerta.js';
 import { construirInfraestructura, construirSistema, type DependenciasInfraestructura } from './infraestructura.js';
 import { construirLugar } from './lugar.js';
 import { construirModeracion } from './moderacion.js';
@@ -14,12 +14,17 @@ import { construirReporte } from './reporte.js';
 import { construirSeguridad } from './seguridad.js';
 import { construirValidacion } from './validacion.js';
 
+/** Per-stream ports a caller may replace (tests hand in-memory DAOs); production leaves them to the builders. */
+export interface OpcionesEnsamblado {
+  favoritoAlerta?: DaosFavoritoAlerta;
+}
+
 /**
  * Pattern: composition root (manual DI). Production and tests share it; only the ports differ.
  * Each stream owns one builder file and is the only one to edit it. The mount order below is
  * part of the frozen contract: the reports stream precedes the validation stream.
  */
-export function ensamblar(dependencias: DependenciasInfraestructura): Contenedor {
+export function ensamblar(dependencias: DependenciasInfraestructura, opciones: OpcionesEnsamblado = {}): Contenedor {
   const infra = construirInfraestructura(dependencias);
   const { cfg, logger, conexion } = infra;
   return {
@@ -32,7 +37,7 @@ export function ensamblar(dependencias: DependenciasInfraestructura): Contenedor
       ...construirSistema(infra),
       ...construirSeguridad(infra),
       ...construirLugar(infra),
-      ...construirFavoritoAlerta(infra),
+      ...construirFavoritoAlerta(infra, opciones.favoritoAlerta),
       ...construirReporte(infra),
       ...construirValidacion(infra),
       ...construirModeracion(infra),

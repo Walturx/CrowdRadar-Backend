@@ -88,6 +88,13 @@ Anti-enumeration: with the default `POLITICA_MENSAJES_AUTH=GENERICA` an unknown 
 same `401` body, and a hash comparison always runs (against a decoy hash when the email is unknown). Registration
 still reveals that an email exists (`409`).
 
+`AlertaResponseDTO`: `{ "id": 12, "lugarId": 7, "lugarNombre": "Parque Kennedy", "nivelAnterior": "MODERADO", "nivelNuevo": "SATURADO",
+"mensaje": "Parque Kennedy ahora está Saturado. La saturación cambió de Moderado a Saturado.", "leida": false, "fechaHora": "2026-10-05T15:00:00.000Z" }`.
+`nivelAnterior` is `SIN_INFORMACION` when the place had no level before the change.
+
+`ListadoAlertasResponseDTO` (`data` of `GET /api/alertas`): `{ items: AlertaResponseDTO[], page, size, total, totalPaginas, noLeidas }`;
+`noLeidas` counts every unread alert of the caller, not only the page.
+
 ### Places and exploration (M2, M3)
 
 | Method | Path | Access | Status | Notes |
@@ -108,8 +115,8 @@ still reveals that an email exists (`409`).
 | POST | /api/favoritos | auth | stub | body `{ lugarId }`; `409 FAVORITO_DUPLICADO` |
 | DELETE | /api/favoritos/:lugarId | auth | stub | |
 | PATCH | /api/favoritos/:lugarId/alertas | auth | stub | |
-| GET | /api/alertas | auth | stub | |
-| PATCH | /api/alertas/:id/leida | auth | stub | |
+| GET | /api/alertas | auth | real | query `page`, `size` (1-50, default 20); `200 { message, data: ListadoAlertasResponseDTO }`; no alerts: message `No tienes alertas.`; `400` bad `page`/`size` |
+| PATCH | /api/alertas/:id/leida | auth | real | idempotent; `200 { message, data: AlertaResponseDTO }`; `404 ALERTA_NO_ENCONTRADA` for an unknown or foreign alert; `400` when `id` is not a positive integer |
 | POST | /api/dispositivos | auth | stub | body `{ token, plataforma }` |
 | DELETE | /api/dispositivos/:token | auth | stub | |
 
