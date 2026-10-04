@@ -26,6 +26,7 @@ export class ConfiguracionApp {
   readonly bd;
   readonly seguridad;
   readonly reglas;
+  readonly lugares;
   readonly correo;
   readonly push;
   readonly semillas;
@@ -95,6 +96,12 @@ export class ConfiguracionApp {
       ventanaPendientesHoras: env.VENTANA_PENDIENTES_HORAS,
       analiticaMinMuestras: env.ANALITICA_MIN_MUESTRAS,
       suspensionDiasPermitidos: env.SUSPENSION_DIAS_PERMITIDOS,
+    });
+    this.lugares = congelar({
+      qMin: env.LUGARES_Q_MIN,
+      qMax: env.LUGARES_Q_MAX,
+      limiteMax: env.LUGARES_LIMITE_MAX,
+      limiteDefault: env.LUGARES_LIMITE_DEFAULT,
     });
     this.correo = congelar({
       proveedor: env.CORREO_PROVEEDOR,

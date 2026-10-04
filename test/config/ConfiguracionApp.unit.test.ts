@@ -92,6 +92,14 @@ describe('ConfiguracionApp', () => {
       expect(cfg.semillas.demo).toBe(true);
     });
 
+    it('expone los limites de la busqueda de lugares con sus valores por defecto y los lee del entorno', () => {
+      aplicarEntorno(entornoMinimo());
+      expect(ConfiguracionApp.getInstance().lugares).toEqual({ qMin: 2, qMax: 60, limiteMax: 200, limiteDefault: 200 });
+      ConfiguracionApp.reiniciar();
+      aplicarEntorno({ LUGARES_Q_MIN: '3', LUGARES_Q_MAX: '40', LUGARES_LIMITE_MAX: '100', LUGARES_LIMITE_DEFAULT: '25' });
+      expect(ConfiguracionApp.getInstance().lugares).toEqual({ qMin: 3, qMax: 40, limiteMax: 100, limiteDefault: 25 });
+    });
+
     it('los grupos son inmutables', () => {
       aplicarEntorno(entornoMinimo());
       const cfg = ConfiguracionApp.getInstance();

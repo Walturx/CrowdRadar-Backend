@@ -37,5 +37,5 @@ export function crearLugarService({ cfg, reloj, lugar = {} }: Infraestructura): 
 /** Places stream (M2; exploration M3 shares the router: its two literal routes stay 501 stubs until M3 replaces them). */
 export function construirLugar(infra: Infraestructura): MontajeRuta[] {
   const controller = new LugarController(crearLugarService(infra));
-  return [{ modulo: 'lugar', ruta: '/api', router: crearLugarRouter(infra.guardas, controller) }];
+  return [{ modulo: 'lugar', ruta: '/api', router: crearLugarRouter(infra.guardas, controller, infra.cfg.lugares) }];
 }
