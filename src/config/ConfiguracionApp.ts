@@ -89,6 +89,7 @@ export class ConfiguracionApp {
       confiabilidadMinVotos: env.CONFIABILIDAD_MIN_VOTOS,
       confiabilidadUmbralAlta: env.CONFIABILIDAD_UMBRAL_ALTA,
       confiabilidadUmbralMedia: env.CONFIABILIDAD_UMBRAL_MEDIA,
+      confiabilidadMinVotosEstado: env.CONFIABILIDAD_MIN_VOTOS_ESTADO,
       topeKarmaPeso: env.TOPE_KARMA_PESO,
       radioBusquedaKm: env.RADIO_BUSQUEDA_KM,
       radioPendientesKm: env.RADIO_PENDIENTES_KM,

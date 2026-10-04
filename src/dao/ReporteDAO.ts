@@ -40,6 +40,8 @@ export interface FiltroPendientes {
   usuarioId: number;
   desde: Date;
   lugarIds?: readonly number[];
+  /** Reports to leave out, typically the ones the voter already voted on. */
+  excluirIds?: readonly number[];
 }
 
 /**

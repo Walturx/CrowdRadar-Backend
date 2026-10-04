@@ -143,6 +143,8 @@ export const esquemaEntorno = z
     CONFIABILIDAD_MIN_VOTOS: entero(3, 1),
     CONFIABILIDAD_UMBRAL_ALTA: entero(70, 1, 100),
     CONFIABILIDAD_UMBRAL_MEDIA: entero(40, 1, 100),
+    // Votes a report needs before it counts as VALIDADO or RECHAZADO (fewer stay EN_VALIDACION).
+    CONFIABILIDAD_MIN_VOTOS_ESTADO: entero(10, 1),
     TOPE_KARMA_PESO: entero(500, 0),
     RADIO_BUSQUEDA_KM: decimal(2),
     RADIO_PENDIENTES_KM: decimal(5),

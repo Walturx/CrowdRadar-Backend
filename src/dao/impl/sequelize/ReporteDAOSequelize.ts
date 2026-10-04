@@ -188,6 +188,7 @@ export class ReporteDAOSequelize implements ReporteDAO {
       estado: EstadoReporte.ACTIVO,
       fechaHora: { [Op.gte]: filtro.desde },
       ...(filtro.lugarIds ? { lugarId: { [Op.in]: [...filtro.lugarIds] } } : {}),
+      ...(filtro.excluirIds?.length ? { id: { [Op.notIn]: [...filtro.excluirIds] } } : {}),
     };
     return this.paginar(donde, paginacion, tx);
   }

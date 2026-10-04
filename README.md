@@ -288,6 +288,7 @@ or missing value prints every offending key (never its value) and exits with cod
 | `CONFIABILIDAD_MIN_VOTOS` | Minimum votes for a reliability level (3) |
 | `CONFIABILIDAD_UMBRAL_ALTA` | Percentage for ALTA (70) |
 | `CONFIABILIDAD_UMBRAL_MEDIA` | Percentage for MEDIA (40) |
+| `CONFIABILIDAD_MIN_VOTOS_ESTADO` | Votes before a report is VALIDADO or RECHAZADO (10) |
 | `TOPE_KARMA_PESO` | Karma cap when weighting votes (500) |
 | `RADIO_BUSQUEDA_KM` | Default exploration radius in km (2) |
 | `RADIO_PENDIENTES_KM` | Radius for reports pending validation in km (5) |

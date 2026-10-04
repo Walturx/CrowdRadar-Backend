@@ -90,7 +90,7 @@ export function contratoDenunciaDAO(nombre: string, crearEntorno: () => Promise<
     it('contarRecibidasPorAutor suma las denuncias a reportes del autor, resueltas o no', async () => {
       const a = await reporteDelAutor();
       const b = await reporteDelAutor();
-      const ajeno = await entorno.sembrador.reporte(await entorno.sembrador.usuario(), 1);
+      const ajeno = await entorno.sembrador.reporte(await entorno.sembrador.usuario(), await entorno.sembrador.lugar());
       await denunciar(a, MotivoDenuncia.SPAM);
       await denunciar(b, MotivoDenuncia.SPAM);
       await denunciar(ajeno, MotivoDenuncia.SPAM);

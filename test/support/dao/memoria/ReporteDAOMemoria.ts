@@ -171,13 +171,15 @@ export class ReporteDAOMemoria implements ReporteDAO {
 
   async listarPendientesDeValidar(filtro: FiltroPendientes, paginacion: Paginacion): Promise<Pagina<ReporteSaturacion>> {
     const lugares = filtro.lugarIds ? new Set(filtro.lugarIds) : undefined;
+    const excluidos = new Set(filtro.excluirIds);
     return this.paginar(
       this.todos().filter(
         (r) =>
           r.usuarioId !== filtro.usuarioId &&
           r.estado === EstadoReporte.ACTIVO &&
           r.fechaHora >= filtro.desde &&
-          (!lugares || lugares.has(r.lugarId)),
+          (!lugares || lugares.has(r.lugarId)) &&
+          !excluidos.has(r.id),
       ),
       paginacion,
     );

@@ -22,4 +22,8 @@ export interface ValidacionDAO {
   buscarPorUsuarioYReporte(usuarioId: number, reporteId: number, tx?: ContextoTx): Promise<ValidacionReporte | null>;
   /** Every vote on the report, oldest first. */
   listarVotos(reporteId: number, tx?: ContextoTx): Promise<ValidacionReporte[]>;
+  /** Every vote on any of the reports, oldest first (one query for a whole page of reports). */
+  listarVotosDeReportes(reporteIds: readonly number[], tx?: ContextoTx): Promise<ValidacionReporte[]>;
+  /** Ids of the reports the user voted on, ascending. */
+  listarReporteIdsVotadosPor(usuarioId: number, tx?: ContextoTx): Promise<number[]>;
 }

@@ -60,5 +60,34 @@ export function contratoValidacionDAO(nombre: string, crearEntorno: () => Promis
       });
       expect((await entorno.dao.listarVotos(reporteId)).map((v) => v.id)).toEqual([primero.id, segundo.id]);
     });
+    it('listarVotosDeReportes junta los votos de varios reportes y omite los de los demas', async () => {
+      const autor = await entorno.sembrador.usuario();
+      const lugar = await entorno.sembrador.lugar();
+      const otroReporte = await entorno.sembrador.reporte(autor, lugar);
+      const ajeno = await entorno.sembrador.reporte(autor, lugar);
+      const enReporte = await votar(TipoAccionValidacion.CONFIRMAR, 10);
+      const enOtro = await entorno.dao.crear({
+        reporteId: otroReporte,
+        usuarioId: enReporte.usuarioId,
+        tipoAccion: TipoAccionValidacion.RECHAZAR,
+        karmaVotante: 10,
+        puntosOtorgados: 2,
+        fechaHora: T0,
+      });
+      await entorno.dao.crear({ ...enOtro, reporteId: ajeno });
+      const votos = await entorno.dao.listarVotosDeReportes([reporteId, otroReporte]);
+      expect(votos.map((v) => v.id)).toEqual([enReporte.id, enOtro.id]);
+      expect(await entorno.dao.listarVotosDeReportes([])).toEqual([]);
+    });
+    it('listarReporteIdsVotadosPor devuelve los reportes en que el usuario voto y ninguno mas', async () => {
+      const autor = await entorno.sembrador.usuario();
+      const lugar = await entorno.sembrador.lugar();
+      const otroReporte = await entorno.sembrador.reporte(autor, lugar);
+      await entorno.sembrador.reporte(autor, lugar); // never voted
+      const voto = await votar(TipoAccionValidacion.CONFIRMAR, 10);
+      await entorno.dao.crear({ ...voto, reporteId: otroReporte });
+      expect(await entorno.dao.listarReporteIdsVotadosPor(voto.usuarioId)).toEqual([reporteId, otroReporte]);
+      expect(await entorno.dao.listarReporteIdsVotadosPor(autor)).toEqual([]);
+    });
   });
 }
