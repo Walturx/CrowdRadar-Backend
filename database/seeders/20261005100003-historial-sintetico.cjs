@@ -1,6 +1,6 @@
 'use strict';
 
-const { DOMINIO_EMAIL, USUARIOS, generarReportes, habilitado, hoyEnLima } = require('../lib/historial-sintetico.cjs');
+const { DOMINIO_EMAIL, USUARIOS, generarReportes, habilitado, horarioDesdeEnv, hoyEnLima } = require('../lib/historial-sintetico.cjs');
 
 const PATRON_EMAIL = `%${DOMINIO_EMAIL}`;
 /** Rows per INSERT, to keep each statement far below PostgreSQL parameter limits. */
@@ -48,7 +48,7 @@ module.exports = {
       { replacements: { usuarioIds } },
     );
     const yaGuardados = new Set(existentes.map((f) => `${f.usuario_id}|${f.lugar_id}|${new Date(f.fecha_hora).getTime()}`));
-    const nuevos = generarReportes({ lugares, usuarioIds, hoy: hoyEnLima() }).filter(
+    const nuevos = generarReportes({ lugares, usuarioIds, hoy: hoyEnLima(), horario: horarioDesdeEnv(process.env) }).filter(
       (f) => !yaGuardados.has(`${f.usuario_id}|${f.lugar_id}|${f.fecha_hora.getTime()}`),
     );
     for (let i = 0; i < nuevos.length; i += LOTE) {

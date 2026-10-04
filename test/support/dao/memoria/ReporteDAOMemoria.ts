@@ -10,14 +10,13 @@ import type { ReporteSaturacion } from '../../../../src/entity/ReporteSaturacion
 import { EstadoReporte } from '../../../../src/enum/EstadoReporte.js';
 import { FiltroDias } from '../../../../src/enum/FiltroDias.js';
 import type { MotivoSinPuntos } from '../../../../src/enum/MotivoSinPuntos.js';
-import { NivelSaturacion } from '../../../../src/enum/NivelSaturacion.js';
+import { VALOR_NIVEL } from '../../../../src/entity/valorNivel.js';
 import { relojSistema, type Reloj } from '../../../../src/util/Reloj.js';
 import type { ContextoTx } from '../../../../src/datasource/ConexionBD.js';
 import { CerrojosMemoria } from './cerrojosMemoria.js';
 import { copia, exigirReferencia, sellosNuevos, type OpcionesMemoria } from './comun.js';
 import type { SembradorMemoria } from './SembradorMemoria.js';
 
-const VALOR: Record<NivelSaturacion, number> = { TRANQUILO: 1, MODERADO: 2, SATURADO: 3 };
 const masNuevoPrimero = (a: ReporteSaturacion, b: ReporteSaturacion) =>
   b.fechaHora.getTime() - a.fechaHora.getTime() || b.id - a.id;
 
@@ -148,7 +147,7 @@ export class ReporteDAOMemoria implements ReporteDAO {
       if (consulta.dias === FiltroDias.FIN_DE_SEMANA && !finDeSemana) continue;
       const clave = `${dia}#${hora}`;
       const celda = acumulado.get(clave) ?? { dia, hora, suma: 0, muestras: 0 };
-      celda.suma += VALOR[r.nivelSaturacion];
+      celda.suma += VALOR_NIVEL[r.nivelSaturacion];
       celda.muestras += 1;
       acumulado.set(clave, celda);
     }

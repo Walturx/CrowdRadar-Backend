@@ -128,6 +128,8 @@ export function construirReporte({
     minMuestras: reglas.analiticaMinMuestras,
     umbralModerado: reglas.saturacionUmbralModerado,
     umbralSaturado: reglas.saturacionUmbralSaturado,
+    horaAperturaPorDefecto: reglas.analiticaHoraApertura,
+    horaCierrePorDefecto: reglas.analiticaHoraCierre,
   });
   return [
     { modulo: 'reporte', ruta: '/api', router: crearReporteRouter(new ReporteController(reporteFacade, reporteService), guardas) },

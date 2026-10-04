@@ -7,6 +7,7 @@ import type { MotivoSinPuntos } from '../../../enum/MotivoSinPuntos.js';
 import type { NivelSaturacion } from '../../../enum/NivelSaturacion.js';
 import { armarPagina, desplazamiento, type Pagina, type Paginacion } from '../../Paginacion.js';
 import type { AgregadoHora, ConsultaAgregada, FiltroPendientes, NuevoReporte, ReporteDAO } from '../../ReporteDAO.js';
+import { VALOR_NIVEL } from '../../../entity/valorNivel.js';
 import { DOMINIO_EMAIL_SINTETICO } from '../../../util/sintetico.js';
 import { ReporteModel } from './model/ReporteModel.js';
 
@@ -24,6 +25,11 @@ const FILTRO_SQL_DIAS: Record<FiltroDias, string> = {
   [FiltroDias.LABORABLES]: 'AND EXTRACT(ISODOW FROM fecha_hora AT TIME ZONE :zona) BETWEEN 1 AND 5',
   [FiltroDias.FIN_DE_SEMANA]: 'AND EXTRACT(ISODOW FROM fecha_hora AT TIME ZONE :zona) IN (6, 7)',
 };
+
+/** SQL `CASE` that turns `nivel_saturacion` into its number; generated from VALOR_NIVEL so TypeScript and SQL cannot drift. */
+export const SQL_VALOR_NIVEL = `CASE nivel_saturacion ${Object.entries(VALOR_NIVEL)
+  .map(([nivel, valor]) => `WHEN '${nivel}' THEN ${valor}`)
+  .join(' ')} END`;
 
 function aEntidad(modelo: ReporteModel): ReporteSaturacion {
   return {
@@ -134,7 +140,7 @@ export class ReporteDAOSequelize implements ReporteDAO {
     const filas = await ReporteModel.sequelize!.query<AgregadoHora>(
       `SELECT to_char(fecha_hora AT TIME ZONE :zona, 'YYYY-MM-DD') AS dia,
               EXTRACT(HOUR FROM fecha_hora AT TIME ZONE :zona)::int AS hora,
-              AVG(CASE nivel_saturacion WHEN 'TRANQUILO' THEN 1 WHEN 'MODERADO' THEN 2 ELSE 3 END)::float8 AS promedio,
+              AVG(${SQL_VALOR_NIVEL})::float8 AS promedio,
               COUNT(*)::int AS muestras
          FROM reporte_saturacion
         WHERE lugar_id = :lugarId AND estado = 'ACTIVO' AND fecha_hora >= :desde AND fecha_hora < :hasta

@@ -13,8 +13,9 @@ const DOMINIO_EMAIL = '@sintetico.crowdradar.local';
 const CANTIDAD_USUARIOS = 3;
 /** Completed days before today that get reports. */
 const DIAS_HISTORIAL = 28;
-const HORA_APERTURA = 8;
-const HORA_CIERRE = 22;
+/** Default opening hours; ANALITICA_HORA_APERTURA / ANALITICA_HORA_CIERRE (the same keys the API reads) override them. */
+const HORA_APERTURA_DEFECTO = 8;
+const HORA_CIERRE_DEFECTO = 22;
 /** America/Lima is UTC-5 all year (no daylight saving). */
 const HORAS_DE_DIFERENCIA_LIMA = 5;
 const MS_POR_DIA = 86_400_000;
@@ -54,6 +55,15 @@ function habilitado(env) {
   }
   if (['false', '0', 'no', 'off'].includes(crudo)) return false;
   return env.NODE_ENV !== 'production';
+}
+
+/** Opening hours of the generated reports: the keys and defaults the API config uses (a unit test pins them together). */
+function horarioDesdeEnv(env) {
+  const hora = (clave, defecto) => (/^\d+$/.test(String(env[clave] ?? '').trim()) ? Number(env[clave]) : defecto);
+  return {
+    apertura: hora('ANALITICA_HORA_APERTURA', HORA_APERTURA_DEFECTO),
+    cierre: hora('ANALITICA_HORA_CIERRE', HORA_CIERRE_DEFECTO),
+  };
 }
 
 /** FNV-1a: a stable 32-bit hash of a text. */
@@ -98,7 +108,7 @@ const nivelDe = (valor) => (valor < UMBRAL_MODERADO ? 'TRANQUILO' : valor < UMBR
  * Each (place, day) draws from its own generator seeded by that pair, so a day always comes out the same
  * whenever the seeder runs: running it again later only adds the new days.
  */
-function generarReportes({ lugares, usuarioIds, hoy }) {
+function generarReportes({ lugares, usuarioIds, hoy, horario = horarioDesdeEnv({}) }) {
   const filas = [];
   for (const lugar of lugares) {
     for (let atras = DIAS_HISTORIAL; atras >= 1; atras -= 1) {
@@ -107,7 +117,7 @@ function generarReportes({ lugares, usuarioIds, hoy }) {
       const diaDeSemana = new Date(Date.UTC(anio, mes - 1, d)).getUTCDay();
       const finDeSemana = diaDeSemana === 0 || diaDeSemana === 6;
       const aleatorio = generador(hash(`${lugar.id}|${dia}`));
-      for (let hora = HORA_APERTURA; hora < HORA_CIERRE; hora += 1) {
+      for (let hora = horario.apertura; hora < horario.cierre; hora += 1) {
         const valor = afluencia(lugar.categoria, hora, finDeSemana, aleatorio);
         const minuto = Math.floor(aleatorio() * 60);
         const autor = usuarioIds[Math.floor(aleatorio() * usuarioIds.length)];
@@ -128,4 +138,4 @@ function generarReportes({ lugares, usuarioIds, hoy }) {
 const hoyEnLima = (ahora = new Date()) =>
   new Date(ahora.getTime() - HORAS_DE_DIFERENCIA_LIMA * 3_600_000).toISOString().slice(0, 10);
 
-module.exports = { DOMINIO_EMAIL, USUARIOS, DIAS_HISTORIAL, habilitado, generarReportes, hoyEnLima };
+module.exports = { DOMINIO_EMAIL, USUARIOS, DIAS_HISTORIAL, habilitado, horarioDesdeEnv, generarReportes, hoyEnLima };

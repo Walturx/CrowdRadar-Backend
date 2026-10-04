@@ -1,16 +1,15 @@
 import type { ReporteSaturacion } from '../../../../entity/ReporteSaturacion.js';
 import { EstadoReporte } from '../../../../enum/EstadoReporte.js';
 import type { NivelSaturacion } from '../../../../enum/NivelSaturacion.js';
+import { MS_POR_MINUTO } from '../../../../util/tiempo.js';
 import type { EstrategiaSaturacion } from '../EstrategiaSaturacion.js';
-
-const MS_POR_MINUTO = 60_000;
 
 export interface OpcionesSaturacionUltimoReporte {
   ventanaMin: number;
 }
 
 /**
- * Pattern: Strategy (simple variant). The level of the newest valid report of the window (ACTIVO with
+ * Pattern: Strategy (simple variant). Owner: M4. The level of the newest valid report of the window (ACTIVO with
  * `0 <= edad < ventana`), or null when there is none. Pure.
  */
 export class SaturacionUltimoReporteStrategy implements EstrategiaSaturacion {

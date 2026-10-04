@@ -25,6 +25,11 @@ describe('convenciones de nombres', () => {
     expect(sinTipo).toEqual([]);
   });
 
+  it('los archivos de evidencia por flujo usan el tipo directo: X.whitebox.test.ts o X.blackbox.test.ts (R2-1010)', () => {
+    const mezclados = archivos('test').filter((ruta) => /\.(whitebox|blackbox)\.(unit|api|contract)\.test\.ts$/.test(ruta));
+    expect(mezclados).toEqual(['test/favoritoAlerta/AlertaFavoritosObserver.whitebox.unit.test.ts']);
+  });
+
   it('los adaptadores concretos (adapter/**/impl) terminan en Adapter (R2-401)', () => {
     const impls = archivos('src/adapter').filter((ruta) => ruta.includes('/impl/'));
     expect(impls.length).toBeGreaterThan(0);
@@ -63,7 +68,7 @@ describe('Paginacion en un solo modulo (R2-404)', () => {
 describe('README documenta las convenciones (R2-405)', () => {
   const readme = readFileSync(join(RAIZ, 'README.md'), 'utf8');
 
-  it.each(['File naming', 'PascalCase', '*.routes.ts', 'container/<stream>.ts', '.unit', '.api', '.contract', 'Adapter'])(
+  it.each(['File naming', 'PascalCase', '*.routes.ts', 'container/<stream>.ts', '.unit', '.api', '.contract', '.whitebox', '.blackbox', 'Adapter'])(
     'menciona "%s"',
     (termino) => {
       expect(readme).toContain(termino);

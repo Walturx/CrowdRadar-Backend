@@ -4,9 +4,8 @@ import type { ContextoTx } from '../../datasource/ConexionBD.js';
 import { LugarNoEncontradoException } from '../../exception/lugar/LugarNoEncontradoException.js';
 import type { EstrategiaSaturacion } from '../../pattern/strategy/saturacion/EstrategiaSaturacion.js';
 import type { Reloj } from '../../util/Reloj.js';
+import { MS_POR_MINUTO } from '../../util/tiempo.js';
 import type { CambioSaturacion, SaturacionService } from '../SaturacionService.js';
-
-const MS_POR_MINUTO = 60_000;
 
 export interface DependenciasSaturacionService {
   lugarDAO: LugarDAO;

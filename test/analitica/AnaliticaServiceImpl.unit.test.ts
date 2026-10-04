@@ -59,6 +59,8 @@ describe('AnaliticaServiceImpl', () => {
       minMuestras: MIN,
       umbralModerado: 1.67,
       umbralSaturado: 2.34,
+      horaAperturaPorDefecto: 8,
+      horaCierrePorDefecto: 22,
     });
   });
 
@@ -285,6 +287,26 @@ describe('AnaliticaServiceImpl', () => {
       }
       const r = await servicio.obtenerMejorHorario(sinHorario, FiltroDias.TODOS, 4);
       expect(r.recomendaciones.map((f) => f.horaInicio)).toEqual([9]);
+    });
+
+    it('el horario por defecto sale de la configuracion (ANALITICA_HORA_APERTURA/CIERRE), no de constantes del servicio', async () => {
+      const nocturno = new AnaliticaServiceImpl({
+        lugarDAO,
+        reporteDAO,
+        reloj: new RelojFijo(AHORA),
+        zonaHoraria: 'America/Lima',
+        minMuestras: MIN,
+        umbralModerado: 1.67,
+        umbralSaturado: 2.34,
+        horaAperturaPorDefecto: 18,
+        horaCierrePorDefecto: 23,
+      });
+      const sinHorario = lugarDAO.agregar({ horaApertura: null, horaCierre: null }).id;
+      for (const hora of [9, 19]) {
+        for (let i = 0; i < MIN; i += 1) reportar('2026-10-06', hora, VALOR.TRANQUILO, { lugarId: sinHorario });
+      }
+      const r = await nocturno.obtenerMejorHorario(sinHorario, FiltroDias.TODOS, 4);
+      expect(r.recomendaciones.map((f) => f.horaInicio)).toEqual([19]);
     });
 
     it('semanas acota la ventana hacia atras desde hoy y dias filtra laborables o fin de semana', async () => {

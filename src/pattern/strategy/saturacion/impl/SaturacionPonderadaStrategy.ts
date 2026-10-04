@@ -1,10 +1,9 @@
 import type { ReporteSaturacion } from '../../../../entity/ReporteSaturacion.js';
+import { nivelPorPromedio, VALOR_NIVEL } from '../../../../entity/valorNivel.js';
 import { EstadoReporte } from '../../../../enum/EstadoReporte.js';
-import { NivelSaturacion } from '../../../../enum/NivelSaturacion.js';
+import type { NivelSaturacion } from '../../../../enum/NivelSaturacion.js';
+import { MS_POR_MINUTO } from '../../../../util/tiempo.js';
 import type { EstrategiaSaturacion } from '../EstrategiaSaturacion.js';
-
-const MS_POR_MINUTO = 60_000;
-const VALOR: Record<NivelSaturacion, number> = { TRANQUILO: 1, MODERADO: 2, SATURADO: 3 };
 
 export interface OpcionesSaturacionPonderada {
   ventanaMin: number;
@@ -17,7 +16,7 @@ export interface OpcionesSaturacionPonderada {
 }
 
 /**
- * Pattern: Strategy (default variant). Weighted average of the valid reports of the window: a report of age
+ * Pattern: Strategy (default variant). Owner: M4. Weighted average of the valid reports of the window: a report of age
  * `edad` weighs `1 - edad / ventana`, so the newest ones count the most. Valid = ACTIVO with
  * `0 <= edad < ventana` (ELIMINADO, future and out-of-window rows are discarded). Pure: time only through `ahora`.
  */
@@ -36,12 +35,10 @@ export class SaturacionPonderadaStrategy implements EstrategiaSaturacion {
       if (edadMs < 0 || edadMs >= ventanaMs) continue;
       const peso = 1 - edadMs / ventanaMs;
       validos += 1;
-      sumaPonderada += peso * VALOR[reporte.nivelSaturacion];
+      sumaPonderada += peso * VALOR_NIVEL[reporte.nivelSaturacion];
       sumaPesos += peso;
     }
     if (validos < minReportes) return null;
-    const promedio = sumaPonderada / sumaPesos;
-    if (promedio < umbralModerado) return NivelSaturacion.TRANQUILO;
-    return promedio < umbralSaturado ? NivelSaturacion.MODERADO : NivelSaturacion.SATURADO;
+    return nivelPorPromedio(sumaPonderada / sumaPesos, { umbralModerado, umbralSaturado });
   }
 }

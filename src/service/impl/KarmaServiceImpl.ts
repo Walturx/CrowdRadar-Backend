@@ -45,7 +45,8 @@ export class KarmaServiceImpl implements KarmaService {
 
   async otorgarPorValidacion(usuarioId: number, tx: ContextoTx): Promise<number> {
     const total = await this.deps.usuarioDAO.incrementarKarma(usuarioId, this.deps.karmaPorValidacion, tx);
-    return total === null ? 0 : this.deps.karmaPorValidacion;
+    if (total === null) throw new UsuarioNoEncontradoException();
+    return this.deps.karmaPorValidacion;
   }
 
   async revocarPorReporteEliminado(reporteId: number, tx: ContextoTx): Promise<void> {

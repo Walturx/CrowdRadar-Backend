@@ -51,6 +51,17 @@ describe('docs/api-contract.md', () => {
   });
 });
 
+describe('codificacion de los documentos', () => {
+  it.each(['docs/api-contract.md', 'docs/contratos-streams.md', 'docs/decisiones.md', 'README.md'])(
+    '%s es UTF-8 valido, sin bytes sueltos ni el caracter de reemplazo U+FFFD',
+    (ruta) => {
+      const bytes = readFileSync(resolve(RAIZ, ruta));
+      expect(() => new TextDecoder('utf-8', { fatal: true }).decode(bytes)).not.toThrow();
+      expect(bytes.toString('utf8')).not.toContain(String.fromCharCode(0xfffd));
+    },
+  );
+});
+
 describe('docs/decisiones.md', () => {
   const decisiones = leer('docs/decisiones.md');
 

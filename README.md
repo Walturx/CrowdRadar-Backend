@@ -169,7 +169,8 @@ Layer folders are singular and one type lives in one PascalCase file.
 | Composition root | `container/<stream>.ts`, lowercase, one per stream, plus `Contenedor.ts` | `container/reporte.ts` |
 | Tests | mirror `src/` and carry the kind before `.test.ts`: `.unit` (no I/O), `.api` (HTTP through supertest or a spawned server), `.contract` (shared DAO contract, real PostgreSQL migrations); `.whitebox` / `.blackbox` (the per-stream evidence tests of the test design: branch coverage of one method, equivalence/boundary tables over one endpoint) | `autenticar.unit.test.ts`, `auth.usuario.api.test.ts`, `UsuarioDAOMemoria.contract.test.ts` |
 
-`test/ops/convenciones.unit.test.ts` enforces the test suffix, the `Adapter` suffix and the route and container names.
+`test/ops/convenciones.unit.test.ts` enforces the test suffix, the `Adapter` suffix and the route and container names. The
+per-stream evidence tests are named `X.whitebox.test.ts` / `X.blackbox.test.ts` (no second kind suffix).
 `Paginacion` (types plus `armarPagina` and `desplazamiento`) lives in one module, `dao/Paginacion.ts`, because the page
 shape is part of the DAO contract.
  `datasource/`, `enum/` and `types/` are the
@@ -291,6 +292,7 @@ or missing value prints every offending key (never its value) and exits with cod
 | `RADIO_PENDIENTES_KM` | Radius for reports pending validation in km (5) |
 | `VENTANA_PENDIENTES_HORAS` | Window for pending reports in hours, 1-24 (3) |
 | `ANALITICA_MIN_MUESTRAS` | Minimum samples per time slot (5) |
+| `ANALITICA_HORA_APERTURA`, `ANALITICA_HORA_CIERRE` | Opening hours assumed for a place without them: best-hour recommendations and the demo history seeder (8 and 22) |
 | `EVENTOS_PRESUPUESTO_MS` | After a report commit the answer waits at most this long for the event subscribers; the delivery goes on in the background (500) |
 | `ALERTAS_CONCURRENCIA` | Followers alerted at the same time when a place changes level (5) |
 | `DISPOSITIVOS_MAX_POR_USUARIO` | Push devices kept per user; registering one more evicts the oldest (10) |

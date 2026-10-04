@@ -6,8 +6,8 @@ import { nivelEfectivo } from '../../entity/nivelEfectivo.js';
 import { LugarNoEncontradoException } from '../../exception/lugar/LugarNoEncontradoException.js';
 import type { Reloj } from '../../util/Reloj.js';
 import type { ConsultaLugares, DetalleLugar, LugarService, ResultadoBusquedaLugar } from '../LugarService.js';
+import { MS_POR_MINUTO } from '../../util/tiempo.js';
 
-const MS_POR_MINUTO = 60_000;
 
 export interface DependenciasLugarService {
   lugarDAO: LugarDAO;
