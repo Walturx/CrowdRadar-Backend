@@ -37,3 +37,15 @@ Three locks inside the same transaction, always in this order (no cycle is possi
 
 `DB_LOCK_TIMEOUT_MS` bounds the wait for a lock; a deadlock, a serialization failure or that timeout answer `503
 SERVICIO_NO_DISPONIBLE` with `Retry-After`, and the client may send the request again.
+
+## D-M5-1. Votes are accepted on any report that is not removed
+
+A user may vote on any report whose estado is not ELIMINADO, however old it is and wherever the place is; the pending list
+(`/validaciones/pendientes`) only suggests recent, nearby reports, it is not a precondition of voting. The spec asks for this
+and it keeps the vote idempotent for a report reached from an alert or from the map.
+
+Risk: karma farming by voting on many old reports. Mitigation: one vote per user and report (unique index), a daily cap of
+validation karma (`KARMA_VALIDACION_MAX_DIA`, 20 points, enforced under the per-user advisory lock; past it the vote still
+counts for the reliability but earns 0) and a rate limit per user (`LIMITE_VALIDACIONES` votes and `LIMITE_DENUNCIAS` complaints
+per hour, `429 DEMASIADAS_SOLICITUDES`). The votes of one report are serialized with `SELECT ... FOR UPDATE` on its row, so each
+recomputation of `nivel_confiabilidad` sees every earlier vote.

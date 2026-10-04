@@ -79,15 +79,17 @@ export function contratoValidacionDAO(nombre: string, crearEntorno: () => Promis
       expect(votos.map((v) => v.id)).toEqual([enReporte.id, enOtro.id]);
       expect(await entorno.dao.listarVotosDeReportes([])).toEqual([]);
     });
-    it('listarReporteIdsVotadosPor devuelve los reportes en que el usuario voto y ninguno mas', async () => {
+    it('sumarPuntosDelDiaDe suma los puntos de los votos del usuario desde el instante y ninguno mas', async () => {
       const autor = await entorno.sembrador.usuario();
       const lugar = await entorno.sembrador.lugar();
       const otroReporte = await entorno.sembrador.reporte(autor, lugar);
-      await entorno.sembrador.reporte(autor, lugar); // never voted
+      const tercero = await entorno.sembrador.reporte(autor, lugar);
       const voto = await votar(TipoAccionValidacion.CONFIRMAR, 10);
-      await entorno.dao.crear({ ...voto, reporteId: otroReporte });
-      expect(await entorno.dao.listarReporteIdsVotadosPor(voto.usuarioId)).toEqual([reporteId, otroReporte]);
-      expect(await entorno.dao.listarReporteIdsVotadosPor(autor)).toEqual([]);
+      const base = { usuarioId: voto.usuarioId, tipoAccion: TipoAccionValidacion.RECHAZAR, karmaVotante: 1 };
+      await entorno.dao.crear({ ...base, reporteId: otroReporte, puntosOtorgados: 3, fechaHora: new Date(T0.getTime() + 60_000) });
+      await entorno.dao.crear({ ...base, reporteId: tercero, puntosOtorgados: 7, fechaHora: new Date(T0.getTime() - 86_400_000) });
+      expect(await entorno.dao.sumarPuntosDelDiaDe(voto.usuarioId, T0)).toBe(5);
+      expect(await entorno.dao.sumarPuntosDelDiaDe(autor, T0)).toBe(0);
     });
   });
 }

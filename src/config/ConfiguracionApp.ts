@@ -72,6 +72,8 @@ export class ConfiguracionApp {
         recuperar: env.LIMITE_RECUPERAR,
         restablecer: env.LIMITE_RESTABLECER,
         password: env.LIMITE_PASSWORD,
+        validaciones: env.LIMITE_VALIDACIONES,
+        denuncias: env.LIMITE_DENUNCIAS,
       },
     });
     this.reglas = congelar({
@@ -79,6 +81,7 @@ export class ConfiguracionApp {
       cooldownReporteMin: env.COOLDOWN_REPORTE_MIN,
       karmaPorReporte: env.KARMA_POR_REPORTE,
       karmaPorValidacion: env.KARMA_POR_VALIDACION,
+      karmaValidacionMaxDia: env.KARMA_VALIDACION_MAX_DIA,
       karmaReportesPremiadosDia: env.KARMA_REPORTES_PREMIADOS_DIA,
       saturacionEstrategia: env.SATURACION_ESTRATEGIA,
       saturacionVentanaMin: env.SATURACION_VENTANA_MIN,

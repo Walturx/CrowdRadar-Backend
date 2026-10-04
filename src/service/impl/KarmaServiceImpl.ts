@@ -1,4 +1,5 @@
 import type { ReporteDAO } from '../../dao/ReporteDAO.js';
+import type { ValidacionDAO } from '../../dao/ValidacionDAO.js';
 import type { UsuarioDAO } from '../../dao/UsuarioDAO.js';
 import type { ContextoTx } from '../../datasource/ConexionBD.js';
 import { MotivoSinPuntos } from '../../enum/MotivoSinPuntos.js';
@@ -18,6 +19,9 @@ export interface DependenciasKarmaService {
   /** Rewarded reports allowed per calendar day of `zonaHoraria`. */
   reportesPremiadosPorDia: number;
   zonaHoraria: string;
+  /** Daily cap of validation karma (KARMA_VALIDACION_MAX_DIA); without both fields validation karma has no cap. */
+  validacionDAO?: Pick<ValidacionDAO, 'sumarPuntosDelDiaDe'>;
+  karmaValidacionMaxDia?: number;
 }
 
 /**
@@ -43,10 +47,20 @@ export class KarmaServiceImpl implements KarmaService {
     return { puntosGanados: this.deps.karmaPorReporte, total, motivoSinPuntos: null };
   }
 
+  /**
+   * Grants the validation karma, at most `karmaValidacionMaxDia` points per calendar day of `zonaHoraria` (the sum of the
+   * points the day's votes stored, read under the per-user lock). The vote itself always counts; past the cap it earns 0.
+   */
   async otorgarPorValidacion(usuarioId: number, tx: ContextoTx): Promise<number> {
-    const total = await this.deps.usuarioDAO.incrementarKarma(usuarioId, this.deps.karmaPorValidacion, tx);
+    const { usuarioDAO, validacionDAO, karmaValidacionMaxDia, reloj, zonaHoraria } = this.deps;
+    let puntos = this.deps.karmaPorValidacion;
+    if (validacionDAO && karmaValidacionMaxDia !== undefined) {
+      const hoy = await validacionDAO.sumarPuntosDelDiaDe(usuarioId, inicioDelDiaEn(reloj.ahora(), zonaHoraria), tx);
+      puntos = Math.max(0, Math.min(puntos, karmaValidacionMaxDia - hoy));
+    }
+    const total = await usuarioDAO.incrementarKarma(usuarioId, puntos, tx);
     if (total === null) throw new UsuarioNoEncontradoException();
-    return this.deps.karmaPorValidacion;
+    return puntos;
   }
 
   async revocarPorReporteEliminado(reporteId: number, tx: ContextoTx): Promise<void> {

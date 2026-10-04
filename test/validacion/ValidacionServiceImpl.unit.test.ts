@@ -52,9 +52,9 @@ describe('ValidacionServiceImpl', () => {
   beforeEach(() => {
     const reloj = new RelojFijo(AHORA);
     usuarioDAO = new UsuarioDAOMemoria();
-    reporteDAO = new ReporteDAOMemoria();
-    lugarDAO = new LugarDAOMemoria();
     validacionDAO = new ValidacionDAOMemoria();
+    reporteDAO = new ReporteDAOMemoria({ validaciones: validacionDAO });
+    lugarDAO = new LugarDAOMemoria();
     denunciaDAO = new DenunciaDAOMemoria();
     conexion = new ConexionFalsa();
     servicio = new ValidacionServiceImpl({
@@ -71,6 +71,8 @@ describe('ValidacionServiceImpl', () => {
         karmaPorValidacion: 2,
         reportesPremiadosPorDia: 5,
         zonaHoraria: 'America/Lima',
+        validacionDAO,
+        karmaValidacionMaxDia: 4,
       }),
       estrategia: new ConfiabilidadPonderadaKarmaStrategy({ minVotos: 3, umbralAlta: 70, umbralMedia: 40, topeKarmaPeso: 500 }),
       conexion,
@@ -114,6 +116,43 @@ describe('ValidacionServiceImpl', () => {
       expect((await reporteDAO.buscarPorId(reporteId))?.nivelConfiabilidad).toBeNull();
     });
 
+    it('bloquea la fila del reporte dentro de la transaccion antes de guardar el voto (R3-1401)', async () => {
+      const orden: string[] = [];
+      const bloquear = reporteDAO.buscarPorIdParaActualizar.bind(reporteDAO);
+      reporteDAO.buscarPorIdParaActualizar = async (id, tx) => {
+        orden.push(tx ? 'bloqueo-en-tx' : 'bloqueo-sin-tx');
+        return bloquear(id, tx);
+      };
+      const crear = validacionDAO.crear.bind(validacionDAO);
+      validacionDAO.crear = async (datos) => {
+        orden.push('voto');
+        return crear(datos);
+      };
+      await servicio.validar(votante, reporteId, C);
+      expect(orden).toEqual(['bloqueo-en-tx', 'voto']);
+    });
+
+    it('un reporte eliminado mientras tanto se detecta con la lectura bloqueada: 404 sin voto (R3-1404)', async () => {
+      const bloquear = reporteDAO.buscarPorIdParaActualizar.bind(reporteDAO);
+      reporteDAO.buscarPorIdParaActualizar = async (id, tx) => {
+        await reporteDAO.actualizarEstado(id, EstadoReporte.ELIMINADO);
+        return bloquear(id, tx);
+      };
+      await expect(servicio.validar(votante, reporteId, C)).rejects.toMatchObject({ status: 404 });
+      expect(await validacionDAO.listarVotos(reporteId)).toHaveLength(0);
+    });
+
+    it('con el tope diario de karma alcanzado el voto cuenta pero guarda 0 puntos y no suma karma (R1-1402)', async () => {
+      const otro = reporteDe(autor);
+      await servicio.validar(votante, reporteId, C);
+      await servicio.validar(votante, otro, C);
+      const tercero = reporteDe(autor);
+      const resultado = await servicio.validar(votante, tercero, C);
+      expect(resultado.karma).toEqual({ puntosGanados: 0, total: 44 });
+      expect(resultado.validacion.puntosOtorgados).toBe(0);
+      expect(resultado.confiabilidad.confirmaciones).toBe(1);
+    });
+
     it('un voto repetido es 409 VALIDACION_DUPLICADA y no cambia el karma (S3)', async () => {
       await servicio.validar(votante, reporteId, C);
       await expect(servicio.validar(votante, reporteId, R)).rejects.toMatchObject({
@@ -139,11 +178,10 @@ describe('ValidacionServiceImpl', () => {
       await expect(servicio.validar(autor, eliminado, C)).rejects.toMatchObject({ status: 404 });
     });
 
-    it('un voto simultaneo que pierde la carrera tambien es 409 y no da karma', async () => {
+    it('un voto simultaneo que pierde la carrera tambien es 409 (la transaccion deshace el karma; ver validarConcurrente)', async () => {
       await votoDe(votante, reporteId, C);
       validacionDAO.buscarPorUsuarioYReporte = async () => null; // the second request passed the check before the first saved
       await expect(servicio.validar(votante, reporteId, C)).rejects.toMatchObject({ code: CodigoError.VALIDACION_DUPLICADA });
-      expect((await usuarioDAO.buscarPorId(votante))?.puntosKarma).toBe(40);
     });
 
     it('si guardar la confiabilidad falla, el error sale de la transaccion (la BD deshace todo)', async () => {

@@ -241,4 +241,35 @@ describe('API de validacion y denuncias (contenedor de prueba)', () => {
     expect(res.status).toBe(200);
     expect(res.body.data.items[0]).toHaveProperty('puntosOtorgados');
   });
+
+  describe('limite por usuario (R1-1402, R3-1403)', () => {
+    beforeEach(() => {
+      ctx = crearContenedorPrueba({ cfg: { LIMITE_VALIDACIONES: 2, LIMITE_DENUNCIAS: 1 } });
+      app = createApp(ctx.contenedor);
+      lugarId = ctx.lugarDAO.agregar({ nombre: 'Parque Kennedy' }).id;
+      autor = nuevoUsuario();
+      reporteId = ctx.reporteDAO.agregar(aReporte({ usuarioId: autor.usuario.id, lugarId })).id;
+    });
+    const otroReporte = () => ctx.reporteDAO.agregar(aReporte({ usuarioId: autor.usuario.id, lugarId })).id;
+
+    it('el tercer voto de la hora es 429 DEMASIADAS_SOLICITUDES con Retry-After; otro usuario no se ve afectado', async () => {
+      const { cabecera } = nuevoUsuario();
+      expect((await votar(cabecera, reporteId, { tipoAccion: 'CONFIRMAR' })).status).toBe(201);
+      expect((await votar(cabecera, otroReporte(), { tipoAccion: 'CONFIRMAR' })).status).toBe(201);
+      const res = await votar(cabecera, otroReporte(), { tipoAccion: 'CONFIRMAR' });
+      expect(res.status).toBe(429);
+      expect(res.body.code).toBe('DEMASIADAS_SOLICITUDES');
+      expect(Number(res.headers['retry-after'])).toBeGreaterThan(0);
+      const { cabecera: otra } = nuevoUsuario();
+      expect((await votar(otra, reporteId, { tipoAccion: 'CONFIRMAR' })).status).toBe(201);
+    });
+
+    it('la segunda denuncia de la hora es 429, aunque sea de otro reporte', async () => {
+      const { cabecera } = nuevoUsuario();
+      expect((await denunciar(cabecera, reporteId, { motivo: 'SPAM' })).status).toBe(201);
+      const res = await denunciar(cabecera, otroReporte(), { motivo: 'SPAM' });
+      expect(res.status).toBe(429);
+      expect(res.body.code).toBe('DEMASIADAS_SOLICITUDES');
+    });
+  });
 });

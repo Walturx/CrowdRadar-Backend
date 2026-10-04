@@ -274,10 +274,13 @@ or missing value prints every offending key (never its value) and exits with cod
 | `LIMITE_RECUPERAR` | Recovery requests per window and IP (5) |
 | `LIMITE_RESTABLECER` | Reset attempts (and token checks) per window and IP (10) |
 | `LIMITE_PASSWORD` | Password changes per window and IP, successful or not (5) |
+| `LIMITE_VALIDACIONES` | Votes (`POST /reportes/:id/validaciones`) per hour and user, accepted or not (60) |
+| `LIMITE_DENUNCIAS` | Complaints (`POST /reportes/:id/denuncias`) per hour and user, accepted or not (10) |
 | `RECUPERACION_EXPIRA_MIN` | Recovery token lifetime in minutes (30); the link in the mail is `URL_PUBLICA/recuperar/restablecer?token=...` |
 | `COOLDOWN_REPORTE_MIN` | Minutes between reports of one user for one place (30) |
 | `KARMA_POR_REPORTE` | Karma for a report (10) |
 | `KARMA_POR_VALIDACION` | Karma for a validation (2) |
+| `KARMA_VALIDACION_MAX_DIA` | Validation karma a user can earn per calendar day of `ZONA_HORARIA`; past it a vote still counts but earns 0 (20) |
 | `KARMA_REPORTES_PREMIADOS_DIA` | Rewarded reports per day (5) |
 | `SATURACION_ESTRATEGIA` | `PONDERADA` or `ULTIMO_REPORTE` (PONDERADA) |
 | `SATURACION_VENTANA_MIN` | Report window for saturation in minutes (60) |

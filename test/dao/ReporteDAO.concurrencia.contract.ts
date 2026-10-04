@@ -48,6 +48,18 @@ export function contratoConcurrenciaReporteDAO(
       expect((await entorno.dao.listarPorUsuario(usuarioId, { page: 1, size: 20 })).total).toBe(1);
     });
 
+    it('buscarPorIdParaActualizar serializa: la segunda transaccion espera y ve lo que escribio la primera', async () => {
+      const reporte = await entorno.dao.crear({ usuarioId, lugarId, nivelSaturacion: NivelSaturacion.MODERADO, fechaHora: new Date() });
+      const primera = entorno.conexion.transaccion(async (tx) => {
+        await entorno.dao.buscarPorIdParaActualizar(reporte.id, tx);
+        await pausa(60);
+        await entorno.dao.actualizarConfiabilidad(reporte.id, 55, tx);
+      });
+      await pausa(15);
+      const segunda = entorno.conexion.transaccion(async (tx) => (await entorno.dao.buscarPorIdParaActualizar(reporte.id, tx))?.nivelConfiabilidad);
+      expect((await Promise.all([primera, segunda]))[1]).toBe(55);
+    });
+
     it('pares distintos no se bloquean entre si: ambos crean', async () => {
       const otroLugar = await entorno.sembrador.lugar();
       const resultados = await Promise.all([intentar(usuarioId, lugarId), intentar(usuarioId, otroLugar)]);

@@ -3,8 +3,11 @@ import { ipKeyGenerator, rateLimit } from 'express-rate-limit';
 import { DemasiadasSolicitudesException } from '../exception/http/DemasiadasSolicitudesException.js';
 import { DemasiadosIntentosException } from '../exception/http/DemasiadosIntentosException.js';
 
-/** What one counter is keyed by. `email` ignores the IP so distributed guessing against one account is still counted. */
-export type ClaveLimite = 'ip' | 'ip+email' | 'email';
+/**
+ * What one counter is keyed by. `email` ignores the IP so distributed guessing against one account is still counted;
+ * `usuario` is the authenticated user (`req.usuario`, so it must come after `autenticar`), falling back to the IP.
+ */
+export type ClaveLimite = 'ip' | 'ip+email' | 'email' | 'usuario';
 
 export interface OpcionesLimite {
   /** Attempts allowed inside the window. */
@@ -56,6 +59,7 @@ export function limitarIntentos({ max, ventanaMs, clave = 'ip', soloFallidos = f
     skip: (req) => clave === 'email' && emailDe(req.body) === '',
     keyGenerator: (req) => {
       if (clave === 'email') return emailDe(req.body);
+      if (clave === 'usuario' && req.usuario) return `usuario:${req.usuario.id}`;
       const ip = ipKeyGenerator(req.ip ?? '');
       return clave === 'ip+email' ? `${ip}|${emailDe(req.body)}` : ip;
     },

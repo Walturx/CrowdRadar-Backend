@@ -53,11 +53,12 @@ describe('ConfiguracionApp', () => {
       const cfg = ConfiguracionApp.getInstance();
       expect(cfg.servidor).toMatchObject({ puerto: 3000, zonaHoraria: 'America/Lima', logNivel: 'info' });
       expect(cfg.seguridad).toMatchObject({ jwtExpiraEn: '2h', bcryptCosto: 10, politicaMensajesAuth: 'GENERICA' });
-      expect(cfg.seguridad.limites).toMatchObject({ ventanaMin: 15, login: 10, registro: 10, recuperar: 5, restablecer: 10 });
+      expect(cfg.seguridad.limites).toMatchObject({ ventanaMin: 15, login: 10, registro: 10, recuperar: 5, restablecer: 10, validaciones: 60, denuncias: 10 });
       expect(cfg.reglas).toMatchObject({
         cooldownReporteMin: 30,
         karmaPorReporte: 10,
         karmaPorValidacion: 2,
+        karmaValidacionMaxDia: 20,
         karmaReportesPremiadosDia: 5,
         saturacionVentanaMin: 60,
         saturacionMinReportes: 3,
