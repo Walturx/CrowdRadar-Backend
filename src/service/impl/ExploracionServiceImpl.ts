@@ -3,8 +3,8 @@ import { nivelEfectivo } from '../../entity/nivelEfectivo.js';
 import { bboxAlrededor, distanciaMetros, type Punto } from '../../util/geo.js';
 import type { Reloj } from '../../util/Reloj.js';
 import type { ConsultaExploracion, ExploracionService, LugarExplorado } from '../ExploracionService.js';
+import { MS_POR_MINUTO } from '../../util/tiempo.js';
 
-const MS_POR_MINUTO = 60_000;
 
 export interface DependenciasExploracionService {
   lugarDAO: Pick<LugarDAO, 'explorar' | 'contarPorCategoria'>;
