@@ -20,6 +20,7 @@ import type { Logger } from '../util/logger.js';
 import { relojSistema, type Reloj } from '../util/Reloj.js';
 import type { MontajeRuta } from './Contenedor.js';
 import type { DependenciasLugar } from './lugar.js';
+import type { DependenciasSeguridad } from './seguridad.js';
 
 /** Ports every stream builder may use. Streams add their own DAOs in their builder, never here. */
 export interface DependenciasInfraestructura {
@@ -34,6 +35,8 @@ export interface DependenciasInfraestructura {
   emisorToken: EmisorToken;
   /** Places-stream ports to replace (tests); omitted ones are built by `container/lugar.ts`. */
   lugar?: Partial<DependenciasLugar>;
+  /** Recovery-stream ports to replace (tests); omitted ones are built by `container/seguridad.ts`. */
+  seguridad?: Partial<DependenciasSeguridad>;
   /** Readiness flag shared with the shutdown; a fresh one when omitted (tests). */
   estado?: EstadoServicio;
   /** The system clock when omitted; tests pin it. */
