@@ -1,28 +1,32 @@
 /**
- * Characterization of the Sprint 1 API contract (register, login, profile).
+ * Characterization of the account API contract first pinned on the Sprint 1 JavaScript
+ * app (register, login, profile) and now served by the TypeScript layers.
  *
  * Two blocks:
- *  - "sin base de datos": supertest against the exported Express app; runs in `npm test`.
+ *  - "contenedor de prueba": supertest against createApp(crearContenedorPrueba()), fake DAOs,
+ *    no database; runs in `npm test`.
  *  - "con base de datos": spawns the real server process against PostgreSQL; opt-in,
- *    skipped unless DATABASE_URL_TEST is set (runs db:migrate first). SPRINT1_ENTRY selects the entry file
- *    (default src/server.ts; the baseline JavaScript is `app.js` at tag sprint1-js).
+ *    skipped unless DATABASE_URL_TEST is set (runs db:migrate first).
+ *
+ * Documented differences from Sprint 1 (frontend contract): register answers
+ * `{token, user}` (auto sign-in), the profile is `data.user`, a duplicate email is
+ * 409 EMAIL_DUPLICADO and every error uses the `{message, code, errors}` envelope.
  */
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createServer } from 'node:net';
 import jwt from 'jsonwebtoken';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { createApp } from '../../src/app.js';
+import { crearContenedorPrueba } from '../support/crearContenedorPrueba.js';
 import { ejecutarCli } from '../support/baseDatos.js';
 
 const SECRETO = 's'.repeat(48);
 
-describe('Sprint 1 API (sin base de datos)', () => {
-  let app: import('express').Express;
-
-  beforeAll(async () => {
-    process.env.JWT_SECRETO = SECRETO;
-    ({ app } = await import('../../src/app.js'));
-  });
+describe('API de cuentas (contenedor de prueba, sin base de datos)', () => {
+  const { contenedor } = crearContenedorPrueba();
+  const app = createApp(contenedor);
+  const email = 'ana.caracterizacion@crowdradar.pe';
 
   it('GET / responde el nombre de la API', async () => {
     const res = await request(app).get('/');
@@ -36,9 +40,7 @@ describe('Sprint 1 API (sin base de datos)', () => {
       .send({ nombre: 'Ana', apellido: 'Perez', email: 'x', password: 'Secreta123' });
     expect(res.status).toBe(400);
     expect(res.body.message).toBe('Datos inválidos.');
-    expect(res.body.errors).toEqual(
-      expect.arrayContaining([expect.objectContaining({ campo: 'email' })]),
-    );
+    expect(res.body.errors).toEqual(expect.arrayContaining([expect.objectContaining({ campo: 'email' })]));
   });
 
   it('register con campo desconocido responde 400', async () => {
@@ -63,17 +65,45 @@ describe('Sprint 1 API (sin base de datos)', () => {
     expect(res.body.message).toBe('Datos inválidos.');
   });
 
-  it('GET /api/users/profile sin cabecera responde 401 "Token no proporcionado."', async () => {
+  it('GET /api/users/profile sin cabecera responde 401 NO_AUTENTICADO con message', async () => {
     const res = await request(app).get('/api/users/profile');
     expect(res.status).toBe(401);
-    expect(res.body).toEqual({ message: 'Token no proporcionado.' });
+    expect(res.body).toMatchObject({ code: 'NO_AUTENTICADO', errors: [] });
+    expect(res.body.message).toEqual(expect.any(String));
   });
 
-  it('GET /api/users/profile con token mal firmado responde 401 "Token inválido."', async () => {
+  it('GET /api/users/profile con token mal firmado responde 401 TOKEN_INVALIDO', async () => {
     const token = jwt.sign({ id: 1 }, 'o'.repeat(48));
     const res = await request(app).get('/api/users/profile').set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(401);
-    expect(res.body).toEqual({ message: 'Token inválido.' });
+    expect(res.body).toMatchObject({ code: 'TOKEN_INVALIDO', errors: [] });
+  });
+
+  it('flujo feliz: register 201, login 200, GET y PUT /api/users/profile 200 con data.user', async () => {
+    const registro = await request(app)
+      .post('/api/auth/register')
+      .send({ nombre: 'Ana', apellido: 'Perez', email, password: 'Secreta123', telefono: '987654321', distrito: 'Miraflores' });
+    expect(registro.status).toBe(201);
+    expect(registro.body.message).toBe('Usuario registrado correctamente.');
+    expect(registro.body.data.token).toEqual(expect.any(String));
+    expect(registro.body.data.user).toMatchObject({ id: expect.any(Number), nombre: 'Ana', apellido: 'Perez', email });
+
+    const login = await request(app).post('/api/auth/login').send({ email, password: 'Secreta123' });
+    expect(login.status).toBe(200);
+    expect(login.body.message).toBe('Inicio de sesión exitoso.');
+    expect(login.body.data.user).toMatchObject({ email, rol: 'USUARIO', status: 'ACTIVO' });
+    const auth = { Authorization: `Bearer ${login.body.data.token}` };
+
+    const perfil = await request(app).get('/api/users/profile').set(auth);
+    expect(perfil.status).toBe(200);
+    expect(perfil.body.data.user).toMatchObject({ email, nombre: 'Ana', distrito: 'Miraflores', rol: 'USUARIO', status: 'ACTIVO' });
+    expect(perfil.body.data.user).not.toHaveProperty('passwordHash');
+
+    const actualizado = await request(app).put('/api/users/profile').set(auth).send({ nombre: 'Anita', distrito: 'Barranco' });
+    expect(actualizado.status).toBe(200);
+    expect(actualizado.body.message).toBe('Perfil actualizado correctamente.');
+    expect(actualizado.body.data.user).toMatchObject({ nombre: 'Anita', distrito: 'Barranco', apellido: 'Perez' });
+    expect(actualizado.body.data.user).not.toHaveProperty('passwordHash');
   });
 });
 
@@ -107,7 +137,7 @@ async function esperarServidor(base: string, hijo: ChildProcess, salida: () => s
   throw new Error(`El servidor no arranco a tiempo: ${salida()}`);
 }
 
-describe.skipIf(!urlBd)('Sprint 1 API (con base de datos)', () => {
+describe.skipIf(!urlBd)('API de cuentas (con base de datos)', () => {
   let hijo: ChildProcess;
   let base = '';
   const sufijo = Date.now().toString(36);
@@ -129,21 +159,15 @@ describe.skipIf(!urlBd)('Sprint 1 API (con base de datos)', () => {
     const url = new URL(urlBd as string);
     const puerto = await puertoLibre();
     base = `http://127.0.0.1:${puerto}`;
-    const nombreBd = url.pathname.slice(1);
     const env = {
       ...process.env,
       PUERTO: String(puerto),
-      PORT: String(puerto),
       DB_HOST: url.hostname,
       DB_PUERTO: url.port || '5432',
-      PGPORT: url.port || '5432',
-      DB_NOMBRE: nombreBd,
-      DB_NAME: nombreBd,
+      DB_NOMBRE: url.pathname.slice(1),
       DB_USUARIO: decodeURIComponent(url.username),
-      DB_USER: decodeURIComponent(url.username),
       DB_PASSWORD: decodeURIComponent(url.password),
       JWT_SECRETO: SECRETO,
-      JWT_SECRET: SECRETO,
     };
     const args = entrada.endsWith('.ts') ? ['--import', 'tsx', entrada] : [entrada];
     hijo = spawn(process.execPath, args, { cwd: directorioEntrada, env, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -157,7 +181,7 @@ describe.skipIf(!urlBd)('Sprint 1 API (con base de datos)', () => {
     hijo?.kill();
   });
 
-  it('register responde 201 con el usuario sin password', async () => {
+  it('register responde 201 con token y el usuario sin password', async () => {
     const res = await json('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify({
@@ -171,30 +195,26 @@ describe.skipIf(!urlBd)('Sprint 1 API (con base de datos)', () => {
     });
     expect(res.status).toBe(201);
     expect(res.body.message).toBe('Usuario registrado correctamente.');
-    expect(res.body.data).toEqual({ id: expect.any(Number), nombre: 'Ana', apellido: 'Perez', email });
+    expect(res.body.data.token).toEqual(expect.any(String));
+    expect(res.body.data.user).toMatchObject({ id: expect.any(Number), nombre: 'Ana', apellido: 'Perez', email });
+    expect(JSON.stringify(res.body)).not.toMatch(/password|hash/i);
   });
 
-  it('register con email repetido responde 400 "El correo ya está registrado."', async () => {
+  it('register con email repetido responde 409 EMAIL_DUPLICADO', async () => {
     const res = await json('/api/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ nombre: 'Ana', apellido: 'Perez', email, password }),
+      body: JSON.stringify({ nombre: 'Ana', apellido: 'Perez', email: email.toUpperCase(), password }),
     });
-    expect(res.status).toBe(400);
-    expect(res.body.message).toBe('El correo ya está registrado.');
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({ message: 'El correo ya está registrado.', code: 'EMAIL_DUPLICADO', errors: [] });
   });
 
   it('login responde 200 con data.token verificable y data.user', async () => {
     const res = await json('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
     expect(res.status).toBe(200);
     expect(res.body.message).toBe('Inicio de sesión exitoso.');
-    expect(res.body.data.user).toEqual({
-      id: expect.any(Number),
-      nombre: 'Ana',
-      apellido: 'Perez',
-      email,
-      rol: 'USUARIO',
-    });
-    const payload = jwt.verify(res.body.data.token, SECRETO) as jwt.JwtPayload;
+    expect(res.body.data.user).toMatchObject({ id: expect.any(Number), nombre: 'Ana', apellido: 'Perez', email, rol: 'USUARIO' });
+    const payload = jwt.verify(res.body.data.token, SECRETO, { algorithms: ['HS256'] }) as jwt.JwtPayload;
     expect(payload).toMatchObject({ id: res.body.data.user.id, email, rol: 'USUARIO' });
   });
 
@@ -205,7 +225,7 @@ describe.skipIf(!urlBd)('Sprint 1 API (con base de datos)', () => {
       body: JSON.stringify({ email: `nadie.${sufijo}@crowdradar.pe`, password }),
     });
     expect(mala.status).toBe(401);
-    expect(mala.body).toEqual({ message: 'Correo o contraseña incorrectos.' });
+    expect(mala.body).toEqual({ message: 'Correo o contraseña incorrectos.', code: 'CREDENCIALES_INVALIDAS', errors: [] });
     expect(desconocido.status).toBe(mala.status);
     expect(desconocido.body).toEqual(mala.body);
   });
@@ -216,8 +236,8 @@ describe.skipIf(!urlBd)('Sprint 1 API (con base de datos)', () => {
 
     const perfil = await json('/api/users/profile', { headers: auth });
     expect(perfil.status).toBe(200);
-    expect(perfil.body.data).toMatchObject({ email, nombre: 'Ana', distrito: 'Miraflores', rol: 'USUARIO', status: 'ACTIVO' });
-    expect(perfil.body.data).not.toHaveProperty('passwordHash');
+    expect(perfil.body.data.user).toMatchObject({ email, nombre: 'Ana', distrito: 'Miraflores', rol: 'USUARIO', status: 'ACTIVO' });
+    expect(JSON.stringify(perfil.body)).not.toMatch(/password|hash/i);
 
     const actualizado = await json('/api/users/profile', {
       method: 'PUT',
@@ -226,7 +246,15 @@ describe.skipIf(!urlBd)('Sprint 1 API (con base de datos)', () => {
     });
     expect(actualizado.status).toBe(200);
     expect(actualizado.body.message).toBe('Perfil actualizado correctamente.');
-    expect(actualizado.body.data).toMatchObject({ nombre: 'Anita', distrito: 'Barranco', apellido: 'Perez' });
-    expect(actualizado.body.data).not.toHaveProperty('passwordHash');
+    expect(actualizado.body.data.user).toMatchObject({ nombre: 'Anita', distrito: 'Barranco', apellido: 'Perez' });
+  });
+
+  it('un token valido de una cuenta suspendida en la BD recibe 403 CUENTA_SUSPENDIDA', async () => {
+    const login = await json('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+    const { consultar } = await import('../support/baseDatos.js');
+    await consultar(urlBd as string, `UPDATE usuario SET status = 'SUSPENDIDO' WHERE email = $1`, [email]);
+    const res = await json('/api/users/profile', { headers: { Authorization: `Bearer ${login.body.data.token}` } });
+    expect(res.status).toBe(403);
+    expect(res.body.code).toBe('CUENTA_SUSPENDIDA');
   });
 });
