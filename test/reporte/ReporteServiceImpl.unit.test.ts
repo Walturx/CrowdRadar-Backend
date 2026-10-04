@@ -7,6 +7,7 @@ import { CodigoError } from '../../src/exception/CodigoError.js';
 import { ReporteEnEsperaException } from '../../src/exception/reporte/ReporteEnEsperaException.js';
 import { ReporteServiceImpl } from '../../src/service/impl/ReporteServiceImpl.js';
 import { RelojFijo } from '../support/RelojFijo.js';
+import { LugarDAOMemoria } from '../support/dao/memoria/LugarDAOMemoria.js';
 import { ReporteDAOMemoria } from '../support/dao/memoria/ReporteDAOMemoria.js';
 
 const T0 = new Date('2026-10-05T15:00:00Z');
@@ -17,12 +18,14 @@ const LUGAR = 7;
 describe('ReporteServiceImpl', () => {
   let reloj: RelojFijo;
   let dao: ReporteDAOMemoria;
+  let lugarDAO: LugarDAOMemoria;
   let servicio: ReporteServiceImpl;
 
   beforeEach(() => {
     reloj = new RelojFijo(T0);
     dao = new ReporteDAOMemoria();
-    servicio = new ReporteServiceImpl({ reporteDAO: dao, reloj, cooldownMin: 30 });
+    lugarDAO = new LugarDAOMemoria();
+    servicio = new ReporteServiceImpl({ reporteDAO: dao, lugarDAO, reloj, cooldownMin: 30 });
   });
 
   const reportar = (usuarioId = USUARIO, lugarId = LUGAR) => servicio.crear(usuarioId, lugarId, NivelSaturacion.MODERADO, TX);
@@ -71,7 +74,7 @@ describe('ReporteServiceImpl', () => {
     });
 
     it('la ventana sale de la configuracion', async () => {
-      servicio = new ReporteServiceImpl({ reporteDAO: dao, reloj, cooldownMin: 10 });
+      servicio = new ReporteServiceImpl({ reporteDAO: dao, lugarDAO, reloj, cooldownMin: 10 });
       await reportar();
       reloj.avanzarMinutos(10);
       await expect(servicio.validarCooldown(USUARIO, LUGAR, TX)).resolves.toBeUndefined();
@@ -93,17 +96,47 @@ describe('ReporteServiceImpl', () => {
   });
 
   describe('listarMios', () => {
-    it('devuelve solo los del usuario, el mas nuevo primero', async () => {
-      const a = await reportar();
+    const PAGINA = { page: 1, size: 20 };
+
+    it('devuelve solo los del usuario, el mas nuevo primero, con el nombre del lugar', async () => {
+      const kennedy = lugarDAO.agregar({ id: LUGAR, nombre: 'Parque Kennedy' });
+      const larcomar = lugarDAO.agregar({ id: LUGAR + 1, nombre: 'Larcomar' });
+      const a = await reportar(USUARIO, kennedy.id);
       reloj.avanzarMinutos(40);
-      const b = await reportar(USUARIO, LUGAR + 1);
-      await reportar(USUARIO + 1, LUGAR);
-      expect((await servicio.listarMios(USUARIO)).map((r) => r.id)).toEqual([b.id, a.id]);
+      const b = await reportar(USUARIO, larcomar.id);
+      await reportar(USUARIO + 1, kennedy.id);
+      const pagina = await servicio.listarMios(USUARIO, PAGINA);
+      expect(pagina.items.map((i) => [i.reporte.id, i.lugarNombre])).toEqual([
+        [b.id, 'Larcomar'],
+        [a.id, 'Parque Kennedy'],
+      ]);
+      expect(pagina).toMatchObject({ page: 1, size: 20, total: 2, totalPaginas: 1 });
     });
 
-    it('un usuario sin reportes recibe lista vacia', async () => {
+    it('pagina: la segunda pagina trae el resto y una pagina pasada del final viene vacia con el total real', async () => {
+      lugarDAO.agregar({ id: LUGAR, nombre: 'Parque' });
+      for (let i = 0; i < 3; i += 1) {
+        await reportar();
+        reloj.avanzarMinutos(31);
+      }
+      const segunda = await servicio.listarMios(USUARIO, { page: 2, size: 2 });
+      expect(segunda.items).toHaveLength(1);
+      expect(segunda).toMatchObject({ page: 2, size: 2, total: 3, totalPaginas: 2 });
+      const fuera = await servicio.listarMios(USUARIO, { page: 3, size: 2 });
+      expect(fuera.items).toEqual([]);
+      expect(fuera.total).toBe(3);
+    });
+
+    it('un usuario sin reportes recibe una pagina vacia', async () => {
       await reportar();
-      expect(await servicio.listarMios(USUARIO + 99)).toEqual([]);
+      const pagina = await servicio.listarMios(USUARIO + 99, PAGINA);
+      expect(pagina).toMatchObject({ items: [], total: 0, totalPaginas: 0 });
+    });
+
+    it('un lugar que ya no existe no rompe el listado: el nombre queda vacio', async () => {
+      await reportar();
+      const { items } = await servicio.listarMios(USUARIO, PAGINA);
+      expect(items[0]?.lugarNombre).toBe('');
     });
   });
 });

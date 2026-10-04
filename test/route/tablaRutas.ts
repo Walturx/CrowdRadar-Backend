@@ -11,8 +11,11 @@ export interface FilaRuta {
   ruta: string;
   acceso: Acceso;
   nombre: string;
+  /** The owning stream already delivered it: it no longer answers 501 (its own tests cover the behaviour). */
+  implementada?: true;
 }
 
+const implementada = (fila: FilaRuta): FilaRuta => ({ ...fila, implementada: true });
 const publica = (metodo: Metodo, ruta: string, nombre: string): FilaRuta => ({ metodo, ruta, acceso: 'publica', nombre });
 const auth = (metodo: Metodo, ruta: string, nombre: string): FilaRuta => ({ metodo, ruta, acceso: 'auth', nombre });
 const admin = (metodo: Metodo, ruta: string, nombre: string): FilaRuta => ({ metodo, ruta, acceso: 'admin', nombre });
@@ -42,8 +45,8 @@ export const TABLA_RUTAS: readonly FilaRuta[] = [
   auth('post', '/api/dispositivos', 'alerta.registrarDispositivo'),
   auth('delete', '/api/dispositivos/token-fcm', 'alerta.eliminarDispositivo'),
   // reporte (M4): /reportes/mios BEFORE /reportes/:id (validacion router, M5)
-  auth('post', '/api/reportes', 'reporte.registrar'),
-  auth('get', '/api/reportes/mios', 'reporte.listarMios'),
+  implementada(auth('post', '/api/reportes', 'reporte.registrar')),
+  implementada(auth('get', '/api/reportes/mios', 'reporte.listarMios')),
   auth('get', '/api/reportes/mios/validacion', 'validacion.consultarEstadoMisReportes'),
   // validacion y denuncia (M5)
   auth('get', '/api/validaciones/pendientes', 'validacion.listarPendientes'),

@@ -1,17 +1,18 @@
+import type { LugarDAO } from '../../dao/LugarDAO.js';
+import type { Pagina, Paginacion } from '../../dao/Paginacion.js';
 import type { ReporteDAO } from '../../dao/ReporteDAO.js';
 import type { ContextoTx } from '../../datasource/ConexionBD.js';
 import type { ReporteSaturacion } from '../../entity/ReporteSaturacion.js';
 import type { NivelSaturacion } from '../../enum/NivelSaturacion.js';
 import { ReporteEnEsperaException } from '../../exception/reporte/ReporteEnEsperaException.js';
 import type { Reloj } from '../../util/Reloj.js';
-import type { ReporteService } from '../ReporteService.js';
+import type { ReporteDeUsuario, ReporteService } from '../ReporteService.js';
 
 const MS_POR_MINUTO = 60_000;
-/** Interim page size of listarMios; BE-04 replaces it with the paginated contract. */
-const MAXIMO_MIOS = 50;
 
 export interface DependenciasReporteService {
   reporteDAO: ReporteDAO;
+  lugarDAO: LugarDAO;
   reloj: Reloj;
   cooldownMin: number;
 }
@@ -38,7 +39,10 @@ export class ReporteServiceImpl implements ReporteService {
     );
   }
 
-  async listarMios(usuarioId: number): Promise<ReporteSaturacion[]> {
-    return (await this.deps.reporteDAO.listarPorUsuario(usuarioId, { page: 1, size: MAXIMO_MIOS })).items;
+  async listarMios(usuarioId: number, paginacion: Paginacion): Promise<Pagina<ReporteDeUsuario>> {
+    const pagina = await this.deps.reporteDAO.listarPorUsuario(usuarioId, paginacion);
+    const lugares = await this.deps.lugarDAO.buscarPorIds(pagina.items.map((r) => r.lugarId));
+    const nombres = new Map(lugares.map((l) => [l.id, l.nombre]));
+    return { ...pagina, items: pagina.items.map((reporte) => ({ reporte, lugarNombre: nombres.get(reporte.lugarId) ?? '' })) };
   }
 }

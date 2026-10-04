@@ -64,7 +64,7 @@ describe('ReporteFacadeImpl.registrar', () => {
 
   const armar = (subject: SaturacionSubject = sujeto) => {
     const { logger } = crearLoggerEspia();
-    const reporteServiceBase = new ReporteServiceImpl({ reporteDAO, reloj, cooldownMin: 30 });
+    const reporteServiceBase = new ReporteServiceImpl({ reporteDAO, lugarDAO, reloj, cooldownMin: 30 });
     const reporteService = {
       validarCooldown: (...a: Parameters<ReporteServiceImpl['validarCooldown']>) => {
         llamadas.push('cooldown');
@@ -74,7 +74,7 @@ describe('ReporteFacadeImpl.registrar', () => {
         llamadas.push('crear');
         return reporteServiceBase.crear(...a);
       },
-      listarMios: (u: number) => reporteServiceBase.listarMios(u),
+      listarMios: (...a: Parameters<ReporteServiceImpl['listarMios']>) => reporteServiceBase.listarMios(...a),
     };
     const karmaService = new KarmaServiceImpl({
       usuarioDAO,

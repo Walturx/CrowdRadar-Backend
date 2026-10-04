@@ -117,8 +117,8 @@ still reveals that an email exists (`409`).
 
 | Method | Path | Access | Status | Notes |
 |---|---|---|---|---|
-| POST | /api/reportes | auth | stub | M4: body `{ lugarId, nivel }`; `422 REPORTE_EN_ESPERA` |
-| GET | /api/reportes/mios | auth | stub | M4 |
+| POST | /api/reportes | auth | real | M4: body `{ lugarId, nivel }` (`nivel`: `TRANQUILO` \| `MODERADO` \| `SATURADO`); `201 { message, data: { reporte: { id, lugarId, nivel, fechaHora }, karma: { puntosGanados, total, motivoSinPuntos }, saturacionLugar: { nivel, actualizadoEn } } }` (`motivoSinPuntos`: `TOPE_DIARIO` or null; `saturacionLugar.nivel` null while there is not enough information); `400 VALIDACION_FALLIDA`; `404 LUGAR_NO_ENCONTRADO`; `422 REPORTE_EN_ESPERA` ("Ya reportaste este lugar. Vuelve a intentarlo en N minutos.") |
+| GET | /api/reportes/mios | auth | real | M4: `page`, `size`; `200 { message, data: { items: [{ id, lugar: { id, nombre }, nivel, fechaHora, estado, puntosOtorgados, motivoSinPuntos }], page, size, total, totalPaginas } }`, newest first, own reports only; with no reports `message` is "Aún no tienes reportes" and `items` is `[]`; `400` when `page` < 1 or `size` outside 1-50 |
 | GET | /api/reportes/mios/validacion | auth | stub | M5 |
 | GET | /api/validaciones/pendientes | auth | stub | M5: `lat`, `lng`, `radioKm`, `horas`, `page`, `size` |
 | GET | /api/reportes/:id | auth | stub | M5 |

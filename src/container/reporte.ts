@@ -9,6 +9,7 @@ import type { SaturacionSubject } from '../pattern/observer/SaturacionSubject.js
 import type { EstrategiaSaturacion } from '../pattern/strategy/saturacion/EstrategiaSaturacion.js';
 import { SaturacionPonderadaStrategy } from '../pattern/strategy/saturacion/impl/SaturacionPonderadaStrategy.js';
 import { SaturacionUltimoReporteStrategy } from '../pattern/strategy/saturacion/impl/SaturacionUltimoReporteStrategy.js';
+import { ReporteController } from '../controller/ReporteController.js';
 import { crearAnaliticaRouter } from '../route/analitica.routes.js';
 import { crearReporteRouter } from '../route/reporte.routes.js';
 import { KarmaServiceImpl } from '../service/impl/KarmaServiceImpl.js';
@@ -61,7 +62,7 @@ export interface ServiciosReporte {
 export function construirServiciosReporte(deps: DependenciasServiciosReporte): ServiciosReporte {
   const { cfg, reloj, logger, conexion, usuarioDAO, lugarDAO, reporteDAO, subject } = deps;
   const reglas = cfg.reglas;
-  const reporteService = new ReporteServiceImpl({ reporteDAO, reloj, cooldownMin: reglas.cooldownReporteMin });
+  const reporteService = new ReporteServiceImpl({ reporteDAO, lugarDAO, reloj, cooldownMin: reglas.cooldownReporteMin });
   const karmaService = new KarmaServiceImpl({
     usuarioDAO,
     reporteDAO,
@@ -91,13 +92,32 @@ export function construirServiciosReporte(deps: DependenciasServiciosReporte): S
 }
 
 /**
- * Reports and analytics stream (M4). Must be mounted before the validation stream so
- * /reportes/mios is never captured by /reportes/:id. The services above are not built here yet: the controllers
- * (next slice) need the Sequelize LugarDAO of M2 and the shared SaturacionSubject.
+ * Reports and analytics stream (M4). Must be mounted before the validation stream so /reportes/mios is never
+ * captured by /reportes/:id. The DAOs and the shared subject come from the composition root.
  */
-export function construirReporte({ guardas }: Infraestructura): MontajeRuta[] {
+export function construirReporte({
+  cfg,
+  logger,
+  conexion,
+  reloj,
+  usuarioDAO,
+  lugarDAO,
+  reporteDAO,
+  subject,
+  guardas,
+}: Infraestructura): MontajeRuta[] {
+  const { reporteFacade, reporteService } = construirServiciosReporte({
+    cfg,
+    reloj,
+    logger,
+    conexion,
+    usuarioDAO,
+    lugarDAO,
+    reporteDAO,
+    subject,
+  });
   return [
-    { modulo: 'reporte', ruta: '/api', router: crearReporteRouter(guardas) },
+    { modulo: 'reporte', ruta: '/api', router: crearReporteRouter(new ReporteController(reporteFacade, reporteService), guardas) },
     { modulo: 'analitica', ruta: '/api', router: crearAnaliticaRouter(guardas) },
   ];
 }

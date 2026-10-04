@@ -33,7 +33,7 @@ export function crearFacadePrueba(deps: DependenciasFacadePrueba): ReporteFacade
   return new ReporteFacadeImpl({
     lugarDAO,
     conexion,
-    reporteService: new ReporteServiceImpl({ reporteDAO, reloj, cooldownMin: 30 }),
+    reporteService: new ReporteServiceImpl({ reporteDAO, lugarDAO, reloj, cooldownMin: 30 }),
     karmaService: new KarmaServiceImpl({
       usuarioDAO,
       reporteDAO,
