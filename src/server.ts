@@ -1,19 +1,20 @@
 import 'dotenv/config';
 import { app } from './app.js';
-import sequelize from './config/database.js';
+import { ConfiguracionApp } from './config/ConfiguracionApp.js';
+import { ConexionPostgresFactory } from './datasource/impl/ConexionPostgresFactory.js';
+import { crearLogger } from './util/logger.js';
 
-const PORT = process.env.PUERTO || 3000;
+const cfg = ConfiguracionApp.getInstance();
+const logger = crearLogger(cfg.servidor.logNivel);
 
-sequelize
-  .sync()
-  .then(() => {
-    app.listen(PORT, () => {
-      // eslint-disable-next-line no-console -- replaced by the pino logger in BE-02
-      console.log(`Servidor ejecutándose en el puerto ${PORT}`);
-    });
-  })
-  .catch((error) => {
-    // eslint-disable-next-line no-console -- replaced by the pino logger in BE-02
-    console.error(error);
-    process.exit(1);
+async function iniciar(): Promise<void> {
+  await new ConexionPostgresFactory(cfg.bd, logger).conectar();
+  app.listen(cfg.servidor.puerto, () => {
+    logger.info({ puerto: cfg.servidor.puerto }, 'Servidor ejecutandose');
   });
+}
+
+iniciar().catch((error: unknown) => {
+  logger.error({ err: error }, 'No se pudo iniciar el servidor');
+  process.exit(1);
+});

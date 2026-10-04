@@ -1,0 +1,8 @@
+// sequelize-cli paths. Must stay CommonJS (the package is "type": "module").
+const path = require('path');
+
+module.exports = {
+  config: path.resolve(__dirname, 'database', 'config.cjs'),
+  'migrations-path': path.resolve(__dirname, 'database', 'migrations'),
+  'seeders-path': path.resolve(__dirname, 'database', 'seeders'),
+};
