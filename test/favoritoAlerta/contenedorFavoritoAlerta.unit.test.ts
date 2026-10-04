@@ -10,6 +10,7 @@ import { PlataformaPush } from '../../src/enum/PlataformaPush.js';
 import { NivelSaturacion } from '../../src/enum/NivelSaturacion.js';
 import { crearEventoSaturacion } from '../../src/pattern/observer/SaturacionCambiadaEvento.js';
 import { PublicadorSaturacion } from '../../src/pattern/observer/PublicadorSaturacion.js';
+import { configPrueba, type SobrescritosEntorno } from '../support/configPrueba.js';
 import { crearContenedorPrueba } from '../support/crearContenedorPrueba.js';
 import { crearLoggerEspia } from '../support/LoggerEspia.js';
 
@@ -23,12 +24,12 @@ const evento = () =>
     autorId: 99,
   });
 
-function armar() {
+function armar(cfg: SobrescritosEntorno = {}, conEspia = true) {
   const ctx = crearContenedorPrueba();
   const { logger, lineas } = crearLoggerEspia();
   const subject = new PublicadorSaturacion(logger);
   const infra = construirInfraestructura({
-    cfg: ctx.cfg,
+    cfg: configPrueba(cfg),
     logger,
     conexion: ctx.conexion,
     usuarioDAO: ctx.usuarioDAO,
@@ -36,7 +37,7 @@ function armar() {
     emisorToken: ctx.emisorToken,
     subject,
   });
-  construirFavoritoAlerta(infra, ctx.favoritoAlerta);
+  construirFavoritoAlerta(infra, conEspia ? ctx.favoritoAlerta : { ...ctx.favoritoAlerta, notificador: undefined });
   return { ctx, subject, lineas };
 }
 
@@ -73,6 +74,17 @@ describe('container/favoritoAlerta', () => {
     await subject.notificar(evento());
     expect(await ctx.alertaDAO.contarNoLeidas(1)).toBe(0);
     expect(ctx.notificador.llamadas).toHaveLength(0);
+  });
+
+  it('con PUSH_PROVEEDOR=fcm sin cliente Firebase el push falla aislado: la alerta queda y se registra el error', async () => {
+    const { ctx, subject, lineas } = armar({ PUSH_PROVEEDOR: 'fcm', FCM_CREDENCIALES_RUTA: './cred.json' }, false);
+    ctx.lugarDAO.agregar({ id: LUGAR });
+    await ctx.favoritoDAO.crear(1, LUGAR);
+    await ctx.dispositivoDAO.registrar(1, 'tok-1', PlataformaPush.ANDROID);
+    await expect(subject.notificar(evento())).resolves.toBeUndefined();
+    expect(await ctx.alertaDAO.contarNoLeidas(1)).toBe(1);
+    expect(lineas.some((l) => l.level === 50 && String(l.msg).includes('proveedor de push'))).toBe(true);
+    expect(JSON.stringify(lineas)).not.toContain('tok-1');
   });
 
   it.todo('POST /api/reportes sigue respondiendo 201 con un observer que lanza (requiere la ruta de M4, T-BE-03c)');

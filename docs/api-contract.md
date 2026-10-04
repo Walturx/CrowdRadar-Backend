@@ -117,8 +117,8 @@ still reveals that an email exists (`409`).
 | PATCH | /api/favoritos/:lugarId/alertas | auth | stub | |
 | GET | /api/alertas | auth | real | query `page`, `size` (1-50, default 20); `200 { message, data: ListadoAlertasResponseDTO }`; no alerts: message `No tienes alertas.`; `400` bad `page`/`size` |
 | PATCH | /api/alertas/:id/leida | auth | real | idempotent; `200 { message, data: AlertaResponseDTO }`; `404 ALERTA_NO_ENCONTRADA` for an unknown or foreign alert; `400` when `id` is not a positive integer |
-| POST | /api/dispositivos | auth | stub | body `{ token, plataforma }` |
-| DELETE | /api/dispositivos/:token | auth | stub | |
+| POST | /api/dispositivos | auth | real | body `{ token (1-255), plataforma: ANDROID or IOS }`, strict; `201` new token, `200` known token (upsert: a token held by another user moves to the caller, who becomes its only owner); `400` bad body |
+| DELETE | /api/dispositivos/:token | auth | real | token URL-encoded; `204` always (idempotent): a token that is not the caller's is left untouched and its existence is not revealed; `400` token longer than 255 |
 
 ### Reports, validation and reporting abuse (M4, M5)
 
