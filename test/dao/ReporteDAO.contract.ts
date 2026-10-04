@@ -187,7 +187,11 @@ export function contratoReporteDAO(nombre: string, crearEntorno: () => Promise<E
         const eliminado = await crear(NivelSaturacion.MODERADO, desplazar(T0, -10), { usuarioId: otro });
         await dao.actualizarEstado(eliminado.id, EstadoReporte.ELIMINADO);
         const desde = desplazar(T0, -180);
-        const todos = await dao.listarPendientesDeValidar({ usuarioId, desde }, { page: 1, size: 20 });
+        // Scoped to this test's places: the database is shared by every case, so rows of earlier cases exist.
+        const todos = await dao.listarPendientesDeValidar(
+          { usuarioId, desde, lugarIds: [lugarId, otroLugar] },
+          { page: 1, size: 20 },
+        );
         expect(todos.items.map((r) => r.id)).toEqual([ajenoOtroLugar.id, ajeno.id]);
         const soloLugar = await dao.listarPendientesDeValidar(
           { usuarioId, desde, lugarIds: [lugarId] },

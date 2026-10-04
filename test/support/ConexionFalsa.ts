@@ -1,4 +1,5 @@
 import type { ConexionBD, ContextoTx } from '../../src/datasource/ConexionBD.js';
+import { abrirTxMemoria, cerrarTxMemoria } from './dao/memoria/cerrojosMemoria.js';
 
 /** In-memory ConexionBD used by tests: no database, records what happened. */
 export class ConexionFalsa implements ConexionBD {
@@ -16,7 +17,12 @@ export class ConexionFalsa implements ConexionBD {
 
   async transaccion<T>(trabajo: (tx: ContextoTx) => Promise<T>): Promise<T> {
     this.transacciones += 1;
-    return trabajo({} as ContextoTx);
+    const tx = abrirTxMemoria();
+    try {
+      return await trabajo(tx);
+    } finally {
+      cerrarTxMemoria(tx);
+    }
   }
 
   async verificar(limiteMs?: number): Promise<void> {
