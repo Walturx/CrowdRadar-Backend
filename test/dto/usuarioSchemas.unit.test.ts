@@ -61,11 +61,11 @@ describe('registrarUsuarioSchema', () => {
     expect(campos(r)).toContain(campo);
   });
 
-  it('acepta el borde: email 120, nombre 80, password 8 y 72 bytes', () => {
+  it('acepta el borde: email 120, nombre 80, password 8 y 64 caracteres', () => {
     const email = `${'a'.repeat(120 - '@crowdradar.pe'.length)}@crowdradar.pe`;
-    const borde = { ...registroValido, email, nombre: 'N'.repeat(80), password: 'p'.repeat(8) };
+    const borde = { ...registroValido, email, nombre: 'N'.repeat(80), password: 'Ppppppp1' };
     expect(registrarUsuarioSchema.safeParse(borde).success).toBe(true);
-    expect(registrarUsuarioSchema.safeParse({ ...registroValido, password: 'p'.repeat(72) }).success).toBe(true);
+    expect(registrarUsuarioSchema.safeParse({ ...registroValido, password: `P1${'p'.repeat(62)}` }).success).toBe(true);
   });
 
   it('rechaza campos desconocidos (rol)', () => {
@@ -118,7 +118,7 @@ describe('cambiarPasswordSchema', () => {
     expect(campos(r)).toEqual(['confirmarPassword']);
   });
 
-  it('la nueva password respeta 8..72 bytes', () => {
+  it('la nueva password respeta la politica (8..64 caracteres)', () => {
     const corta = cambiarPasswordSchema.safeParse({ ...valido, nuevaPassword: 'corta', confirmarPassword: 'corta' });
     expect(campos(corta)).toContain('nuevaPassword');
     const larga = 'a'.repeat(73);

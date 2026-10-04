@@ -87,7 +87,8 @@ describe('API de cuentas (contenedor de prueba)', () => {
       const res = await request(app).post('/api/auth/register').send({ ...registro, email: 'x', password: 'corta' });
       expect(res.status).toBe(400);
       expect(res.body).toMatchObject({ message: 'Datos inválidos.', code: 'VALIDACION_FALLIDA' });
-      expect(res.body.errors.map((e: { campo: string }) => e.campo).sort()).toEqual(['email', 'password']);
+      // 'corta' breaks three password rules (length, uppercase, digit): one error each, plus the email one.
+      expect(res.body.errors.map((e: { campo: string }) => e.campo).sort()).toEqual(['email', 'password', 'password', 'password']);
     });
 
     it('400 con un campo desconocido (rol) y no crea la cuenta', async () => {
@@ -328,8 +329,8 @@ describe('API de cuentas (contenedor de prueba)', () => {
         expect(res2.status).toBe(400);
       });
 
-      it('exactamente 72 bytes se acepta', async () => {
-        const justa = 'a'.repeat(72);
+      it('exactamente 64 caracteres se acepta', async () => {
+        const justa = `A1${'a'.repeat(62)}`;
         const res = await enviar({ ...cuerpo, nuevaPassword: justa, confirmarPassword: justa });
         expect(res.status).toBe(200);
       });

@@ -1,11 +1,12 @@
 import { z } from 'zod';
-import { passwordExistenteSchema, passwordNuevaSchema } from '../campos.js';
+import { passwordExistenteSchema } from '../campos.js';
+import { passwordSeguraSchema } from '../passwordSegura.js';
 
 /** PUT /api/users/password body. */
 export const cambiarPasswordSchema = z
   .strictObject({
     passwordActual: passwordExistenteSchema,
-    nuevaPassword: passwordNuevaSchema,
+    nuevaPassword: passwordSeguraSchema,
     confirmarPassword: z.string(),
   })
   .refine((datos) => datos.nuevaPassword === datos.confirmarPassword, {

@@ -12,7 +12,9 @@ export interface EntornoTokenRecuperacionDAO {
 
 const T0 = new Date('2026-10-05T14:00:00Z');
 const minutos = (n: number) => new Date(T0.getTime() + n * 60_000);
-const hash = (c: string) => c.repeat(64);
+/** 64-char hash; the suffix is unique per test because the Sequelize flavour shares one database across tests. */
+let prueba = 0;
+const hash = (c: string) => c.repeat(56) + prueba.toString(16).padStart(8, '0');
 
 export function contratoTokenRecuperacionDAO(
   nombre: string,
@@ -23,6 +25,7 @@ export function contratoTokenRecuperacionDAO(
     let sembrador: Sembrador;
     let usuarioId: number;
     beforeEach(async () => {
+      prueba += 1;
       ({ dao, sembrador } = await crearEntorno());
       usuarioId = await sembrador.usuario();
     });
