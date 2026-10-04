@@ -37,7 +37,12 @@ export function crearSembradorSequelize(sequelize: Sequelize): Sembrador {
         `INSERT INTO reporte_saturacion (usuario_id, lugar_id, nivel_saturacion) VALUES (:usuarioId, :lugarId, 'MODERADO')`,
         { usuarioId, lugarId },
       ),
+    // Idempotent per (usuario, lugar): contracts ask for "the favourite" of a pair repeatedly (an alert per call).
     favorito: (usuarioId, lugarId) =>
-      insertar(`INSERT INTO lugar_favorito (usuario_id, lugar_id) VALUES (:usuarioId, :lugarId)`, { usuarioId, lugarId }),
+      insertar(
+        `INSERT INTO lugar_favorito (usuario_id, lugar_id) VALUES (:usuarioId, :lugarId)
+         ON CONFLICT (usuario_id, lugar_id) DO UPDATE SET updated_at = now()`,
+        { usuarioId, lugarId },
+      ),
   };
 }

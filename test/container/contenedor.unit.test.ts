@@ -37,11 +37,11 @@ describe('builders por stream', () => {
   it.each([
     ['seguridad (C0/M1)', construirSeguridad, ['auth', 'usuario', 'recuperacion']],
     ['lugar (M2)', construirLugar, ['lugar']],
-    ['favoritoAlerta (M3)', construirFavoritoAlerta, ['favorito', 'alerta']],
+    ['favoritoAlerta (M3)', (i) => construirFavoritoAlerta(i, crearContenedorPrueba().favoritoAlerta), ['favorito', 'alerta']],
     ['reporte (M4)', construirReporte, ['reporte', 'analitica']],
     ['validacion (M5)', construirValidacion, ['validacion']],
     ['moderacion (M6)', construirModeracion, ['moderacion']],
-  ] as const)('%s devuelve solo sus routers', (_nombre, construir, esperados) => {
+  ] as const satisfies readonly (readonly [string, (i: ReturnType<typeof infra>) => readonly { modulo: string }[], readonly string[]])[])('%s devuelve solo sus routers', (_nombre, construir, esperados) => {
     expect(modulos(construir(infra()))).toEqual(esperados);
   });
 
