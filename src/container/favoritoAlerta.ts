@@ -57,9 +57,20 @@ export function construirFavoritoAlerta(
 ): MontajeRuta[] {
   const { favoritoDAO, alertaDAO, dispositivoDAO, nombresLugar } = daos;
   const notificador = daos.notificador ?? crearNotificadorPush(cfg.push, logger);
-  subject.suscribir(new AlertaFavoritosObserver({ favoritoDAO, alertaDAO, dispositivoDAO, notificador, nombresLugar, logger }));
+  subject.suscribir(
+    new AlertaFavoritosObserver({
+      favoritoDAO,
+      alertaDAO,
+      dispositivoDAO,
+      notificador,
+      nombresLugar,
+      logger,
+      concurrencia: cfg.reglas.alertasConcurrencia,
+      pushTimeoutMs: cfg.push.timeoutMs,
+    }),
+  );
   const alertas = new AlertaController(new AlertaServiceImpl({ alertaDAO, nombresLugar }));
-  const dispositivos = new DispositivoController(new DispositivoServiceImpl({ dispositivoDAO }));
+  const dispositivos = new DispositivoController(new DispositivoServiceImpl({ dispositivoDAO, maxPorUsuario: cfg.reglas.dispositivosMaxPorUsuario }));
   return [
     { modulo: 'favorito', ruta: '/api', router: crearFavoritoRouter(guardas) },
     { modulo: 'alerta', ruta: '/api', router: crearAlertaRouter(guardas, { alertas, dispositivos }) },

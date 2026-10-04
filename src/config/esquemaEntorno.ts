@@ -104,6 +104,8 @@ export const esquemaEntorno = z
     DB_POOL_ACQUIRE_MS: entero(30000, 1),
     DB_POOL_IDLE_MS: entero(10000, 1),
     DB_STATEMENT_TIMEOUT_MS: entero(15000, 1),
+    // Per connection: a statement waiting for a row or advisory lock longer than this fails with 55P03 (answered 503).
+    DB_LOCK_TIMEOUT_MS: entero(5000, 1),
     DB_REINTENTOS: entero(5, 1),
     DB_REINTENTO_ESPERA_MS: entero(500, 1),
 
@@ -146,6 +148,12 @@ export const esquemaEntorno = z
     VENTANA_PENDIENTES_HORAS: entero(3, 1, 24),
     ANALITICA_MIN_MUESTRAS: entero(5, 1),
     SUSPENSION_DIAS_PERMITIDOS: diasDeSuspension,
+    // After a report commit the answer waits at most this long for the event subscribers (delivery goes on in background).
+    EVENTOS_PRESUPUESTO_MS: entero(500, 1),
+    // Followers served at the same time when a place changes level.
+    ALERTAS_CONCURRENCIA: entero(5, 1),
+    // Devices kept per user; registering one more evicts the oldest.
+    DISPOSITIVOS_MAX_POR_USUARIO: entero(10, 1),
 
     // places search (M2): text length of `q` and page size of the list
     LUGARES_Q_MIN: entero(2, 1),
@@ -161,6 +169,8 @@ export const esquemaEntorno = z
     SMTP_USUARIO: z.string().optional(),
     SMTP_PASSWORD: z.string().optional(),
     PUSH_PROVEEDOR: z.enum(['consola', 'fcm']).default('consola'),
+    // One push call is given up after this long (the alert stays stored).
+    PUSH_TIMEOUT_MS: entero(3000, 1),
     FCM_CREDENCIALES_RUTA: z.string().optional(),
 
     // seeds

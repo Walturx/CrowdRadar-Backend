@@ -8,6 +8,7 @@ import { SaturacionUltimoReporteStrategy } from '../../../src/pattern/strategy/s
 import { KarmaServiceImpl } from '../../../src/service/impl/KarmaServiceImpl.js';
 import { ReporteServiceImpl } from '../../../src/service/impl/ReporteServiceImpl.js';
 import { SaturacionServiceImpl } from '../../../src/service/impl/SaturacionServiceImpl.js';
+import type { Logger } from '../../../src/util/logger.js';
 import type { Reloj } from '../../../src/util/Reloj.js';
 import { ConexionFalsa } from '../ConexionFalsa.js';
 import { crearLoggerSilencioso } from '../LoggerSilencioso.js';
@@ -25,6 +26,8 @@ export interface DependenciasFacadePrueba {
   conexion: ConexionBD;
   reloj: Reloj;
   subject?: SaturacionSubject;
+  logger?: Logger;
+  presupuestoEventosMs?: number;
 }
 
 /** Real services with the production numbers (cooldown 30, +10 karma, cap 5 per day) and the latest-report strategy. */
@@ -51,7 +54,8 @@ export function crearFacadePrueba(deps: DependenciasFacadePrueba): ReporteFacade
       ventanaMin: 60,
     }),
     subject: deps.subject ?? { suscribir: () => {}, notificar: async () => {} },
-    logger: crearLoggerSilencioso(),
+    logger: deps.logger ?? crearLoggerSilencioso(),
+    ...(deps.presupuestoEventosMs === undefined ? {} : { presupuestoEventosMs: deps.presupuestoEventosMs }),
   });
 }
 
@@ -61,19 +65,35 @@ export class ReporteDAOLento extends ReporteDAOMemoria {
     await new Promise<void>((resolver) => setTimeout(resolver, 5));
     return super.crear(...argumentos);
   }
+
+  /** Also yields before storing the points, so two unserialized karma awards both count the same premiados. */
+  override async registrarPuntos(...argumentos: Parameters<ReporteDAOMemoria['registrarPuntos']>) {
+    await new Promise<void>((resolver) => setTimeout(resolver, 5));
+    return super.registrarPuntos(...argumentos);
+  }
+}
+
+/** LugarDAO that yields before writing the saturation, so two unserialized recomputations would read the same level. */
+export class LugarDAOLento extends LugarDAOMemoria {
+  override async actualizarSaturacion(...argumentos: Parameters<LugarDAOMemoria['actualizarSaturacion']>) {
+    await new Promise<void>((resolver) => setTimeout(resolver, 5));
+    return super.actualizarSaturacion(...argumentos);
+  }
 }
 
 const DATOS_USUARIO = { nombre: 'Ana', apellido: 'Perez', passwordHash: 'h', telefono: null, distrito: null };
 
 /** Everything in memory: two users, one place, in-memory transactions that emulate the advisory lock. */
-export async function armarFacadeConMemoria(opciones: { insercionLenta?: boolean } = {}) {
+export async function armarFacadeConMemoria(
+  opciones: { insercionLenta?: boolean; saturacionLenta?: boolean; subject?: SaturacionSubject } = {},
+) {
   const reloj = new RelojFijo(INSTANTE_PRUEBA);
   const usuarioDAO = new UsuarioDAOMemoria();
-  const lugarDAO = new LugarDAOMemoria();
+  const lugarDAO = opciones.saturacionLenta ? new LugarDAOLento() : new LugarDAOMemoria();
   const reporteDAO = opciones.insercionLenta ? new ReporteDAOLento() : new ReporteDAOMemoria();
   const usuarioId = (await usuarioDAO.crear({ ...DATOS_USUARIO, email: 'ana@crowdradar.pe' })).id;
   const otroUsuarioId = (await usuarioDAO.crear({ ...DATOS_USUARIO, email: 'luis@crowdradar.pe' })).id;
   const lugarId = lugarDAO.agregar().id;
-  const facade = crearFacadePrueba({ usuarioDAO, lugarDAO, reporteDAO, conexion: new ConexionFalsa(), reloj });
+  const facade = crearFacadePrueba({ usuarioDAO, lugarDAO, reporteDAO, conexion: new ConexionFalsa(), reloj, subject: opciones.subject });
   return { facade, usuarioDAO, lugarDAO, reporteDAO, usuarioId, otroUsuarioId, lugarId, reloj };
 }

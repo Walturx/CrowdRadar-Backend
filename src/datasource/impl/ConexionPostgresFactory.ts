@@ -12,7 +12,7 @@ export function sqlSinValores(sql: string): string {
 }
 
 /**
- * Sequelize options derived from configuration: explicit pool, server-side statement_timeout
+ * Sequelize options derived from configuration: explicit pool, server-side statement_timeout and lock_timeout
  * and, with DB_SSL, TLS with certificate verification ON (use NODE_EXTRA_CA_CERTS for a private CA).
  */
 export function opcionesSequelize(bd: ConfiguracionApp['bd'], logger: Logger): Options {
@@ -25,6 +25,7 @@ export function opcionesSequelize(bd: ConfiguracionApp['bd'], logger: Logger): O
     pool: { max: bd.pool.max, min: bd.pool.min, acquire: bd.pool.acquireMs, idle: bd.pool.idleMs },
     dialectOptions: {
       statement_timeout: bd.statementTimeoutMs,
+      lock_timeout: bd.lockTimeoutMs,
       ...(bd.ssl ? { ssl: { require: true, rejectUnauthorized: true } } : {}),
     },
   };

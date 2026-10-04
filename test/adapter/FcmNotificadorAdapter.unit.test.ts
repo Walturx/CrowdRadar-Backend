@@ -72,6 +72,21 @@ describe('FcmNotificadorAdapter.enviar: con cliente (fcm habilitado)', () => {
     expect(await adaptador.enviar(['t'], NOTIFICACION)).toEqual({ enviados: 0, tokensInvalidos: [] });
   });
 
+  it('si el cliente devuelve menos respuestas que tokens, los que faltan cuentan como fallo y se conservan', async () => {
+    const { adaptador } = crear([{ exito: true }]);
+    expect(await adaptador.enviar(['a', 'b', 'c'], NOTIFICACION)).toEqual({ enviados: 1, tokensInvalidos: [] });
+  });
+
+  it('el faltante no oculta un token invalido que si llego: se marca solo el que el proveedor rechazo', async () => {
+    const { adaptador } = crear([{ exito: false, codigoError: 'messaging/registration-token-not-registered' }]);
+    expect(await adaptador.enviar(['muerto', 'sin-respuesta'], NOTIFICACION)).toEqual({ enviados: 0, tokensInvalidos: ['muerto'] });
+  });
+
+  it('si devuelve mas respuestas que tokens, las sobrantes se ignoran: nunca hay mas enviados que tokens', async () => {
+    const { adaptador } = crear([{ exito: true }, { exito: true }, { exito: true }]);
+    expect(await adaptador.enviar(['a', 'b'], NOTIFICACION)).toEqual({ enviados: 2, tokensInvalidos: [] });
+  });
+
   it('sin tokens no llama al cliente', async () => {
     const { adaptador, llamadas } = crear([]);
     expect(await adaptador.enviar([], NOTIFICACION)).toEqual({ enviados: 0, tokensInvalidos: [] });

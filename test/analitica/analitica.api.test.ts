@@ -92,11 +92,19 @@ describe('API de analitica (contenedor de prueba)', () => {
 
     it.each([
       ['rango de 32 dias', { agrupacion: 'DIA', desde: '2026-09-05', hasta: '2026-10-07' }],
-      ['desde igual a hasta', { desde: '2026-10-05', hasta: '2026-10-05' }],
+      ['desde posterior a hasta', { desde: '2026-10-06', hasta: '2026-10-05' }],
     ])('400 RANGO_FECHAS_INVALIDO: %s (S17)', async (_caso, consulta) => {
       const res = await get('historial', consulta);
       expect(res.status).toBe(400);
       expect(res.body.code).toBe('RANGO_FECHAS_INVALIDO');
+    });
+
+    it('200 con desde igual a hasta: un solo dia agrupado por HORA', async () => {
+      sembrar(1, '2026-10-05', 9, NivelSaturacion.MODERADO);
+      sembrar(1, '2026-10-04', 15, NivelSaturacion.SATURADO);
+      const res = await get('historial', { desde: '2026-10-05', hasta: '2026-10-05' });
+      expect(res.status).toBe(200);
+      expect(res.body.data.puntos).toEqual([{ etiqueta: '09:00', valor: 2, muestras: 1 }]);
     });
 
     it.each([

@@ -28,12 +28,17 @@ function esErrorDeConectividad(error: Error): boolean {
   return NOMBRE_CONECTIVIDAD.test(error.name) || (typeof codigo === 'string' && CODIGOS_DE_RED.has(codigo));
 }
 
-/** Postgres SQLSTATE for `statement_timeout` (query_canceled); Sequelize wraps it in a DatabaseError. */
-const SQLSTATE_QUERY_CANCELED = '57014';
+/**
+ * Postgres SQLSTATEs where the database aborted the work and the same request can simply be sent again:
+ * `statement_timeout` (57014), deadlock (40P01), serialization failure (40001) and `lock_timeout` (55P03).
+ * Sequelize wraps them in a DatabaseError.
+ */
+const SQLSTATE_REINTENTABLES = new Set(['57014', '40P01', '40001', '55P03']);
 
-function esTimeoutDeSentencia(error: Error): boolean {
+function esAbortoReintentable(error: Error): boolean {
   const { parent, original } = error as { parent?: { code?: unknown }; original?: { code?: unknown } };
-  return error.name === 'SequelizeDatabaseError' && (parent?.code ?? original?.code) === SQLSTATE_QUERY_CANCELED;
+  const codigo = parent?.code ?? original?.code;
+  return error.name === 'SequelizeDatabaseError' && typeof codigo === 'string' && SQLSTATE_REINTENTABLES.has(codigo);
 }
 
 const sobre = (code: string, message: string, errors: readonly DetalleError[] = []): ErrorResponseDTO => ({
@@ -85,7 +90,7 @@ export function traducirError(error: unknown, requestId?: string): ErrorTraducid
         esInterno: false,
       };
     }
-    if (esErrorDeConectividad(error) || esTimeoutDeSentencia(error)) {
+    if (esErrorDeConectividad(error) || esAbortoReintentable(error)) {
       return {
         status: 503,
         body: sobre(CodigoError.SERVICIO_NO_DISPONIBLE, 'Servicio no disponible. Inténtalo de nuevo más tarde.'),

@@ -29,7 +29,10 @@ export class DispositivoDAOSequelize implements DispositivoDAO {
     plataforma: PlataformaPush,
     tx?: ContextoTx,
   ): Promise<ResultadoRegistro> {
-    // xmax = 0 only on a freshly inserted row: that tells an insert from a token that moved to this user.
+    // `xmax = 0` is true only for a row this statement just inserted: an ON CONFLICT ... DO UPDATE row carries the
+    // updating transaction in xmax. It tells a new device (201) from a token that already existed or moved to this
+    // user (200) in the same atomic statement, without a read-then-write race. It relies on Postgres internals (it
+    // is not a documented guarantee), so the DAO contract test covers both outcomes against a real database.
     const [fila] = await DispositivoModel.sequelize!.query<FilaRegistro>(
       `INSERT INTO dispositivo_push (usuario_id, token_fcm, plataforma)
        VALUES (:usuarioId, :tokenFcm, :plataforma)
@@ -61,6 +64,16 @@ export class DispositivoDAOSequelize implements DispositivoDAO {
   async eliminarPorToken(usuarioId: number, tokenFcm: string, tx?: ContextoTx): Promise<boolean> {
     const filas = await DispositivoModel.destroy({ where: { usuarioId, tokenFcm }, transaction: aTransaccion(tx) });
     return filas > 0;
+  }
+
+  async conservarMasRecientes(usuarioId: number, maximo: number, tx?: ContextoTx): Promise<number> {
+    const [, filas] = await DispositivoModel.sequelize!.query(
+      `DELETE FROM dispositivo_push
+        WHERE usuario_id = :usuarioId
+          AND id NOT IN (SELECT id FROM dispositivo_push WHERE usuario_id = :usuarioId ORDER BY updated_at DESC, id DESC LIMIT :maximo)`,
+      { replacements: { usuarioId, maximo }, transaction: aTransaccion(tx) },
+    );
+    return (filas as { rowCount?: number }).rowCount ?? 0;
   }
 
   eliminarTokens(tokens: readonly string[], tx?: ContextoTx): Promise<number> {

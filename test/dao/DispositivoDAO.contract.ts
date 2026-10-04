@@ -30,10 +30,10 @@ export function contratoDispositivoDAO(nombre: string, crearEntorno: () => Promi
       expect(await dao.listarTokensPorUsuario(usuarioId)).toEqual(['tok-1']);
     });
 
-    it('un token registrado por otro usuario pasa a pertenecer al nuevo usuario', async () => {
+    it('un token registrado por otro usuario pasa a pertenecer al nuevo usuario (creado false: la fila ya existia)', async () => {
       const otro = await sembrador.usuario();
-      await dao.registrar(usuarioId, 'tok-compartido', PlataformaPush.ANDROID);
-      await dao.registrar(otro, 'tok-compartido', PlataformaPush.ANDROID);
+      expect((await dao.registrar(usuarioId, 'tok-compartido', PlataformaPush.ANDROID)).creado).toBe(true);
+      expect((await dao.registrar(otro, 'tok-compartido', PlataformaPush.ANDROID)).creado).toBe(false);
       expect(await dao.listarTokensPorUsuario(usuarioId)).toEqual([]);
       expect(await dao.listarTokensPorUsuario(otro)).toEqual(['tok-compartido']);
     });
@@ -55,6 +55,31 @@ export function contratoDispositivoDAO(nombre: string, crearEntorno: () => Promi
       expect(await dao.eliminarTokens(['a', 'c', 'inexistente'])).toBe(2);
       expect(await dao.listarTokensPorUsuario(usuarioId)).toEqual(['b']);
       expect(await dao.eliminarTokens([])).toBe(0);
+    });
+
+    describe('conservarMasRecientes', () => {
+      it('borra los mas antiguos del usuario por encima del maximo y devuelve cuantos borro', async () => {
+        for (const token of ['a', 'b', 'c']) await dao.registrar(usuarioId, token, PlataformaPush.ANDROID);
+        expect(await dao.conservarMasRecientes(usuarioId, 2)).toBe(1);
+        expect(await dao.listarTokensPorUsuario(usuarioId)).toEqual(['b', 'c']);
+      });
+
+      it('volver a registrar un token lo rejuvenece: el que se borra es el que lleva mas sin usarse', async () => {
+        for (const token of ['a', 'b', 'c']) await dao.registrar(usuarioId, token, PlataformaPush.ANDROID);
+        await dao.registrar(usuarioId, 'a', PlataformaPush.ANDROID);
+        expect(await dao.conservarMasRecientes(usuarioId, 2)).toBe(1);
+        expect((await dao.listarTokensPorUsuario(usuarioId)).sort()).toEqual(['a', 'c']);
+      });
+
+      it('con el usuario por debajo del maximo no borra nada y nunca toca a otros usuarios', async () => {
+        const otro = await sembrador.usuario();
+        await dao.registrar(usuarioId, 'a', PlataformaPush.ANDROID);
+        for (const token of ['x', 'y', 'z']) await dao.registrar(otro, token, PlataformaPush.IOS);
+        expect(await dao.conservarMasRecientes(usuarioId, 2)).toBe(0);
+        expect(await dao.conservarMasRecientes(otro, 1)).toBe(2);
+        expect(await dao.listarTokensPorUsuario(usuarioId)).toEqual(['a']);
+        expect(await dao.listarTokensPorUsuario(otro)).toEqual(['z']);
+      });
     });
 
     it('registrar para un usuario inexistente lanza ForeignKeyConstraintError', async () => {

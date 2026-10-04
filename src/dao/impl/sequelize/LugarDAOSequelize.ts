@@ -100,6 +100,11 @@ export class LugarDAOSequelize implements LugarDAO {
     return modelo ? aEntidad(modelo) : null;
   }
 
+  async buscarPorIdParaActualizar(id: number, tx: ContextoTx): Promise<Lugar | null> {
+    const modelo = await LugarModel.findByPk(id, { transaction: aTransaccion(tx), lock: true });
+    return modelo ? aEntidad(modelo) : null;
+  }
+
   async buscarPorIds(ids: readonly number[], tx?: ContextoTx): Promise<Lugar[]> {
     if (ids.length === 0) return [];
     const modelos = await LugarModel.findAll({ where: { id: [...new Set(ids)] }, transaction: aTransaccion(tx) });

@@ -255,6 +255,7 @@ or missing value prints every offending key (never its value) and exits with cod
 | `DB_POOL_ACQUIRE_MS` | Max wait for a pooled connection (30000) |
 | `DB_POOL_IDLE_MS` | Idle time before a pooled connection is released (10000) |
 | `DB_STATEMENT_TIMEOUT_MS` | Server-side statement timeout (15000) |
+| `DB_LOCK_TIMEOUT_MS` | Server-side lock timeout per connection; a statement waiting longer fails and the request answers 503 with `Retry-After` (5000) |
 | `DB_REINTENTOS` | Boot attempts to reach the database before exiting (5) |
 | `DB_REINTENTO_ESPERA_MS` | First backoff wait, doubling each attempt (500) |
 | `JWT_SECRETO` | **Required**, at least 32 characters, not a `CAMBIAR*` placeholder |
@@ -286,6 +287,9 @@ or missing value prints every offending key (never its value) and exits with cod
 | `RADIO_PENDIENTES_KM` | Radius for reports pending validation in km (5) |
 | `VENTANA_PENDIENTES_HORAS` | Window for pending reports in hours, 1-24 (3) |
 | `ANALITICA_MIN_MUESTRAS` | Minimum samples per time slot (5) |
+| `EVENTOS_PRESUPUESTO_MS` | After a report commit the answer waits at most this long for the event subscribers; the delivery goes on in the background (500) |
+| `ALERTAS_CONCURRENCIA` | Followers alerted at the same time when a place changes level (5) |
+| `DISPOSITIVOS_MAX_POR_USUARIO` | Push devices kept per user; registering one more evicts the oldest (10) |
 | `SUSPENSION_DIAS_PERMITIDOS` | Allowed suspension lengths; must be a subset of 3,7,30 because `sancion_usuario.dias` has `CHECK (dias IN (3,7,30))` in the frozen migration 06 (3,7,30) |
 | `LUGARES_Q_MIN` / `LUGARES_Q_MAX` | Length bounds of the search text `q` in `GET /api/lugares` (2 / 60) |
 | `LUGARES_LIMITE_MAX` | Largest `limite` accepted by the places list, and the hard cap of `LugarDAO.buscar` and `explorar` (200) |
@@ -297,6 +301,7 @@ or missing value prints every offending key (never its value) and exits with cod
 | `SMTP_USUARIO` | Required with `smtp` |
 | `SMTP_PASSWORD` | Required with `smtp` |
 | `PUSH_PROVEEDOR` | `consola` or `fcm` (consola) |
+| `PUSH_TIMEOUT_MS` | One push call is given up after this long; the alert stays stored (3000) |
 | `FCM_CREDENCIALES_RUTA` | Required with `fcm` |
 | `ADMIN_EMAIL` | Email of the seeded admin |
 | `ADMIN_PASSWORD` | Password of the seeded admin: 10 characters minimum, not a `CAMBIAR*` placeholder |
