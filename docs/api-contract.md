@@ -96,13 +96,15 @@ still reveals that an email exists (`409`).
 `ListadoAlertasResponseDTO` (`data` of `GET /api/alertas`): `{ items: AlertaResponseDTO[], page, size, total, totalPaginas, noLeidas }`;
 `noLeidas` counts every unread alert of the caller, not only the page.
 
+`FavoritoResponseDTO`: `{ "lugarId": 7, "nombre": "Parque Kennedy", "categoria": "PARQUE", "saturacion": "MODERADO", "alertasActivadas": true }`.
+
 ### Places and exploration (M2, M3)
 
 | Method | Path | Access | Status | Notes |
 |---|---|---|---|---|
 | GET | /api/lugares | auth | real (M2) | `q`, `bbox`, `categoria`, `nivel`, `limite`; see below |
-| GET | /api/lugares/explorar | auth | stub | M3: `categoria`, `saturacion`, `lat`, `lng`, `radioKm` |
-| GET | /api/lugares/categorias | auth | stub | M3 |
+| GET | /api/lugares/explorar | auth | real (M3) | `categoria` (CategoriaLugar), `saturacion` (`TRANQUILO` | `MODERADO` | `SATURADO` | `SIN_INFORMACION`, effective level), `lat` + `lng` (both or neither), `radioKm` 0.1-20 (default `RADIO_BUSQUEDA_KM`, ignored without `lat`/`lng`), `limite` 1-`LUGARES_LIMITE_MAX`; filters combine with AND; see below |
+| GET | /api/lugares/categorias | auth | real (M3) | `200 { message, data: { items: [{ categoria, etiqueta, total }] } }`, the 6 categories in enum order, `total` 0 allowed |
 | GET | /api/lugares/:id | auth | real (M2) | detail with `abiertoAhora`, `saturacion`, `esFavorito`; see below |
 | GET | /api/lugares/:id/historial | auth | real | M4: `desde`, `hasta` (YYYY-MM-DD, Lima), `agrupacion` = `HORA` (default; 24-hour slots `HH:00` over the range, today by default) or `DIA` (one point per day, last 7 days by default); `200 { message, data: { puntos: [{ etiqueta, valor, muestras }], hayDatos, mensaje, sintetico } }` (`valor` is the average level 1-3; with no data `hayDatos` is false and `mensaje` explains it); `400 RANGO_FECHAS_INVALIDO` when both dates are given and `desde` is not before `hasta` or they are more than 31 days apart; `404 LUGAR_NO_ENCONTRADO` |
 | GET | /api/lugares/:id/comparar | auth | real | M4: `desdeA`, `hastaA`, `desdeB`, `hastaB` required, `diasA`, `diasB` = `TODOS` (default) \| `LABORABLES` \| `FIN_DE_SEMANA`; `200 { message, data: { periodoA, periodoB: [24 x { hora, valor, muestras }], diferencias: [{ hora, diferencia }] (B minus A, hours with data in both), resumen, suficiente, mensaje, sintetico } }`; `suficiente` is false (and `diferencias` empty) when either period has fewer than `ANALITICA_MIN_MUESTRAS` samples; same `400`/`404` as the history |
@@ -146,14 +148,23 @@ MVP integration `ensamblar` hands the one `FavoritoDAO` of the favourites stream
 `abiertoAhora` is `null` when the opening hours are unknown. For `SIN_INFORMACION`, `actualizadoEn` is `null` and `mensaje` is
 `Aún no hay reportes suficientes para determinar la saturación de este lugar.`.
 
+`GET /api/lugares/explorar` (M3): the same `items` as the list plus `distanciaMetros` (integer metres from `lat`/`lng`; `null` without them).
+Without `lat`/`lng` the items come ordered by `nombre`; with them, nearest first and only places within `radioKm` (inclusive).
+`lat` -90..90 and `lng` -180..180, sent together: one alone is `400 VALIDACION_FALLIDA` naming the missing one. `saturacion` is the
+effective level (a reading older than `SATURACION_VENTANA_MIN` counts as `SIN_INFORMACION`). Invalid `categoria`, `saturacion`, `lat`,
+`lng`, `radioKm` or `limite` is `400` with `errors[{ campo }]`. An empty result is `200` with `items: []` and, as `message`:
+only `categoria` `No hay lugares cercanos disponibles para esa categoría.`; only `saturacion` `No hay lugares cercanos con ese nivel de saturación.`;
+anything else `No hay lugares cercanos que cumplan con los filtros seleccionados.`; otherwise `Lugares obtenidos correctamente.`.
+`GET /api/lugares/categorias` message: `Categorías obtenidas correctamente.`; labels: Parques, Centros comerciales, Mercados, Transporte, Plazas, Playas.
+
 ### Favourites and alerts (M3)
 
 | Method | Path | Access | Status | Notes |
 |---|---|---|---|---|
-| GET | /api/favoritos | auth | stub | |
-| POST | /api/favoritos | auth | stub | body `{ lugarId }`; `409 FAVORITO_DUPLICADO` |
-| DELETE | /api/favoritos/:lugarId | auth | stub | |
-| PATCH | /api/favoritos/:lugarId/alertas | auth | stub | |
+| GET | /api/favoritos | auth | real | `200 { message, data: { items: [FavoritoResponseDTO] } }`, caller only, newest first; `saturacion` is the effective level (stale or null = `SIN_INFORMACION`); none: message `No tienes lugares favoritos registrados.` |
+| POST | /api/favoritos | auth | real | body `{ lugarId }` (positive integer), strict; `201 { message: "Añadido a favoritos", data: FavoritoResponseDTO }` with `alertasActivadas` true; `404 LUGAR_NO_ENCONTRADO`; `409 FAVORITO_DUPLICADO` ("Este lugar ya pertenece a tus favoritos.", also under concurrency); `400` bad body |
+| DELETE | /api/favoritos/:lugarId | auth | real | `204` without body (the alerts of that favourite go with it); `404 FAVORITO_NO_ENCONTRADO` when it is not the caller's favourite (a foreign one looks the same); `400` when `lugarId` is not a positive integer |
+| PATCH | /api/favoritos/:lugarId/alertas | auth | real | body `{ alertasActivadas: boolean }`, strict; idempotent; `200 { message, data: FavoritoResponseDTO }`; `404 FAVORITO_NO_ENCONTRADO`; `400` bad body or `lugarId` |
 | GET | /api/alertas | auth | real | query `page`, `size` (1-50, default 20); `200 { message, data: ListadoAlertasResponseDTO }`; no alerts: message `No tienes alertas.`; `400` bad `page`/`size` |
 | PATCH | /api/alertas/:id/leida | auth | real | idempotent; `200 { message, data: AlertaResponseDTO }`; `404 ALERTA_NO_ENCONTRADA` for an unknown or foreign alert; `400` when `id` is not a positive integer |
 | POST | /api/dispositivos | auth | real | body `{ token (1-255), plataforma: ANDROID or IOS }`, strict; `201` new token, `200` known token (upsert: a token held by another user moves to the caller, who becomes its only owner); `400` bad body |

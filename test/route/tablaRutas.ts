@@ -33,8 +33,8 @@ export const TABLA_RUTAS: readonly FilaRuta[] = [
   publica('get', '/recuperar/restablecer', 'recuperacion.mostrarPagina'),
   // lugar (M2) and exploracion (M3): explorar and categorias BEFORE /:id
   auth('get', '/api/lugares', 'lugar.buscar', true),
-  auth('get', '/api/lugares/explorar', 'exploracion.explorar'),
-  auth('get', '/api/lugares/categorias', 'exploracion.listarCategorias'),
+  auth('get', '/api/lugares/explorar', 'exploracion.explorar', true),
+  auth('get', '/api/lugares/categorias', 'exploracion.listarCategorias', true),
   auth('get', '/api/lugares/12', 'lugar.obtenerDetalle', true),
   // analitica (M4)
   auth('get', '/api/lugares/12/historial', 'analitica.obtenerHistorial', true),
