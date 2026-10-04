@@ -42,10 +42,16 @@ const PERFILES = {
 };
 const PERFIL_POR_DEFECTO = PERFILES.PLAZA;
 
-/** True unless the environment turns the demo history off: SEED_SINTETICO wins, otherwise it is on outside production. */
+/**
+ * True unless the environment turns the demo history off: SEED_SINTETICO wins, otherwise it is on outside production.
+ * An explicit "on" in production is refused (the API refuses it too), so demo data cannot be seeded there by accident.
+ */
 function habilitado(env) {
   const crudo = String(env.SEED_SINTETICO ?? '').trim().toLowerCase();
-  if (['true', '1', 'yes', 'on'].includes(crudo)) return true;
+  if (['true', '1', 'yes', 'on'].includes(crudo)) {
+    if (env.NODE_ENV === 'production') throw new Error('SEED_SINTETICO=true no se admite con NODE_ENV=production (datos de demostración).');
+    return true;
+  }
   if (['false', '0', 'no', 'off'].includes(crudo)) return false;
   return env.NODE_ENV !== 'production';
 }

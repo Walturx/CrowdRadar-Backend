@@ -71,7 +71,7 @@ admin route answers `403`, and only then `501`. No frozen path ever answers `404
 
 | Method | Path | Access | Status | Notes |
 |---|---|---|---|---|
-| POST | /api/auth/register | public + limit | real | body `{ nombre, apellido, email, password, telefono?, distrito? }`; `201 { message, data: SesionResponseDTO }`; `409 EMAIL_DUPLICADO` |
+| POST | /api/auth/register | public + limit | real | body `{ nombre, apellido, email, password, telefono?, distrito? }`; `201 { message, data: SesionResponseDTO }`; `409 EMAIL_DUPLICADO`; `400 VALIDACION_FALLIDA` (field `email`) for an address ending in `@sintetico.crowdradar.local`, reserved for the demo users |
 | POST | /api/auth/login | public + limit | real | body `{ email, password }`; `200 { message, data: SesionResponseDTO }`; `401 CREDENCIALES_INVALIDAS`; `403 CUENTA_SUSPENDIDA`; `404 CUENTA_NO_EXISTE` only with `POLITICA_MENSAJES_AUTH=DETALLADA` |
 | POST | /api/auth/recuperar | public | stub | M1 |
 | GET | /api/auth/restablecer/validar | public | stub | M1, query `token` |

@@ -101,7 +101,7 @@ describe('ConfiguracionApp', () => {
       };
       expect(leer({ NODE_ENV: 'development' })).toBe(true);
       expect(leer({ NODE_ENV: 'production' })).toBe(false);
-      expect(leer({ NODE_ENV: 'production', SEED_SINTETICO: 'true' })).toBe(true);
+      expect(leer({ NODE_ENV: 'development', SEED_SINTETICO: 'true' })).toBe(true);
       expect(leer({ NODE_ENV: 'development', SEED_SINTETICO: 'false' })).toBe(false);
     });
 

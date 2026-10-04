@@ -51,6 +51,22 @@ describe('docs/api-contract.md', () => {
   });
 });
 
+describe('docs/decisiones.md', () => {
+  const decisiones = leer('docs/decisiones.md');
+
+  it('declara la entrega de eventos at-most-once despues del commit, sin outbox, aceptada para el MVP', () => {
+    for (const texto of ['at-most-once', 'commit', 'outbox', 'MVP']) expect(decisiones).toContain(texto);
+  });
+
+  it('indica como reconciliar un evento perdido con lugar.saturacion_actualizada_en', () => {
+    expect(decisiones).toContain('saturacion_actualizada_en');
+  });
+
+  it('el README lo enlaza', () => {
+    expect(leer('README.md')).toContain('docs/decisiones.md');
+  });
+});
+
 describe('README.md', () => {
   const readme = leer('README.md');
 
