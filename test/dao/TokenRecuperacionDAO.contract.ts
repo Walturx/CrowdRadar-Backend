@@ -1,7 +1,9 @@
 /** Shared contract for TokenRecuperacionDAO (M1). Design 4.2: only the hash is stored; single use; new request invalidates previous ones. */
 import { beforeEach, describe, expect, it } from 'vitest';
+import { ForeignKeyConstraintError } from 'sequelize';
 import type { TokenRecuperacionDAO } from '../../src/dao/TokenRecuperacionDAO.js';
-import type { Sembrador } from './Sembrador.js';
+import { ConflictoException } from '../../src/exception/http/ConflictoException.js';
+import { ID_INEXISTENTE, type Sembrador } from './Sembrador.js';
 
 export interface EntornoTokenRecuperacionDAO {
   dao: TokenRecuperacionDAO;
@@ -52,6 +54,20 @@ export function contratoTokenRecuperacionDAO(
       expect((await dao.buscarPorHash(hash('a')))?.usadoEn).toEqual(minutos(1));
       expect((await dao.buscarPorHash(hash('d')))?.usadoEn).toBeNull();
       expect(await dao.invalidarVigentesDeUsuario(usuarioId, minutos(11))).toBe(0);
+    });
+
+    it('crear con un tokenHash repetido lanza ConflictoException (unique) y conserva el primero', async () => {
+      const primero = await dao.crear({ usuarioId, tokenHash: hash('u'), expiraEn: minutos(30) });
+      await expect(dao.crear({ usuarioId, tokenHash: hash('u'), expiraEn: minutos(60) })).rejects.toBeInstanceOf(
+        ConflictoException,
+      );
+      expect((await dao.buscarPorHash(hash('u')))?.id).toBe(primero.id);
+    });
+
+    it('crear con un usuario inexistente lanza ForeignKeyConstraintError', async () => {
+      await expect(dao.crear({ usuarioId: ID_INEXISTENTE, tokenHash: hash('f'), expiraEn: minutos(30) })).rejects.toBeInstanceOf(
+        ForeignKeyConstraintError,
+      );
     });
   });
 }

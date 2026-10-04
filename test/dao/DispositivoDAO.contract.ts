@@ -1,8 +1,9 @@
 /** Shared contract for DispositivoDAO (M3). Spec M3 R7: upsert by token, ownership moves with re-registration. */
 import { beforeEach, describe, expect, it } from 'vitest';
+import { ForeignKeyConstraintError } from 'sequelize';
 import type { DispositivoDAO } from '../../src/dao/DispositivoDAO.js';
 import { PlataformaPush } from '../../src/enum/PlataformaPush.js';
-import type { Sembrador } from './Sembrador.js';
+import { ID_INEXISTENTE, type Sembrador } from './Sembrador.js';
 
 export interface EntornoDispositivoDAO {
   dao: DispositivoDAO;
@@ -54,6 +55,12 @@ export function contratoDispositivoDAO(nombre: string, crearEntorno: () => Promi
       expect(await dao.eliminarTokens(['a', 'c', 'inexistente'])).toBe(2);
       expect(await dao.listarTokensPorUsuario(usuarioId)).toEqual(['b']);
       expect(await dao.eliminarTokens([])).toBe(0);
+    });
+
+    it('registrar para un usuario inexistente lanza ForeignKeyConstraintError', async () => {
+      await expect(dao.registrar(ID_INEXISTENTE, 'tok-fk', PlataformaPush.ANDROID)).rejects.toBeInstanceOf(
+        ForeignKeyConstraintError,
+      );
     });
   });
 }

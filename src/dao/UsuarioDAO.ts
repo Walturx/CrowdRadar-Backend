@@ -47,5 +47,6 @@ export interface UsuarioDAO {
   actualizarStatus(id: number, status: EstadoCuenta, tx?: ContextoTx): Promise<Usuario | null>;
   /** Atomic add (floor 0); returns the new total, or null when the user does not exist. */
   incrementarKarma(id: number, delta: number, tx?: ContextoTx): Promise<number | null>;
+  /** Order per `filtro.orden`, always ending in `id` (SQL: `ORDER BY ..., id`). */
   listar(filtro: FiltroUsuarios, paginacion: Paginacion, tx?: ContextoTx): Promise<Pagina<Usuario>>;
 }

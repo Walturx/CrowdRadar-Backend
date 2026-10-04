@@ -3,12 +3,14 @@
  * Sequelize in M4/M5). Spec M4 R1-R5, R7, R9, R11-R13; design 4.4, 4.6.
  */
 import { beforeEach, describe, expect, it } from 'vitest';
+import { ForeignKeyConstraintError } from 'sequelize';
 import type { ReporteDAO } from '../../src/dao/ReporteDAO.js';
 import { EstadoReporte } from '../../src/enum/EstadoReporte.js';
 import { FiltroDias } from '../../src/enum/FiltroDias.js';
 import { MotivoSinPuntos } from '../../src/enum/MotivoSinPuntos.js';
 import { NivelSaturacion } from '../../src/enum/NivelSaturacion.js';
-import type { Sembrador } from './Sembrador.js';
+import { casosPaginacion } from './paginacion.contract.js';
+import { ID_INEXISTENTE, type Sembrador } from './Sembrador.js';
 
 export interface EntornoReporteDAO {
   dao: ReporteDAO;
@@ -194,6 +196,22 @@ export function contratoReporteDAO(nombre: string, crearEntorno: () => Promise<E
         expect(soloLugar.items.map((r) => r.id)).toEqual([ajeno.id]);
         expect(soloLugar.total).toBe(1);
       });
+    });
+
+    it('crear con usuario o lugar inexistente lanza ForeignKeyConstraintError', async () => {
+      await expect(crear(NivelSaturacion.MODERADO, T0, { usuarioId: ID_INEXISTENTE })).rejects.toBeInstanceOf(
+        ForeignKeyConstraintError,
+      );
+      await expect(crear(NivelSaturacion.MODERADO, T0, { lugarId: ID_INEXISTENTE })).rejects.toBeInstanceOf(
+        ForeignKeyConstraintError,
+      );
+    });
+
+    casosPaginacion('listarPorUsuario', async () => {
+      await crear(NivelSaturacion.MODERADO, T0);
+      await crear(NivelSaturacion.MODERADO, T0);
+      await crear(NivelSaturacion.MODERADO, T0);
+      return (paginacion) => dao.listarPorUsuario(usuarioId, paginacion);
     });
   });
 }
