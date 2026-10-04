@@ -67,6 +67,9 @@ them unless `DATABASE_URL_TEST` points to a throwaway PostgreSQL, for example
 to it. Use `npm run test:db` in CI so those tests can never be skipped silently. `.only` is forbidden
 (`allowOnly: false`).
 
+CI (`.github/workflows/ci.yml`) runs `lint`, `build` and `npm test`, then `npm run test:db` against a Postgres 16
+service. Which interfaces each stream (M1 to M6) implements, and which files it owns, is in `docs/contratos-streams.md`.
+
 Tests follow strict TDD (red, green, refactor). `test/support` holds the in-memory DAOs, fakes and
 `crearContenedorPrueba`, which assembles the real composition root with fakes instead of a database.
 
