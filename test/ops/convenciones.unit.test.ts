@@ -20,8 +20,8 @@ function archivos(carpeta: string): string[] {
 }
 
 describe('convenciones de nombres', () => {
-  it('todo archivo de prueba lleva el tipo en el nombre: .unit, .api o .contract', () => {
-    const sinTipo = archivos('test').filter((ruta) => ruta.endsWith('.test.ts') && !/\.(unit|api|contract)\.test\.ts$/.test(ruta));
+  it('todo archivo de prueba lleva el tipo en el nombre: .unit, .api, .contract, .whitebox o .blackbox', () => {
+    const sinTipo = archivos('test').filter((ruta) => ruta.endsWith('.test.ts') && !/\.(unit|api|contract|whitebox|blackbox)\.test\.ts$/.test(ruta));
     expect(sinTipo).toEqual([]);
   });
 

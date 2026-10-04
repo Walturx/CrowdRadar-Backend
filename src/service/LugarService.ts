@@ -7,6 +7,8 @@ export interface ConsultaLugares {
   q?: string;
   bbox?: Bbox;
   categoria?: CategoriaLugar;
+  /** Effective level; a stale or missing reading counts as SIN_INFORMACION. */
+  nivel?: NivelEfectivo;
   limite: number;
 }
 

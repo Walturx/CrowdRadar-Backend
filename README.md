@@ -133,7 +133,7 @@ Layer folders are singular and one type lives in one PascalCase file.
 | Functions and middleware | camelCase, singular | `autenticar.ts`, `limitarIntentos.ts`, `reintentar.ts` |
 | Routers | `*.routes.ts` (`<resource>.routes.ts`), lowercase; helpers `middlewareRuta.ts`, `stub.ts` | `usuario.routes.ts` |
 | Composition root | `container/<stream>.ts`, lowercase, one per stream, plus `Contenedor.ts` | `container/reporte.ts` |
-| Tests | mirror `src/` and carry the kind before `.test.ts`: `.unit` (no I/O), `.api` (HTTP through supertest or a spawned server), `.contract` (shared DAO contract, real PostgreSQL migrations) | `autenticar.unit.test.ts`, `auth.usuario.api.test.ts`, `UsuarioDAOMemoria.contract.test.ts` |
+| Tests | mirror `src/` and carry the kind before `.test.ts`: `.unit` (no I/O), `.api` (HTTP through supertest or a spawned server), `.contract` (shared DAO contract, real PostgreSQL migrations); `.whitebox` / `.blackbox` (the per-stream evidence tests of the test design: branch coverage of one method, equivalence/boundary tables over one endpoint) | `autenticar.unit.test.ts`, `auth.usuario.api.test.ts`, `UsuarioDAOMemoria.contract.test.ts` |
 
 `test/ops/convenciones.unit.test.ts` enforces the test suffix, the `Adapter` suffix and the route and container names.
 `Paginacion` (types plus `armarPagina` and `desplazamiento`) lives in one module, `dao/Paginacion.ts`, because the page
