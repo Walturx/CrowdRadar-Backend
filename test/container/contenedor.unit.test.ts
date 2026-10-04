@@ -12,6 +12,8 @@ import { construirSeguridad } from '../../src/container/seguridad.js';
 import { construirValidacion } from '../../src/container/validacion.js';
 import { EmisorTokenFalso } from '../support/adapter/EmisorTokenFalso.js';
 import { HasherFalso } from '../support/adapter/HasherFalso.js';
+import { LugarDAOMemoria } from '../support/dao/memoria/LugarDAOMemoria.js';
+import { ReporteDAOMemoria } from '../support/dao/memoria/ReporteDAOMemoria.js';
 import { UsuarioDAOMemoria } from '../support/dao/memoria/UsuarioDAOMemoria.js';
 import { ConexionFalsa } from '../support/ConexionFalsa.js';
 import { configPrueba } from '../support/configPrueba.js';
@@ -24,6 +26,8 @@ const infra = () =>
     logger: crearLoggerSilencioso(),
     conexion: new ConexionFalsa(),
     usuarioDAO: new UsuarioDAOMemoria(),
+    lugarDAO: new LugarDAOMemoria(),
+    reporteDAO: new ReporteDAOMemoria(),
     hasher: new HasherFalso(),
     emisorToken: new EmisorTokenFalso(),
   });

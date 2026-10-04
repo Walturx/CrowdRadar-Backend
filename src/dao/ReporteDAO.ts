@@ -76,6 +76,8 @@ export interface ReporteDAO {
   actualizarConfiabilidad(id: number, nivel: number, tx?: ContextoTx): Promise<ReporteSaturacion | null>;
   /** Buckets by (day, hour) in the query zone, ordered by day then hour; empty buckets are omitted. */
   agregarPorHora(consulta: ConsultaAgregada, tx?: ContextoTx): Promise<AgregadoHora[]>;
+  /** True when some ACTIVO report of the query (same place, range and day filter) was written by a demo user (email domain DOMINIO_EMAIL_SINTETICO). */
+  hayReportesSinteticos(consulta: ConsultaAgregada, tx?: ContextoTx): Promise<boolean>;
   /** Newest first (SQL: `ORDER BY fecha_hora DESC, id DESC`). */
   listarPendientesDeValidar(
     filtro: FiltroPendientes,

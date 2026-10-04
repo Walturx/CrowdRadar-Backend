@@ -177,7 +177,7 @@ Interfaces to implement:
 Owned files: `facade/ReporteFacade*`, `service/impl/{Reporte,Karma,Saturacion,Analitica}ServiceImpl.ts`,
 `pattern/strategy/saturacion/impl/*`, `controller/{Reporte,Analitica}Controller.ts`, `mapper/{Reporte,Analitica}Mapper.ts`,
 `dao/impl/sequelize/ReporteDAOSequelize.ts`, `route/{reporte,analitica}.routes.ts` (`/reportes/mios` before
-`/reportes/:id`), `container/reporte.ts`, `exception/reporte/*`, `dto/**/reporte/*`, seeder `20261005100003-demo-historial`
+`/reportes/:id`), `container/reporte.ts`, `exception/reporte/*`, `dto/**/reporte/*`, seeder `20261005100003-historial-sintetico`
 (synthetic, declared as such).
 
 Must not touch: `service/impl/Validacion*` and `service/impl/Denuncia*` (M5), `dao/impl/sequelize/LugarDAOSequelize.ts`
@@ -198,6 +198,32 @@ Shared ports (contract PR required):
 How to run tests: `npm test` (strategies and services with `ReporteDAOMemoria`, `RelojFijo`);
 `npm run test:db` with `DATABASE_URL_TEST` runs `ReporteDAOSequelize` through `ejecutarContratoDAO` and
 `contratoReporteDAO` (it covers `agregarPorHora` buckets and the pagination tie-break: `ORDER BY fecha_hora DESC, id DESC`).
+
+M4 notes (delivered in the BE-01..03 slices):
+
+- The cooldown runs inside the report transaction: `ReporteService.validarCooldown(usuarioId, lugarId, tx)` calls
+  `ReporteDAO.buscarUltimoDeUsuarioEnLugar(..., tx)`, which in PostgreSQL takes `pg_advisory_xact_lock(usuarioId, lugarId)`
+  until the transaction ends, so two simultaneous reports of the same pair never both pass the check. No port signature
+  changed (both already received `tx`); `ReporteFacade.registrar` checks the place first (404, nothing written), then opens
+  the transaction.
+- `ReporteDAOMemoria` emulates that lock per transaction handle: use `ConexionFalsa.transaccion` (it opens and closes the
+  handle) when a test needs the mutual exclusion. Shared cases: `test/dao/ReporteDAO.concurrencia.contract.ts`.
+- `container/reporte.ts` exports `construirServiciosReporte` and `elegirEstrategiaSaturacion` (strategy picked by
+  `SATURACION_ESTRATEGIA`). M5 and M6 take `karmaService` and `saturacionService` from it. `construirReporte` now builds
+  the facade and mounts `ReporteController` (POST /reportes, GET /reportes/mios).
+- Contract touch (M4-BE-04): `DependenciasInfraestructura` gained `lugarDAO` and `reporteDAO` (Sequelize in
+  `crearContenedor`, in memory in `crearContenedorPrueba`) and `Infraestructura` gained the shared `subject`
+  (`PublicadorSaturacion`, one instance for M3 to subscribe to and M4/M6 to publish through). When M2 wires its own
+  `lugarDAO` in `crearContenedor` the line is the same one: keep a single instance.
+- Contract touch (M4-BE-04): `ReporteService.listarMios(usuarioId, paginacion)` now returns
+  `Pagina<{ reporte, lugarNombre }>` (the interim first page of 50 is gone); `ReporteServiceImpl` takes a `LugarDAO`.
+- Contract touch (M4-BE-05): `AnaliticaService` was reshaped from the frozen sketch (`PuntoHistorial[]` / `{ a, b }`) to the
+  results the app parses (`ResultadoHistorial`, `ResultadoComparacion`, `ResultadoMejorHorario`; `hayDatos`/`suficiente`,
+  `sintetico`); `ReporteDAO` gained `hayReportesSinteticos(consulta)` (implemented in the Sequelize class and in
+  `ReporteDAOMemoria`; the shared `Sembrador` gained `usuarioSintetico()`). `DependenciasInfraestructura` gained an optional
+  `reloj` (the system clock when omitted). The demo-user marker is the email domain in `util/sintetico.ts`.
+- Test file names: rubric kinds end in `.unit.test.ts` (e.g. `SaturacionPonderadaStrategy.whitebox.unit.test.ts`), since
+  `convenciones.unit.test.ts` only accepts `.unit`, `.api` and `.contract`.
 
 ## M5 Validation and complaints
 
