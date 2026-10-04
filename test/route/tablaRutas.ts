@@ -37,9 +37,9 @@ export const TABLA_RUTAS: readonly FilaRuta[] = [
   auth('get', '/api/lugares/categorias', 'exploracion.listarCategorias'),
   auth('get', '/api/lugares/12', 'lugar.obtenerDetalle', true),
   // analitica (M4)
-  auth('get', '/api/lugares/12/historial', 'analitica.obtenerHistorial'),
-  auth('get', '/api/lugares/12/comparar', 'analitica.compararPeriodos'),
-  auth('get', '/api/lugares/12/mejor-horario', 'analitica.obtenerMejorHorario'),
+  auth('get', '/api/lugares/12/historial', 'analitica.obtenerHistorial', true),
+  auth('get', '/api/lugares/12/comparar', 'analitica.compararPeriodos', true),
+  auth('get', '/api/lugares/12/mejor-horario', 'analitica.obtenerMejorHorario', true),
   // favoritos y alertas (M3)
   auth('get', '/api/favoritos', 'favorito.listar'),
   auth('post', '/api/favoritos', 'favorito.agregar'),
@@ -50,8 +50,8 @@ export const TABLA_RUTAS: readonly FilaRuta[] = [
   auth('post', '/api/dispositivos', 'alerta.registrarDispositivo'),
   auth('delete', '/api/dispositivos/token-fcm', 'alerta.eliminarDispositivo'),
   // reporte (M4): /reportes/mios BEFORE /reportes/:id (validacion router, M5)
-  auth('post', '/api/reportes', 'reporte.registrar'),
-  auth('get', '/api/reportes/mios', 'reporte.listarMios'),
+  auth('post', '/api/reportes', 'reporte.registrar', true),
+  auth('get', '/api/reportes/mios', 'reporte.listarMios', true),
   auth('get', '/api/reportes/mios/validacion', 'validacion.consultarEstadoMisReportes'),
   // validacion y denuncia (M5)
   auth('get', '/api/validaciones/pendientes', 'validacion.listarPendientes'),

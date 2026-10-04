@@ -57,7 +57,7 @@ Schema changes only happen through sequelize-cli migrations (`database/migration
 | `npm run db:migrate` | Apply pending migrations (re-running is a no-op) |
 | `npm run db:migrate:undo` | Undo the last migration |
 | `npm run db:migrate:undo:all` | Undo all of them |
-| `npm run db:seed` | Seed the admin user (`ADMIN_EMAIL`/`ADMIN_PASSWORD`) and the Lima places (`database/data/lugares-lima.json`, OpenStreetMap, ODbL); idempotent |
+| `npm run db:seed` | Seed the admin user (`ADMIN_EMAIL`/`ADMIN_PASSWORD`), the Lima places (`database/data/lugares-lima.json`, OpenStreetMap, ODbL) and, unless disabled, the synthetic demo history (see Datos de demostración); idempotent |
 | `npm run db:reset` | Undo all, migrate, seed |
 
 Seeder notes: seeders run through sequelize-cli and read `process.env` directly (the API's zod schema does not apply),
@@ -78,6 +78,21 @@ several types** (for example `osm_id 777 (node, way)`), when two places share a 
 Decide which row of each pair to keep (the one with favourites and reports, if any), move or delete the other (reports use
 `ON DELETE RESTRICT`: re-point `reporte_saturacion.lugar_id` first), then run the undo again. Take the backup of the rollback
 runbook first.
+
+### Datos de demostración
+
+`db:seed` also loads a **synthetic** history so the analytics screens (history, comparison, best time) have something
+to show: three fake users (`Demo 01` to `Demo 03`, emails `demoNN@sintetico.crowdradar.local`, no password, they cannot log
+in) and about four weeks of crowd reports in each of the 45 places, with realistic hour patterns per category (beaches
+full on weekend middays, transport at rush hours, markets in the morning, malls on weekend afternoons). **This data is
+not real**: the analytics endpoints answer `sintetico: true` whenever it is part of the result and the app labels it
+"Datos de demostración". The seeder is deterministic (the same day of the same place always gets the same reports), idempotent
+(running it again adds nothing, or only the days since the last run) and never touches real users or reports.
+
+- **Disable it**: set `SEED_SINTETICO=false` before `npm run db:seed` (the seeder then logs that it was skipped). When the
+  variable is not set the history is loaded outside production (`NODE_ENV` other than `production`) and skipped in production.
+- **Remove it**: `npx sequelize-cli db:seed:undo --seed 20261005100003-historial-sintetico.cjs` deletes the synthetic users and
+  their reports and nothing else.
 
 ## Test
 
@@ -263,7 +278,7 @@ or missing value prints every offending key (never its value) and exits with cod
 | `FCM_CREDENCIALES_RUTA` | Required with `fcm` |
 | `ADMIN_EMAIL` | Email of the seeded admin |
 | `ADMIN_PASSWORD` | Password of the seeded admin: 10 characters minimum, not a `CAMBIAR*` placeholder |
-| `SEED_DEMO` | Seed the synthetic demo history (false) |
+| `SEED_SINTETICO` | Seed the synthetic demo history (on outside production, off in production when unset; see Datos de demostración) |
 
 Test tooling only: `DATABASE_URL_TEST` (see Test).
 

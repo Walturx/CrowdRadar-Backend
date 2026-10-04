@@ -1,6 +1,5 @@
 import { LugarController } from '../controller/LugarController.js';
 import type { FavoritoDAO } from '../dao/FavoritoDAO.js';
-import { LugarDAOSequelize } from '../dao/impl/sequelize/LugarDAOSequelize.js';
 import type { LugarDAO } from '../dao/LugarDAO.js';
 import type { ReporteDAO } from '../dao/ReporteDAO.js';
 import { crearLugarRouter } from '../route/lugar.routes.js';
@@ -19,15 +18,12 @@ export interface DependenciasLugar {
 /** Stand-in until M3 delivers FavoritoDAOSequelize: nobody has favourites (`esFavorito` is false in production). */
 export const favoritosPendientesDeM3: DependenciasLugar['favoritoDAO'] = { buscar: async () => null };
 
-/** Stand-in until M4 delivers ReporteDAOSequelize: no recent reports (`reportesRecientes` is 0 in production). */
-export const reportesPendientesDeM4: DependenciasLugar['reporteDAO'] = { contarPorLugarDesde: async () => 0 };
-
-/** The injected ports (`infra.lugar`) and, for the rest, the production DAO or the stand-ins above. */
-export function resolverDependenciasLugar({ cfg, lugar = {} }: Infraestructura): DependenciasLugar {
+/** The injected ports (`infra.lugar`) and, for the rest, the shared DAOs of the composition root (the real places and reports ones) or the stand-in above. */
+export function resolverDependenciasLugar({ lugarDAO, reporteDAO, lugar = {} }: Infraestructura): DependenciasLugar {
   return {
-    lugarDAO: lugar.lugarDAO ?? new LugarDAOSequelize({ limiteMax: cfg.lugares.limiteMax }),
+    lugarDAO: lugar.lugarDAO ?? lugarDAO,
     favoritoDAO: lugar.favoritoDAO ?? favoritosPendientesDeM3,
-    reporteDAO: lugar.reporteDAO ?? reportesPendientesDeM4,
+    reporteDAO: lugar.reporteDAO ?? reporteDAO,
   };
 }
 

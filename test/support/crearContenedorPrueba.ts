@@ -7,6 +7,7 @@ import type { Contenedor } from '../../src/container/Contenedor.js';
 import { ensamblar } from '../../src/container/index.js';
 import type { EstadoServicio } from '../../src/util/EstadoServicio.js';
 import type { Logger } from '../../src/util/logger.js';
+import type { Reloj } from '../../src/util/Reloj.js';
 import { ConexionFalsa } from './ConexionFalsa.js';
 import { crearLoggerSilencioso } from './LoggerSilencioso.js';
 import { FavoritoDAOMemoria } from './dao/memoria/FavoritoDAOMemoria.js';
@@ -19,6 +20,8 @@ export interface OpcionesContenedorPrueba {
   /** Env-style configuration overrides (e.g. `{ POLITICA_MENSAJES_AUTH: 'DETALLADA' }`). */
   cfg?: SobrescritosEntorno;
   usuarioDAO?: UsuarioDAOMemoria;
+  /** Pinned clock for time-dependent flows (analytics windows, cooldown). */
+  reloj?: Reloj;
   lugarDAO?: LugarDAOMemoria;
   favoritoDAO?: FavoritoDAOMemoria;
   reporteDAO?: ReporteDAOMemoria;
@@ -59,7 +62,10 @@ export function crearContenedorPrueba(opciones: OpcionesContenedorPrueba = {}): 
     logger: opciones.logger ?? crearLoggerSilencioso(),
     conexion,
     estado: opciones.estado,
+    reloj: opciones.reloj,
     usuarioDAO,
+    lugarDAO,
+    reporteDAO,
     hasher,
     emisorToken,
     lugar: { lugarDAO, favoritoDAO, reporteDAO },

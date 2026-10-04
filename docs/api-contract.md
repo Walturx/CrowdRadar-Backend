@@ -24,6 +24,7 @@ handler answers `501 NO_IMPLEMENTADO` until the owning stream delivers it.
 - Authentication: `Authorization: Bearer <jwt>` (strict: exact scheme, one space). JWT HS256, 2 h, no refresh.
   Authorization decisions are made from the database row, never from token claims.
 - Request bodies are validated with zod, are `strict` (unknown keys are rejected) and limited to `SERVIDOR_LIMITE_CUERPO` (100 kb by default).
+- `sintetico: true` in an analytics response means some of its data comes from the demo users (email `@sintetico.crowdradar.local`); the app shows "Datos de demostración".
 - Request id: `X-Request-Id` is echoed (if it matches `[A-Za-z0-9_-]{1,64}`) or generated.
 
 ### Access chains
@@ -96,9 +97,9 @@ still reveals that an email exists (`409`).
 | GET | /api/lugares/explorar | auth | stub | M3: `categoria`, `saturacion`, `lat`, `lng`, `radioKm` |
 | GET | /api/lugares/categorias | auth | stub | M3 |
 | GET | /api/lugares/:id | auth | real (M2) | detail with `abiertoAhora`, `saturacion`, `esFavorito`; see below |
-| GET | /api/lugares/:id/historial | auth | stub | M4 |
-| GET | /api/lugares/:id/comparar | auth | stub | M4 |
-| GET | /api/lugares/:id/mejor-horario | auth | stub | M4 |
+| GET | /api/lugares/:id/historial | auth | real | M4: `desde`, `hasta` (YYYY-MM-DD, Lima), `agrupacion` = `HORA` (default; 24-hour slots `HH:00` over the range, today by default) or `DIA` (one point per day, last 7 days by default); `200 { message, data: { puntos: [{ etiqueta, valor, muestras }], hayDatos, mensaje, sintetico } }` (`valor` is the average level 1-3; with no data `hayDatos` is false and `mensaje` explains it); `400 RANGO_FECHAS_INVALIDO` when both dates are given and `desde` is not before `hasta` or they are more than 31 days apart; `404 LUGAR_NO_ENCONTRADO` |
+| GET | /api/lugares/:id/comparar | auth | real | M4: `desdeA`, `hastaA`, `desdeB`, `hastaB` required, `diasA`, `diasB` = `TODOS` (default) \| `LABORABLES` \| `FIN_DE_SEMANA`; `200 { message, data: { periodoA, periodoB: [24 x { hora, valor, muestras }], diferencias: [{ hora, diferencia }] (B minus A, hours with data in both), resumen, suficiente, mensaje, sintetico } }`; `suficiente` is false (and `diferencias` empty) when either period has fewer than `ANALITICA_MIN_MUESTRAS` samples; same `400`/`404` as the history |
+| GET | /api/lugares/:id/mejor-horario | auth | real | M4: `dias` (default `TODOS`), `semanas` 1-12 (default 4, counted back from today); `200 { message, data: { recomendaciones: [{ horaInicio, horaFin, nivel, promedio, muestras }] (up to 3, calmest first, inside the opening hours), suficiente, mensaje, sintetico } }`; `400 VALIDACION_FALLIDA`; `404 LUGAR_NO_ENCONTRADO` |
 
 `GET /api/lugares` query (at least one of `q` and `bbox`; the rest is optional and combines with AND; no pagination):
 
@@ -156,8 +157,8 @@ not treat them as final; `container/lugar.ts` wires the stand-ins and a unit tes
 
 | Method | Path | Access | Status | Notes |
 |---|---|---|---|---|
-| POST | /api/reportes | auth | stub | M4: body `{ lugarId, nivel }`; `422 REPORTE_EN_ESPERA` |
-| GET | /api/reportes/mios | auth | stub | M4 |
+| POST | /api/reportes | auth | real | M4: body `{ lugarId, nivel }` (`nivel`: `TRANQUILO` \| `MODERADO` \| `SATURADO`); `201 { message, data: { reporte: { id, lugarId, nivel, fechaHora }, karma: { puntosGanados, total, motivoSinPuntos }, saturacionLugar: { nivel, actualizadoEn } } }` (`motivoSinPuntos`: `TOPE_DIARIO` or null; `saturacionLugar.nivel` null while there is not enough information); `400 VALIDACION_FALLIDA`; `404 LUGAR_NO_ENCONTRADO`; `422 REPORTE_EN_ESPERA` ("Ya reportaste este lugar. Vuelve a intentarlo en N minutos.") |
+| GET | /api/reportes/mios | auth | real | M4: `page`, `size`; `200 { message, data: { items: [{ id, lugar: { id, nombre }, nivel, fechaHora, estado, puntosOtorgados, motivoSinPuntos }], page, size, total, totalPaginas } }`, newest first, own reports only; with no reports `message` is "Aún no tienes reportes" and `items` is `[]`; `400` when `page` < 1 or `size` outside 1-50 |
 | GET | /api/reportes/mios/validacion | auth | stub | M5 |
 | GET | /api/validaciones/pendientes | auth | stub | M5: `lat`, `lng`, `radioKm`, `horas`, `page`, `size` |
 | GET | /api/reportes/:id | auth | stub | M5 |

@@ -3,24 +3,28 @@ import { describe, expect, it } from 'vitest';
 import {
   crearLugarService,
   favoritosPendientesDeM3,
-  reportesPendientesDeM4,
   resolverDependenciasLugar,
   type DependenciasLugar,
 } from '../../src/container/lugar.js';
-import { LugarDAOSequelize } from '../../src/dao/impl/sequelize/LugarDAOSequelize.js';
 import { construirInfraestructura } from '../../src/container/infraestructura.js';
 import { NivelSaturacion } from '../../src/enum/NivelSaturacion.js';
 import { EmisorTokenFalso } from '../support/adapter/EmisorTokenFalso.js';
 import { HasherFalso } from '../support/adapter/HasherFalso.js';
 import { FavoritoDAOMemoria } from '../support/dao/memoria/FavoritoDAOMemoria.js';
 import { LugarDAOMemoria } from '../support/dao/memoria/LugarDAOMemoria.js';
+import { ReporteDAOMemoria } from '../support/dao/memoria/ReporteDAOMemoria.js';
 import { UsuarioDAOMemoria } from '../support/dao/memoria/UsuarioDAOMemoria.js';
 import { ConexionFalsa } from '../support/ConexionFalsa.js';
 import { configPrueba } from '../support/configPrueba.js';
 import { crearLoggerSilencioso } from '../support/LoggerSilencioso.js';
 
+const lugarDAOBase = new LugarDAOMemoria();
+const reporteDAOBase = new ReporteDAOMemoria();
+
 const infra = (lugar?: Partial<DependenciasLugar>) =>
   construirInfraestructura({
+    lugarDAO: lugarDAOBase,
+    reporteDAO: reporteDAOBase,
     cfg: configPrueba({ SATURACION_VENTANA_MIN: 30 }),
     logger: crearLoggerSilencioso(),
     conexion: new ConexionFalsa(),
@@ -31,7 +35,7 @@ const infra = (lugar?: Partial<DependenciasLugar>) =>
   });
 
 describe('crearLugarService', () => {
-  it('usa los puertos inyectados y los marcadores de M3 y M4 para lo que falta', async () => {
+  it('usa los puertos inyectados y el marcador de M3 para lo que falta', async () => {
     const lugarDAO = new LugarDAOMemoria();
     const lugar = lugarDAO.agregar({ nombre: 'Parque Kennedy' });
     const servicio = crearLugarService(infra({ lugarDAO }));
@@ -57,20 +61,19 @@ describe('crearLugarService', () => {
   });
 });
 
-describe('contenedor de produccion (sin puertos inyectados)', () => {
-  it('usa LugarDAOSequelize con el tope LUGARES_LIMITE_MAX y los marcadores de M3 y M4: esFavorito=false y reportesRecientes=0 hasta que existan', async () => {
+describe('contenedor compartido (sin puertos de lugar inyectados)', () => {
+  it('usa los DAO de la infraestructura (reportes reales de M4) y el marcador de M3: esFavorito=false hasta que exista', async () => {
     const dependencias = resolverDependenciasLugar(infra());
-    expect(dependencias.lugarDAO).toBeInstanceOf(LugarDAOSequelize);
+    expect(dependencias.lugarDAO).toBe(lugarDAOBase);
+    expect(dependencias.reporteDAO).toBe(reporteDAOBase);
     expect(dependencias.favoritoDAO).toBe(favoritosPendientesDeM3);
-    expect(dependencias.reporteDAO).toBe(reportesPendientesDeM4);
     expect(await dependencias.favoritoDAO.buscar(1, 1)).toBeNull();
-    expect(await dependencias.reporteDAO.contarPorLugarDesde(1, new Date())).toBe(0);
   });
 
-  it('un puerto inyectado reemplaza a su marcador y deja los otros', () => {
+  it('un puerto inyectado reemplaza al de la infraestructura y deja los otros', () => {
     const favoritoDAO = new FavoritoDAOMemoria();
     const dependencias = resolverDependenciasLugar(infra({ favoritoDAO }));
     expect(dependencias.favoritoDAO).toBe(favoritoDAO);
-    expect(dependencias.reporteDAO).toBe(reportesPendientesDeM4);
+    expect(dependencias.reporteDAO).toBe(reporteDAOBase);
   });
 });

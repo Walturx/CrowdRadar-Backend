@@ -166,7 +166,8 @@ export const esquemaEntorno = z
     // seeds
     ADMIN_EMAIL: z.string().optional(),
     ADMIN_PASSWORD: z.string().min(10, 'debe tener al menos 10 caracteres').refine(sinPlaceholder, MENSAJE_PLACEHOLDER).optional(),
-    SEED_DEMO: z.stringbool().default(false),
+    // Synthetic demo history (seeder 20261005100003). Left unset it follows NODE_ENV: on outside production, off in production.
+    SEED_SINTETICO: z.stringbool().optional(),
   })
   .superRefine((entorno, ctx) => {
     if (entorno.DB_POOL_MIN > entorno.DB_POOL_MAX) {
