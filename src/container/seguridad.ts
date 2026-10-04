@@ -11,6 +11,7 @@ import { TokenRecuperacionDAOSequelize } from '../dao/impl/sequelize/TokenRecupe
 import { RecuperacionFacadeImpl } from '../facade/impl/RecuperacionFacadeImpl.js';
 import type { RecuperacionFacade } from '../facade/RecuperacionFacade.js';
 import type { Logger } from '../util/logger.js';
+import { cargarVistaRestablecer } from '../view/VistaRestablecer.js';
 import { limitarIntentos } from '../middleware/limitarIntentos.js';
 import { crearAuthRouter } from '../route/auth.routes.js';
 import { crearRecuperacionRouter } from '../route/recuperacion.routes.js';
@@ -95,7 +96,7 @@ export function construirSeguridad(infra: Infraestructura): MontajeRuta[] {
       modulo: 'recuperacion',
       ruta: '/',
       router: crearRecuperacionRouter({
-        controller: new RecuperacionController(crearRecuperacionFacade(infra)),
+        controller: new RecuperacionController(crearRecuperacionFacade(infra), cargarVistaRestablecer()),
         limitarRecuperar: limitarIntentos({ max: limites.recuperar, ventanaMs }),
         limitarRestablecer: limitarIntentos({ max: limites.restablecer, ventanaMs }),
       }),

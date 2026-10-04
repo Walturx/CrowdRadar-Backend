@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { pinoHttp, type HttpLogger } from 'pino-http';
+import { redactarUrl } from '../util/enmascarar.js';
 import type { Logger } from '../util/logger.js';
 
 /** Client supplied ids are reused only when they cannot inject anything into the logs. */
@@ -27,7 +28,8 @@ export function crearRegistroPeticiones(logger: Logger): HttpLogger {
       return res.statusCode >= 400 ? 'warn' : 'info';
     },
     serializers: {
-      req: (req: { method?: string; url?: string }) => ({ method: req.method, url: req.url }),
+      // The recovery link carries its token in the query string: it must not reach the logs.
+      req: (req: { method?: string; url?: string }) => ({ method: req.method, url: redactarUrl(req.url) }),
       res: (res: { statusCode?: number }) => ({ statusCode: res.statusCode }),
     },
   });

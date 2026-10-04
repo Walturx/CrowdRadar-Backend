@@ -139,7 +139,8 @@ src/
   middleware/          autenticar, requerirRol, validar, limitarIntentos, registroPeticiones, rutaNoEncontrada, manejarErrores
   controller/          HTTP adapters: call a service, wrap the result in a response envelope
   service/             use-case interfaces; impl/ holds the implementations
-  facade/              (later) Recuperacion, Reporte, Moderacion facades
+  facade/              Recuperacion, Reporte, Moderacion facades
+  view/                static HTML served by the backend (the password reset page); `npm run build` copies it to `dist/view`
   dao/                 DAO interfaces and Paginacion (page types and helpers); impl/sequelize/ holds Sequelize DAOs and models
   entity/              domain entities (plain TypeScript, no ORM)
   dto/                 request schemas (zod) and response shapes
@@ -203,7 +204,7 @@ finds nothing; `rg "console\.log" src` finds nothing.
 | Adapter | `adapter/seguridad` (`BcryptHasherAdapter`, `JwtEmisorTokenAdapter`), `datasource/impl/ConexionSequelize`; correo and push to come |
 | Mapper | `mapper/UsuarioMapper` (entity -> response DTO) |
 | Service Layer | `service/*Service` interfaces with `service/impl/*Impl`; controllers never touch DAOs |
-| Facade | placeholders for `RecuperacionFacade`, `ReporteFacade`, `ModeracionFacade` (streams M1, M4, M6) |
+| Facade | `RecuperacionFacadeImpl` (M1), placeholders for `ReporteFacade`, `ModeracionFacade` (streams M4, M6) |
 | Strategy / Observer | placeholders for saturation and reliability strategies and the saturation observer (M4, M5, M3) |
 | composition root | `container/`: manual DI; each stream edits only its own builder; `crearContenedorPrueba` reuses it with fakes |
 
@@ -266,14 +267,14 @@ or missing value prints every offending key (never its value) and exits with cod
 | `JWT_SECRETO` | **Required**, at least 32 characters, not a `CAMBIAR*` placeholder |
 | `JWT_EXPIRA_EN` | Token lifetime with a unit s, m, h or d (2h) |
 | `BCRYPT_COSTO` | bcrypt cost, 4-15 (10) |
-| `POLITICA_MENSAJES_AUTH` | `GENERICA` (identical answer for unknown email and wrong password) or `DETALLADA` (GENERICA) |
+| `POLITICA_MENSAJES_AUTH` | `GENERICA` (identical answer for unknown email and wrong password, and for `POST /api/auth/recuperar`) or `DETALLADA` (`404 CUENTA_NO_EXISTE` for an unknown email at login and at recovery) (GENERICA) |
 | `LIMITE_VENTANA_MIN` | Rate-limit window in minutes (15) |
 | `LIMITE_LOGIN` | Logins per window and IP, successful or not (10); also the failed logins per email before the account locks (10) |
 | `LIMITE_REGISTRO` | Registrations per window and IP (10) |
-| `LIMITE_RECUPERAR` | Recovery requests per window (5), wired when M1 delivers the route |
-| `LIMITE_RESTABLECER` | Reset attempts per window (10), wired when M1 delivers the route |
+| `LIMITE_RECUPERAR` | Recovery requests per window and IP (5) |
+| `LIMITE_RESTABLECER` | Reset attempts (and token checks) per window and IP (10) |
 | `LIMITE_PASSWORD` | Password changes per window and IP, successful or not (5) |
-| `RECUPERACION_EXPIRA_MIN` | Recovery token lifetime in minutes (30) |
+| `RECUPERACION_EXPIRA_MIN` | Recovery token lifetime in minutes (30); the link in the mail is `URL_PUBLICA/recuperar/restablecer?token=...` |
 | `COOLDOWN_REPORTE_MIN` | Minutes between reports of one user for one place (30) |
 | `KARMA_POR_REPORTE` | Karma for a report (10) |
 | `KARMA_POR_VALIDACION` | Karma for a validation (2) |
@@ -300,7 +301,7 @@ or missing value prints every offending key (never its value) and exits with cod
 | `LUGARES_Q_MIN` / `LUGARES_Q_MAX` | Length bounds of the search text `q` in `GET /api/lugares` (2 / 60) |
 | `LUGARES_LIMITE_MAX` | Largest `limite` accepted by the places list, and the hard cap of `LugarDAO.buscar` and `explorar` (200) |
 | `LUGARES_LIMITE_DEFAULT` | `limite` used when the request omits it; must not exceed the maximum (200) |
-| `CORREO_PROVEEDOR` | `consola` or `smtp` (consola) |
+| `CORREO_PROVEEDOR` | `consola` (the mail is written to the log, so the recovery link can be followed in a demo) or `smtp` (not delivered yet: the server refuses to start with it) (consola) |
 | `CORREO_REMITENTE` | From address of outgoing mail |
 | `SMTP_HOST` | Required with `smtp` |
 | `SMTP_PUERTO` | SMTP port (587) |

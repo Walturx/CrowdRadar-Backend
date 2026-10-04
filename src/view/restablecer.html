@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Restablecer contraseña | CrowdRadar</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #f4f6f8; margin: 0; display: flex; min-height: 100vh; align-items: center; justify-content: center; }
+    main { background: #fff; padding: 2rem; border-radius: 12px; width: min(92vw, 24rem); box-shadow: 0 2px 12px rgba(0, 0, 0, .1); }
+    h1 { font-size: 1.3rem; margin-top: 0; }
+    label { display: block; margin-top: 1rem; font-size: .9rem; }
+    input { width: 100%; box-sizing: border-box; padding: .6rem; margin-top: .25rem; font-size: 1rem; }
+    button { width: 100%; margin-top: 1.5rem; padding: .7rem; font-size: 1rem; background: #1565c0; color: #fff; border: 0; border-radius: 8px; cursor: pointer; }
+    button:disabled { opacity: .6; cursor: default; }
+    .requisitos { font-size: .8rem; color: #555; }
+    .error { color: #b71c1c; font-size: .9rem; }
+    .exito { color: #1b5e20; }
+    [hidden] { display: none; }
+  </style>
+</head>
+<body>
+<main>
+  <!-- estado:formulario -->
+  <h1>Elige una nueva contraseña</h1>
+  <form id="formulario" novalidate>
+    <label for="nuevaPassword">Nueva contraseña
+      <input id="nuevaPassword" name="nuevaPassword" type="password" autocomplete="new-password" required>
+    </label>
+    <p class="requisitos">Entre 8 y 64 caracteres, con al menos una mayúscula y un número.</p>
+    <label for="confirmarPassword">Confirmar contraseña
+      <input id="confirmarPassword" name="confirmarPassword" type="password" autocomplete="new-password" required>
+    </label>
+    <ul id="errores" class="error" role="alert"></ul>
+    <button id="enviar" type="submit">Restablecer contraseña</button>
+  </form>
+  <div id="exito" class="exito" hidden>
+    <h1>Contraseña restablecida</h1>
+    <p>Contraseña restablecida correctamente. Ya puedes iniciar sesión en la app con tu nueva contraseña.</p>
+  </div>
+  <div id="caducado" class="error" hidden>
+    <h1>Enlace no válido</h1>
+    <p>El enlace ha caducado o no es válido. Solicita uno nuevo desde la app.</p>
+  </div>
+  <script>
+    (function () {
+      var formulario = document.getElementById('formulario');
+      var errores = document.getElementById('errores');
+      var enviar = document.getElementById('enviar');
+      var token = new URLSearchParams(window.location.search).get('token') || '';
+
+      function mostrar(id) {
+        formulario.hidden = true;
+        document.getElementById(id).hidden = false;
+      }
+      function listar(mensajes) {
+        errores.textContent = '';
+        mensajes.forEach(function (mensaje) {
+          var item = document.createElement('li');
+          item.textContent = mensaje;
+          errores.appendChild(item);
+        });
+      }
+
+      formulario.addEventListener('submit', function (evento) {
+        evento.preventDefault();
+        var nueva = formulario.nuevaPassword.value;
+        var confirmar = formulario.confirmarPassword.value;
+        if (nueva !== confirmar) {
+          listar(['Las contraseñas no coinciden.']);
+          return;
+        }
+        listar([]);
+        enviar.disabled = true;
+        fetch('/api/auth/restablecer', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: token, nuevaPassword: nueva, confirmarPassword: confirmar })
+        }).then(function (respuesta) {
+          return respuesta.json().catch(function () { return {}; }).then(function (cuerpo) {
+            if (respuesta.ok) return mostrar('exito');
+            if (respuesta.status === 410 || cuerpo.code === 'TOKEN_RECUPERACION_INVALIDO') return mostrar('caducado');
+            var detalles = (cuerpo.errors || []).map(function (e) { return e.mensaje; });
+            listar(detalles.length ? detalles : [cuerpo.message || 'No pudimos restablecer tu contraseña. Inténtalo de nuevo.']);
+            enviar.disabled = false;
+          });
+        }).catch(function () {
+          listar(['No pudimos conectar con el servidor. Inténtalo de nuevo.']);
+          enviar.disabled = false;
+        });
+      });
+    })();
+  </script>
+  <!-- /estado -->
+  <!-- estado:enlace-invalido -->
+  <h1>Enlace no válido</h1>
+  <p class="error">El enlace ha caducado o no es válido. Solicita uno nuevo desde la app.</p>
+  <!-- /estado -->
+</main>
+</body>
+</html>
