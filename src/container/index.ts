@@ -14,11 +14,12 @@ import { construirLugar } from './lugar.js';
 import { construirModeracion } from './moderacion.js';
 import { construirReporte } from './reporte.js';
 import { construirSeguridad } from './seguridad.js';
-import { construirValidacion } from './validacion.js';
+import { construirValidacion, crearDaosValidacionSequelize, type DaosValidacion } from './validacion.js';
 
 /** Per-stream ports a caller may replace (tests hand in-memory DAOs); production leaves them to the builders. */
 export interface OpcionesEnsamblado {
   favoritoAlerta?: DaosFavoritoAlerta;
+  validacion?: DaosValidacion;
 }
 
 /**
@@ -43,7 +44,7 @@ export function ensamblar(dependencias: DependenciasInfraestructura, opciones: O
       ...construirLugar({ ...infra, lugar: { favoritoDAO: daosFavoritoAlerta.favoritoDAO, ...infra.lugar } }),
       ...construirFavoritoAlerta(infra, daosFavoritoAlerta),
       ...construirReporte(infra),
-      ...construirValidacion(infra),
+      ...construirValidacion(infra, opciones.validacion ?? crearDaosValidacionSequelize()),
       ...construirModeracion(infra),
     ],
   };

@@ -1,4 +1,6 @@
 import type { ConfiguracionApp } from '../config/ConfiguracionApp.js';
+import { DenunciaController } from '../controller/DenunciaController.js';
+import { ValidacionController } from '../controller/ValidacionController.js';
 import type { DenunciaDAO } from '../dao/DenunciaDAO.js';
 import { DenunciaDAOSequelize } from '../dao/impl/sequelize/DenunciaDAOSequelize.js';
 import { ValidacionDAOSequelize } from '../dao/impl/sequelize/ValidacionDAOSequelize.js';
@@ -63,6 +65,14 @@ export function construirServiciosValidacion(infra: Infraestructura, daos: DaosV
 }
 
 /** Validation and reporting-abuse stream (M5). Mounted after the reports stream. */
-export function construirValidacion({ guardas }: Infraestructura): MontajeRuta[] {
-  return [{ modulo: 'validacion', ruta: '/api', router: crearValidacionRouter(guardas) }];
+export function construirValidacion(infra: Infraestructura, daos: DaosValidacion): MontajeRuta[] {
+  const { validacionService, denunciaService } = construirServiciosValidacion(infra, daos);
+  const { radioPendientesKm, ventanaPendientesHoras } = infra.cfg.reglas;
+  const router = crearValidacionRouter(
+    infra.guardas,
+    new ValidacionController(validacionService),
+    new DenunciaController(denunciaService),
+    { radioKm: radioPendientesKm, horas: ventanaPendientesHoras },
+  );
+  return [{ modulo: 'validacion', ruta: '/api', router }];
 }

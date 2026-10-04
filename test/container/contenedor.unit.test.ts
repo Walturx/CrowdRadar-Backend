@@ -12,6 +12,8 @@ import { construirSeguridad } from '../../src/container/seguridad.js';
 import { construirValidacion } from '../../src/container/validacion.js';
 import { EmisorTokenFalso } from '../support/adapter/EmisorTokenFalso.js';
 import { HasherFalso } from '../support/adapter/HasherFalso.js';
+import { DenunciaDAOMemoria } from '../support/dao/memoria/DenunciaDAOMemoria.js';
+import { ValidacionDAOMemoria } from '../support/dao/memoria/ValidacionDAOMemoria.js';
 import { LugarDAOMemoria } from '../support/dao/memoria/LugarDAOMemoria.js';
 import { ReporteDAOMemoria } from '../support/dao/memoria/ReporteDAOMemoria.js';
 import { UsuarioDAOMemoria } from '../support/dao/memoria/UsuarioDAOMemoria.js';
@@ -39,7 +41,7 @@ describe('builders por stream', () => {
     ['lugar (M2)', construirLugar, ['lugar']],
     ['favoritoAlerta (M3)', (i) => construirFavoritoAlerta(i, crearContenedorPrueba().favoritoAlerta), ['favorito', 'alerta']],
     ['reporte (M4)', construirReporte, ['reporte', 'analitica']],
-    ['validacion (M5)', construirValidacion, ['validacion']],
+    ['validacion (M5)', (i) => construirValidacion(i, { validacionDAO: new ValidacionDAOMemoria(), denunciaDAO: new DenunciaDAOMemoria() }), ['validacion']],
     ['moderacion (M6)', construirModeracion, ['moderacion']],
   ] as const satisfies readonly (readonly [string, (i: ReturnType<typeof infra>) => readonly { modulo: string }[], readonly string[]])[])('%s devuelve solo sus routers', (_nombre, construir, esperados) => {
     expect(modulos(construir(infra()))).toEqual(esperados);

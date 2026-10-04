@@ -58,13 +58,13 @@ export const TABLA_RUTAS: readonly FilaRuta[] = [
   // reporte (M4): /reportes/mios BEFORE /reportes/:id (validacion router, M5)
   auth('post', '/api/reportes', 'reporte.registrar', true),
   auth('get', '/api/reportes/mios', 'reporte.listarMios', true),
-  auth('get', '/api/reportes/mios/validacion', 'validacion.consultarEstadoMisReportes'),
+  auth('get', '/api/reportes/mios/validacion', 'validacion.consultarEstadoMisReportes', true),
   // validacion y denuncia (M5)
-  auth('get', '/api/validaciones/pendientes', 'validacion.listarPendientes'),
-  auth('get', '/api/reportes/12', 'validacion.obtenerReporte'),
-  auth('get', '/api/reportes/12/confiabilidad', 'validacion.consultarConfiabilidad'),
-  auth('post', '/api/reportes/12/validaciones', 'validacion.validar'),
-  auth('post', '/api/reportes/12/denuncias', 'denuncia.denunciar'),
+  auth('get', '/api/validaciones/pendientes', 'validacion.listarPendientes', true),
+  auth('get', '/api/reportes/12', 'validacion.obtenerReporte', true),
+  auth('get', '/api/reportes/12/confiabilidad', 'validacion.consultarConfiabilidad', true),
+  auth('post', '/api/reportes/12/validaciones', 'validacion.validar', true),
+  auth('post', '/api/reportes/12/denuncias', 'denuncia.denunciar', true),
   // moderacion (M6)
   admin('get', '/api/admin/reportes-denunciados', 'moderacion.listarReportesDenunciados'),
   admin('get', '/api/admin/reportes-denunciados/12', 'moderacion.obtenerReporteDenunciado'),
