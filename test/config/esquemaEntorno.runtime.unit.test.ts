@@ -128,3 +128,19 @@ describe('placeholders de .env.example (R1-207)', () => {
     if (!r.ok) expect(r.mensaje).not.toContain('zzzz');
   });
 });
+
+describe('lugares: limites de la busqueda y zona horaria', () => {
+  it('LUGARES_Q_MIN no puede superar LUGARES_Q_MAX ni LUGARES_LIMITE_DEFAULT a LUGARES_LIMITE_MAX', () => {
+    expect(claves({ LUGARES_Q_MIN: '10', LUGARES_Q_MAX: '5' })).toEqual(['LUGARES_Q_MIN']);
+    expect(claves({ LUGARES_LIMITE_MAX: '50', LUGARES_LIMITE_DEFAULT: '60' })).toEqual(['LUGARES_LIMITE_DEFAULT']);
+    expect(claves({ LUGARES_Q_MIN: '0' })).toEqual(['LUGARES_Q_MIN']);
+    expect(claves({ LUGARES_LIMITE_MAX: '0' })).toContain('LUGARES_LIMITE_MAX');
+  });
+
+  it('ZONA_HORARIA debe ser un identificador IANA conocido (America/Lima, UTC), no un texto cualquiera', () => {
+    expect(claves({ ZONA_HORARIA: 'America/Lima' })).toEqual([]);
+    expect(claves({ ZONA_HORARIA: 'UTC' })).toEqual([]);
+    expect(claves({ ZONA_HORARIA: 'Lima/Peru' })).toEqual(['ZONA_HORARIA']);
+    expect(claves({ ZONA_HORARIA: 'no es una zona' })).toEqual(['ZONA_HORARIA']);
+  });
+});

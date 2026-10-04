@@ -185,7 +185,7 @@ or missing value prints every offending key (never its value) and exits with cod
 | `URL_PUBLICA` | Public base URL, used in links (http://localhost:3000) |
 | `CORS_ORIGENES` | Comma separated allowed origins; others get no CORS headers (http://localhost:3000) |
 | `LOG_NIVEL` | pino level: fatal, error, warn, info, debug, trace, silent (info) |
-| `ZONA_HORARIA` | Time zone for aggregations (America/Lima) |
+| `ZONA_HORARIA` | IANA time zone for aggregations and opening hours (America/Lima); an unknown name stops the boot |
 | `SERVIDOR_LIMITE_CUERPO` | Maximum JSON body, integer plus `b`, `kb` or `mb` (100kb) |
 | `TRUST_PROXY` | Proxy hops trusted for the client IP: `false`, a number, or a name such as `loopback`; `true` is too permissive (false) |
 | `SERVIDOR_REQUEST_TIMEOUT_MS` | Time to receive a whole request (30000) |
@@ -235,6 +235,9 @@ or missing value prints every offending key (never its value) and exits with cod
 | `VENTANA_PENDIENTES_HORAS` | Window for pending reports in hours, 1-24 (3) |
 | `ANALITICA_MIN_MUESTRAS` | Minimum samples per time slot (5) |
 | `SUSPENSION_DIAS_PERMITIDOS` | Allowed suspension lengths; must be a subset of 3,7,30 because `sancion_usuario.dias` has `CHECK (dias IN (3,7,30))` in the frozen migration 06 (3,7,30) |
+| `LUGARES_Q_MIN` / `LUGARES_Q_MAX` | Length bounds of the search text `q` in `GET /api/lugares` (2 / 60) |
+| `LUGARES_LIMITE_MAX` | Largest `limite` accepted by the places list, and the hard cap of `LugarDAO.buscar` and `explorar` (200) |
+| `LUGARES_LIMITE_DEFAULT` | `limite` used when the request omits it; must not exceed the maximum (200) |
 | `CORREO_PROVEEDOR` | `consola` or `smtp` (consola) |
 | `CORREO_REMITENTE` | From address of outgoing mail |
 | `SMTP_HOST` | Required with `smtp` |

@@ -54,6 +54,16 @@ const confiarProxy = z
     return /^\d+$/.test(valor) ? Number(valor) : valor;
   });
 
+/** IANA time zone known to the runtime (America/Lima, UTC); `Intl` throws a RangeError for anything else. */
+const esZonaIana = (zona: string) => {
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: zona });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 const requerida =(mensaje: string) => z.string({ error: mensaje }).min(1, mensaje);
 
 /**
@@ -68,7 +78,7 @@ export const esquemaEntorno = z
     URL_PUBLICA: z.string().default('http://localhost:3000'),
     CORS_ORIGENES: lista('http://localhost:3000'),
     LOG_NIVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
-    ZONA_HORARIA: z.string().default('America/Lima'),
+    ZONA_HORARIA: z.string().default('America/Lima').refine(esZonaIana, 'debe ser una zona horaria IANA (ej. America/Lima)'),
     TRUST_PROXY: confiarProxy,
     // body-parser size string: integer + b, kb or mb (e.g. 100kb)
     SERVIDOR_LIMITE_CUERPO: z
@@ -137,6 +147,12 @@ export const esquemaEntorno = z
     ANALITICA_MIN_MUESTRAS: entero(5, 1),
     SUSPENSION_DIAS_PERMITIDOS: diasDeSuspension,
 
+    // places search (M2): text length of `q` and page size of the list
+    LUGARES_Q_MIN: entero(2, 1),
+    LUGARES_Q_MAX: entero(60, 1),
+    LUGARES_LIMITE_MAX: entero(200, 1),
+    LUGARES_LIMITE_DEFAULT: entero(200, 1),
+
     // mail and push providers
     CORREO_PROVEEDOR: z.enum(['consola', 'smtp']).default('consola'),
     CORREO_REMITENTE: z.string().default('CrowdRadar <no-responder@crowdradar.local>'),
@@ -171,6 +187,12 @@ export const esquemaEntorno = z
         path: ['APAGADO_TIMEOUT_MS'],
         message: 'debe ser mayor que SERVIDOR_REQUEST_TIMEOUT_MS',
       });
+    }
+    if (entorno.LUGARES_Q_MIN > entorno.LUGARES_Q_MAX) {
+      ctx.addIssue({ code: 'custom', path: ['LUGARES_Q_MIN'], message: 'no puede superar LUGARES_Q_MAX' });
+    }
+    if (entorno.LUGARES_LIMITE_DEFAULT > entorno.LUGARES_LIMITE_MAX) {
+      ctx.addIssue({ code: 'custom', path: ['LUGARES_LIMITE_DEFAULT'], message: 'no puede superar LUGARES_LIMITE_MAX' });
     }
     if (entorno.CORREO_PROVEEDOR === 'smtp') {
       for (const clave of ['SMTP_HOST', 'SMTP_USUARIO', 'SMTP_PASSWORD'] as const) {

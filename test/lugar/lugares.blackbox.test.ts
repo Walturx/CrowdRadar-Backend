@@ -5,7 +5,7 @@
  * Tabla de decision q x bbox: ninguno -> 400 | solo q -> 200 | solo bbox -> 200 | ambos -> 200 (AND)
  * Limites: q de 1 / 2 / 60 / 61 caracteres (ya recortada), latitud -90.1 / -90 / 90 / 90.1, longitud +-180 / 180.1,
  * limite 0 / 1 / 200 / 201, bbox con 3 / 4 / 5 valores, no numerico, minimos >= maximos.
- * Ademas: 200 vacio con mensaje, 401 sin token, 403 cuenta suspendida, humo < 300 ms con los 45 lugares sembrados.
+ * Ademas: 200 vacio con mensaje, 401 sin token, 403 cuenta suspendida, los 45 lugares sembrados en un bbox de toda Lima.
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -241,12 +241,9 @@ describe('GET /api/lugares: respuesta', () => {
     expect(res.body.message).toBe('No encontramos lugares para “Zoológico”. Prueba con otro nombre.');
   });
 
-  it('humo de rendimiento: los 45 lugares en menos de 300 ms', async () => {
-    const inicio = performance.now();
+  it('los 45 lugares sembrados salen todos en un bbox de toda Lima (sin asertar tiempos: eso va en la suite con BD)', async () => {
     const res = await buscar({ bbox: LIMA_ENTERA });
-    const ms = performance.now() - inicio;
     expect(res.body.data.items.length).toBeGreaterThanOrEqual(45);
-    expect(ms).toBeLessThan(300);
   });
 });
 
