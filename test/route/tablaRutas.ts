@@ -15,7 +15,13 @@ export interface FilaRuta {
   entregada?: boolean;
 }
 
-const publica = (metodo: Metodo, ruta: string, nombre: string): FilaRuta => ({ metodo, ruta, acceso: 'publica', nombre });
+const publica = (metodo: Metodo, ruta: string, nombre: string, entregada = false): FilaRuta => ({
+  metodo,
+  ruta,
+  acceso: 'publica',
+  nombre,
+  ...(entregada ? { entregada } : {}),
+});
 const auth = (metodo: Metodo, ruta: string, nombre: string, entregada = false): FilaRuta => ({
   metodo,
   ruta,
@@ -27,9 +33,9 @@ const admin = (metodo: Metodo, ruta: string, nombre: string): FilaRuta => ({ met
 
 export const TABLA_RUTAS: readonly FilaRuta[] = [
   // recuperacion (M1)
-  publica('post', '/api/auth/recuperar', 'recuperacion.solicitar'),
-  publica('get', '/api/auth/restablecer/validar?token=abc', 'recuperacion.validarToken'),
-  publica('post', '/api/auth/restablecer', 'recuperacion.restablecer'),
+  publica('post', '/api/auth/recuperar', 'recuperacion.solicitar', true),
+  publica('get', '/api/auth/restablecer/validar?token=abc', 'recuperacion.validarToken', true),
+  publica('post', '/api/auth/restablecer', 'recuperacion.restablecer', true),
   publica('get', '/recuperar/restablecer', 'recuperacion.mostrarPagina'),
   // lugar (M2) and exploracion (M3): explorar and categorias BEFORE /:id
   auth('get', '/api/lugares', 'lugar.buscar', true),

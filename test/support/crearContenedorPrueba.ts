@@ -104,7 +104,7 @@ export function crearContenedorPrueba(opciones: OpcionesContenedorPrueba = {}): 
       reporteDAO,
       hasher,
       emisorToken,
-      seguridad: { tokenDAO, correo, generador: new GeneradorTokenFijo(opciones.tokensRecuperacion ?? ['token-recuperacion-1', 'token-recuperacion-2', 'token-recuperacion-3', 'token-recuperacion-4']) },
+      seguridad: { tokenDAO, correo, generador: new GeneradorTokenFijo(opciones.tokensRecuperacion ?? Array.from({ length: 50 }, (_, i) => `token-recuperacion-${i + 1}`)) },
     },
     { favoritoAlerta },
   );

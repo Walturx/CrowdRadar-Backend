@@ -4,6 +4,7 @@ import type { GeneradorToken } from '../adapter/seguridad/GeneradorToken.js';
 import { CryptoGeneradorTokenAdapter } from '../adapter/seguridad/impl/CryptoGeneradorTokenAdapter.js';
 import type { ConfiguracionApp } from '../config/ConfiguracionApp.js';
 import { AuthController } from '../controller/AuthController.js';
+import { RecuperacionController } from '../controller/RecuperacionController.js';
 import { UsuarioController } from '../controller/UsuarioController.js';
 import type { TokenRecuperacionDAO } from '../dao/TokenRecuperacionDAO.js';
 import { TokenRecuperacionDAOSequelize } from '../dao/impl/sequelize/TokenRecuperacionDAOSequelize.js';
@@ -54,11 +55,12 @@ export function crearRecuperacionFacade({ cfg, logger, conexion, reloj, usuarioD
 }
 
 /**
- * Account stream: register/login, own profile and password, and the password recovery stubs (M1).
+ * Account stream: register/login, own profile and password, and the password recovery endpoints (M1).
  * Rate limits come from configuration. Register, login and password change count every attempt per IP;
  * login also locks an email after LIMITE_LOGIN failed attempts (any IP) for the rest of the window.
  */
-export function construirSeguridad({ cfg, usuarioDAO, hasher, emisorToken, verificador, autenticar }: Infraestructura): MontajeRuta[] {
+export function construirSeguridad(infra: Infraestructura): MontajeRuta[] {
+  const { cfg, usuarioDAO, hasher, emisorToken, verificador, autenticar } = infra;
   const { limites, politicaMensajesAuth } = cfg.seguridad;
   const { ventanaMs } = limites;
 
@@ -89,6 +91,14 @@ export function construirSeguridad({ cfg, usuarioDAO, hasher, emisorToken, verif
         limitarPassword: limitarIntentos({ max: limites.password, ventanaMs }),
       }),
     },
-    { modulo: 'recuperacion', ruta: '/', router: crearRecuperacionRouter() },
+    {
+      modulo: 'recuperacion',
+      ruta: '/',
+      router: crearRecuperacionRouter({
+        controller: new RecuperacionController(crearRecuperacionFacade(infra)),
+        limitarRecuperar: limitarIntentos({ max: limites.recuperar, ventanaMs }),
+        limitarRestablecer: limitarIntentos({ max: limites.restablecer, ventanaMs }),
+      }),
+    },
   ];
 }
