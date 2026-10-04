@@ -7,8 +7,8 @@ import { ConflictoException } from '../../exception/http/ConflictoException.js';
 import { LugarNoEncontradoException } from '../../exception/lugar/LugarNoEncontradoException.js';
 import type { Reloj } from '../../util/Reloj.js';
 import type { FavoritoConLugar, FavoritoService } from '../FavoritoService.js';
+import { MS_POR_MINUTO } from '../../util/tiempo.js';
 
-const MS_POR_MINUTO = 60_000;
 
 export interface DependenciasFavoritoService {
   favoritoDAO: FavoritoDAO;
