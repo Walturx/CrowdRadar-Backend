@@ -601,6 +601,36 @@ describe.skipIf(!URL_BD_TEST)('migraciones (PostgreSQL real)', () => {
         expect(await reportesSinteticos()).toBe(reportesAntes);
       });
 
+      it('db:seed:undo funciona aunque los usuarios sinteticos tengan favoritos, alertas, dispositivos y votos, y deja lo real', async () => {
+        expect((await sembrar('true')).codigo).toBe(0);
+        const [demo] = await q<{ id: number }>('SELECT id FROM usuario WHERE email LIKE $1 ORDER BY id LIMIT 1', [DOMINIO]);
+        const [real] = await q<{ id: number }>('SELECT id FROM usuario WHERE email = $1', [admin.ADMIN_EMAIL]);
+        const [lugar] = await q<{ id: number }>('SELECT id FROM lugar ORDER BY id LIMIT 1');
+        const [favorito] = await q<{ id: number }>(
+          'INSERT INTO lugar_favorito (usuario_id, lugar_id) VALUES ($1, $2) RETURNING id',
+          [demo?.id, lugar?.id],
+        );
+        await q("INSERT INTO alerta (favorito_id, usuario_id, lugar_id, nivel_nuevo, mensaje) VALUES ($1, $2, $3, 'SATURADO', 'x')", [
+          favorito?.id,
+          demo?.id,
+          lugar?.id,
+        ]);
+        await q("INSERT INTO dispositivo_push (usuario_id, token_fcm, plataforma) VALUES ($1, 'tok-demo', 'ANDROID')", [demo?.id]);
+        const [reporteDemo] = await q<{ id: number }>('SELECT id FROM reporte_saturacion WHERE usuario_id = $1 LIMIT 1', [demo?.id]);
+        await q(
+          "INSERT INTO validacion_reporte (reporte_id, usuario_id, tipo_accion, karma_votante) VALUES ($1, $2, 'CONFIRMAR', 0)",
+          [reporteDemo?.id, real?.id],
+        );
+        await q("INSERT INTO lugar_favorito (usuario_id, lugar_id) VALUES ($1, $2)", [real?.id, lugar?.id]);
+        const resultado = await deshacer();
+        expect(resultado.codigo, resultado.salida).toBe(0);
+        expect(await sinteticos()).toBe(0);
+        expect(await contar('SELECT count(*) AS n FROM alerta')).toBe(0);
+        expect(await contar("SELECT count(*) AS n FROM dispositivo_push WHERE token_fcm = 'tok-demo'")).toBe(0);
+        expect(await contar('SELECT count(*) AS n FROM validacion_reporte')).toBe(0);
+        expect(await contar('SELECT count(*) AS n FROM lugar_favorito WHERE usuario_id = $1', [real?.id])).toBe(1);
+      });
+
       it('db:seed:undo del seeder borra solo lo sintetico y deja admin, lugares y reportes reales', async () => {
         const [lugar] = await q<{ id: number }>('SELECT id FROM lugar ORDER BY id LIMIT 1');
         const [real] = await q<{ id: number }>('SELECT id FROM usuario WHERE email = $1', [admin.ADMIN_EMAIL]);

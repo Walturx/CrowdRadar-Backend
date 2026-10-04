@@ -68,6 +68,21 @@ describe('API de cuentas (contenedor de prueba)', () => {
       expect(res.body).toEqual({ message: 'El correo ya está registrado.', code: 'EMAIL_DUPLICADO', errors: [] });
     });
 
+    it.each([
+      ['el dominio de los usuarios de demostracion', 'demo99@sintetico.crowdradar.local'],
+      ['el mismo dominio con otras mayusculas', ' Alguien@Sintetico.CrowdRadar.LOCAL '],
+    ])('400 VALIDACION_FALLIDA en email con %s: esas cuentas son datos sinteticos', async (_caso, email) => {
+      const res = await request(app).post('/api/auth/register').send({ ...registro, email });
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe('VALIDACION_FALLIDA');
+      expect(res.body.errors.map((e: { campo: string }) => e.campo)).toEqual(['email']);
+    });
+
+    it('un dominio parecido pero distinto se registra con normalidad', async () => {
+      const res = await request(app).post('/api/auth/register').send({ ...registro, email: 'ana@sintetico.crowdradar.pe' });
+      expect(res.status).toBe(201);
+    });
+
     it('400 VALIDACION_FALLIDA con un error por campo invalido', async () => {
       const res = await request(app).post('/api/auth/register').send({ ...registro, email: 'x', password: 'corta' });
       expect(res.status).toBe(400);

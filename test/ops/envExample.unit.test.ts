@@ -18,11 +18,19 @@ function leerEjemplo(): Record<string, string> {
   return entorno;
 }
 
+/** Keys documented as a commented line (`# KEY=value`): optional settings that must stay unset by default. */
+function leerComentadas(): string[] {
+  return readFileSync(resolve(RAIZ, '.env.example'), 'utf8')
+    .split(/\r?\n/)
+    .flatMap((linea) => /^#\s*([A-Z][A-Z0-9_]*)=/.exec(linea)?.[1] ?? []);
+}
+
 describe('.env.example', () => {
   const ejemplo = leerEjemplo();
 
   it('lista TODAS las claves que lee el esquema', () => {
-    const faltantes = Object.keys(esquemaEntorno.shape).filter((clave) => !(clave in ejemplo));
+    const comentadas = leerComentadas();
+    const faltantes = Object.keys(esquemaEntorno.shape).filter((clave) => !(clave in ejemplo) && !comentadas.includes(clave));
     expect(faltantes).toEqual([]);
   });
 

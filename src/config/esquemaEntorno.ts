@@ -205,6 +205,10 @@ export const esquemaEntorno = z
     if (entorno.LUGARES_LIMITE_DEFAULT > entorno.LUGARES_LIMITE_MAX) {
       ctx.addIssue({ code: 'custom', path: ['LUGARES_LIMITE_DEFAULT'], message: 'no puede superar LUGARES_LIMITE_MAX' });
     }
+    // Demo users and reports must never be switched on in production by a stray variable.
+    if (entorno.SEED_SINTETICO === true && entorno.NODE_ENV === 'production') {
+      ctx.addIssue({ code: 'custom', path: ['SEED_SINTETICO'], message: 'no se admite con NODE_ENV=production (datos de demostración)' });
+    }
     if (entorno.CORREO_PROVEEDOR === 'smtp') {
       for (const clave of ['SMTP_HOST', 'SMTP_USUARIO', 'SMTP_PASSWORD'] as const) {
         if (!entorno[clave]) {

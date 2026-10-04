@@ -91,8 +91,12 @@ not real**: the analytics endpoints answer `sintetico: true` whenever it is part
 
 - **Disable it**: set `SEED_SINTETICO=false` before `npm run db:seed` (the seeder then logs that it was skipped). When the
   variable is not set the history is loaded outside production (`NODE_ENV` other than `production`) and skipped in production.
-- **Remove it**: `npx sequelize-cli db:seed:undo --seed 20261005100003-historial-sintetico.cjs` deletes the synthetic users and
-  their reports and nothing else.
+  Leave it unset (`.env.example` ships it commented out): `SEED_SINTETICO=true` with `NODE_ENV=production` is rejected, by the
+  API at startup and by the seeder.
+- **Remove it**: `npx sequelize-cli db:seed:undo --seed 20261005100003-historial-sintetico.cjs` deletes the synthetic users, their
+  reports and whatever else points at those users (favourites, alerts, devices, votes) and nothing else.
+- **Reserved domain**: nobody can sign up with an email ending in `@sintetico.crowdradar.local` (`400 VALIDACION_FALLIDA`), so a
+  real account is never mistaken for demo data.
 
 ## Test
 
@@ -341,6 +345,12 @@ Migrations 01-10 and 12 are frozen once released; fixes go forward as new migrat
 6. **Verify `down` safety before shipping a migration**: run `db:migrate`, `db:migrate:undo` and `db:migrate` again on a
    copy of production-like data (the contract tests do this on an empty database; they cannot prove a `down` keeps data).
    Migration 12 (`password_cambiada_en`) loses only the timestamp; token invalidation by password change is lost with it.
+
+## Decisiones
+
+Design decisions worth knowing before changing the report flow live in [docs/decisiones.md](docs/decisiones.md): event delivery
+is at-most-once after the commit (no outbox, accepted for the MVP) and report serialization uses a per-place row lock plus
+per-user advisory locks.
 
 ## Security notes
 

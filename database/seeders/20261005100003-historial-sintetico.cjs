@@ -5,6 +5,16 @@ const { DOMINIO_EMAIL, USUARIOS, generarReportes, habilitado, hoyEnLima } = requ
 const PATRON_EMAIL = `%${DOMINIO_EMAIL}`;
 /** Rows per INSERT, to keep each statement far below PostgreSQL parameter limits. */
 const LOTE = 1000;
+/** Tables with a `usuario_id` that `down` empties for the synthetic users before their reports and the users themselves. */
+const DEPENDIENTES_DEL_USUARIO = [
+  'alerta',
+  'lugar_favorito',
+  'dispositivo_push',
+  'validacion_reporte',
+  'denuncia',
+  'token_recuperacion',
+  'sancion_usuario',
+];
 
 /**
  * Demo data: three synthetic users and about four weeks of crowd reports in every place, so the analytics
@@ -50,12 +60,19 @@ module.exports = {
     );
   },
 
+  /**
+   * Foreign key order: everything that points at a synthetic user goes first (most of it would also go by ON DELETE
+   * CASCADE, but `reporte_saturacion.usuario_id` is RESTRICT, so the reports must be deleted before the users). Rows of
+   * other users that point at a synthetic REPORT (validations, complaints) go with it by the cascade of `reporte_id`.
+   */
   async down(queryInterface) {
     const { sequelize } = queryInterface;
     const replacements = { patron: PATRON_EMAIL };
-    await sequelize.query('DELETE FROM reporte_saturacion WHERE usuario_id IN (SELECT id FROM usuario WHERE email LIKE :patron)', {
-      replacements,
-    });
+    for (const tabla of [...DEPENDIENTES_DEL_USUARIO, 'reporte_saturacion']) {
+      await sequelize.query(`DELETE FROM ${tabla} WHERE usuario_id IN (SELECT id FROM usuario WHERE email LIKE :patron)`, {
+        replacements,
+      });
+    }
     await sequelize.query('DELETE FROM usuario WHERE email LIKE :patron', { replacements });
   },
 };

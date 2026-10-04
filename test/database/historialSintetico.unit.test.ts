@@ -42,12 +42,16 @@ const enLima = (fecha: Date) => {
 const promedio = (filas: Fila[]) => filas.reduce((suma, f) => suma + VALOR[f.nivel_saturacion], 0) / filas.length;
 
 describe('habilitado (SEED_SINTETICO)', () => {
+  it('SEED_SINTETICO=true en produccion se rechaza: no se siembran datos de demostracion alli', () => {
+    expect(() => lib.habilitado({ NODE_ENV: 'production', SEED_SINTETICO: 'true' })).toThrow(/production/);
+    expect(() => lib.habilitado({ NODE_ENV: 'production', SEED_SINTETICO: '1' })).toThrow(/production/);
+  });
+
   it.each([
     [{}, true],
     [{ NODE_ENV: 'development' }, true],
     [{ NODE_ENV: 'test' }, true],
     [{ NODE_ENV: 'production' }, false],
-    [{ NODE_ENV: 'production', SEED_SINTETICO: 'true' }, true],
     [{ NODE_ENV: 'development', SEED_SINTETICO: 'false' }, false],
     [{ SEED_SINTETICO: 'FALSE' }, false],
     [{ SEED_SINTETICO: '1' }, true],
@@ -160,10 +164,15 @@ function crearBd() {
     { usuario_id: 1, lugar_id: 1, nivel_saturacion: 'MODERADO', fecha_hora: new Date('2026-10-01T15:00:00Z') },
   ];
   const consultas: string[] = [];
+  /** Tables the seeder deleted from, in order. */
+  const borrados: string[] = [];
   const query = async (sql: string, opciones: { replacements?: Record<string, unknown> } = {}) => {
     consultas.push(sql);
     const r = opciones.replacements ?? {};
     const sinteticos = () => usuarios.filter((u) => u.email.endsWith(DOMINIO_EMAIL_SINTETICO));
+    const borrado = /^DELETE FROM (\w+)/.exec(sql)?.[1];
+    if (borrado) borrados.push(borrado);
+    if (borrado && borrado !== 'reporte_saturacion' && borrado !== 'usuario') return [[], undefined];
     if (sql.startsWith('DELETE FROM reporte_saturacion')) {
       const ids = new Set(sinteticos().map((u) => u.id));
       for (let i = reportes.length - 1; i >= 0; i -= 1) if (ids.has(reportes[i]!.usuario_id)) reportes.splice(i, 1);
@@ -192,7 +201,7 @@ function crearBd() {
       reportes.push(...filas);
     },
   };
-  return { usuarios, reportes, consultas, queryInterface };
+  return { usuarios, reportes, consultas, borrados, queryInterface };
 }
 
 describe('seeder historial-sintetico', () => {
@@ -250,6 +259,23 @@ describe('seeder historial-sintetico', () => {
     expect(bd.usuarios).toEqual([{ id: 1, email: 'real@crowdradar.pe' }]);
     expect(bd.reportes).toHaveLength(1);
     expect(bd.reportes[0]?.usuario_id).toBe(1);
+  });
+
+  it('deshacer borra primero lo que depende de los usuarios sinteticos y al final reportes y usuarios', async () => {
+    const bd = crearBd();
+    await seeder.up(bd.queryInterface);
+    await seeder.down(bd.queryInterface);
+    expect(bd.borrados).toEqual([
+      'alerta',
+      'lugar_favorito',
+      'dispositivo_push',
+      'validacion_reporte',
+      'denuncia',
+      'token_recuperacion',
+      'sancion_usuario',
+      'reporte_saturacion',
+      'usuario',
+    ]);
   });
 
   it('deshacer sin haber sembrado no falla', async () => {
