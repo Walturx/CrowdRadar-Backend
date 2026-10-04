@@ -10,7 +10,7 @@ import { CuentaSuspendidaException } from '../../src/exception/usuario/CuentaSus
 import { EmailYaRegistradoException } from '../../src/exception/usuario/EmailYaRegistradoException.js';
 import { EstadoCuenta } from '../../src/enum/EstadoCuenta.js';
 import { AuthServiceImpl } from '../../src/service/impl/AuthServiceImpl.js';
-import { VerificadorEstadoCuentaImpl } from '../../src/service/impl/VerificadorEstadoCuentaImpl.js';
+import { sancionVigente, verificadorMemoria } from '../support/cuentaSuspendida.js';
 import { EmisorTokenFalso } from '../support/adapter/EmisorTokenFalso.js';
 import { HasherFalso } from '../support/adapter/HasherFalso.js';
 import { UsuarioDAOMemoria } from '../support/dao/memoria/UsuarioDAOMemoria.js';
@@ -27,17 +27,19 @@ const registro = {
 describe('AuthServiceImpl', () => {
   let dao: UsuarioDAOMemoria;
   let hasher: HasherFalso;
+  let cuenta: ReturnType<typeof verificadorMemoria>;
   const crear = (politicaMensajes: 'GENERICA' | 'DETALLADA' = 'GENERICA') =>
     new AuthServiceImpl({
       usuarioDAO: dao,
       hasher,
       emisorToken: new EmisorTokenFalso(),
-      verificador: new VerificadorEstadoCuentaImpl(),
+      verificador: cuenta.verificador,
       politicaMensajes,
     });
 
   beforeEach(() => {
     dao = new UsuarioDAOMemoria();
+    cuenta = verificadorMemoria(dao);
     hasher = new HasherFalso();
   });
 
@@ -123,6 +125,7 @@ describe('AuthServiceImpl', () => {
     it('cuenta suspendida con password correcta lanza CuentaSuspendida (403)', async () => {
       const ana = await dao.buscarPorEmail('ana@crowdradar.pe');
       await dao.actualizarStatus(ana!.id, EstadoCuenta.SUSPENDIDO);
+      await sancionVigente(cuenta.sancionDAO, ana!.id);
       const error = await crear()
         .iniciarSesion({ email: 'ana@crowdradar.pe', password: 'Secreta123' })
         .catch((e: unknown) => e);

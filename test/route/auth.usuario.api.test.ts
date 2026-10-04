@@ -6,6 +6,7 @@ import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../../src/app.js';
 import { EstadoCuenta } from '../../src/enum/EstadoCuenta.js';
+import { sancionVigente } from '../support/cuentaSuspendida.js';
 import { crearContenedorPrueba, type ContenedorPrueba } from '../support/crearContenedorPrueba.js';
 
 const registro = {
@@ -140,6 +141,7 @@ describe('API de cuentas (contenedor de prueba)', () => {
     it('cuenta suspendida: 403 CUENTA_SUSPENDIDA', async () => {
       const ana = await ctx.usuarioDAO.buscarPorEmail('ana@crowdradar.pe');
       await ctx.usuarioDAO.actualizarStatus(ana!.id, EstadoCuenta.SUSPENDIDO);
+      await sancionVigente(ctx.sancionDAO, ana!.id);
       const res = await request(app).post('/api/auth/login').send({ email: 'ana@crowdradar.pe', password: 'Secreta123' });
       expect(res.status).toBe(403);
       expect(res.body.code).toBe('CUENTA_SUSPENDIDA');
@@ -233,6 +235,7 @@ describe('API de cuentas (contenedor de prueba)', () => {
     it('403 CUENTA_SUSPENDIDA cuando la cuenta se suspendio despues de emitir el token', async () => {
       const ana = await ctx.usuarioDAO.buscarPorEmail('ana@crowdradar.pe');
       await ctx.usuarioDAO.actualizarStatus(ana!.id, EstadoCuenta.SUSPENDIDO);
+      await sancionVigente(ctx.sancionDAO, ana!.id);
       const res = await request(app).get('/api/users/profile').set(conToken(token));
       expect(res.status).toBe(403);
       expect(res.body.code).toBe('CUENTA_SUSPENDIDA');

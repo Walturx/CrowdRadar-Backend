@@ -17,6 +17,8 @@ import { initModels } from '../../src/dao/impl/sequelize/model/initModels.js';
 import { EmailYaRegistradoException } from '../../src/exception/usuario/EmailYaRegistradoException.js';
 import { AuthServiceImpl } from '../../src/service/impl/AuthServiceImpl.js';
 import { VerificadorEstadoCuentaImpl } from '../../src/service/impl/VerificadorEstadoCuentaImpl.js';
+import { SancionDAOSequelize } from '../../src/dao/impl/sequelize/SancionDAOSequelize.js';
+import { relojSistema } from '../../src/util/Reloj.js';
 import { ConexionFalsa } from '../support/ConexionFalsa.js';
 import { crearLoggerSilencioso } from '../support/LoggerSilencioso.js';
 import { configPrueba } from '../support/configPrueba.js';
@@ -59,7 +61,7 @@ describe.skipIf(!URL_BD_TEST)('registro concurrente (PostgreSQL real)', () => {
       usuarioDAO,
       hasher,
       emisorToken,
-      verificador: new VerificadorEstadoCuentaImpl(),
+      verificador: new VerificadorEstadoCuentaImpl({ usuarioDAO, sancionDAO: new SancionDAOSequelize(), reloj: relojSistema }),
       politicaMensajes: 'GENERICA',
     });
     const email = 'servicio@crowdradar.pe';
