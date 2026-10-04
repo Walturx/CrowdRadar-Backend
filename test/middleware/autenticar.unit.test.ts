@@ -12,6 +12,9 @@ import { UsuarioDAOMemoria } from '../support/dao/memoria/UsuarioDAOMemoria.js';
 import { aUsuario } from '../support/fabrica/datos.js';
 import { crearAppPrueba } from '../support/appPrueba.js';
 
+/** Token `iat` used by the claims helper (seconds). */
+const SEGUNDOS_BASE = Date.parse('2026-10-05T10:00:00Z') / 1000;
+
 describe('autenticar', () => {
   let dao: UsuarioDAOMemoria;
   let emisor: EmisorTokenFalso;
@@ -23,6 +26,7 @@ describe('autenticar', () => {
     email: usuario.email,
     rol: usuario.rol,
     status: usuario.status,
+    iat: SEGUNDOS_BASE,
     ...extra,
   });
 
@@ -77,6 +81,43 @@ describe('autenticar', () => {
       const res = await request(app).get('/protegida').set('Authorization', 'Bearer token-id-raro');
       expect(res.status).toBe(401);
       expect(res.body.code).toBe('TOKEN_INVALIDO');
+    });
+  });
+
+  describe('cambio de password invalida tokens anteriores (R1-402)', () => {
+    const cambiadaEn = (segundos: number) => new Date((SEGUNDOS_BASE + segundos) * 1000);
+    const llamar = (token: string) => request(app).get('/protegida').set('Authorization', `Bearer ${token}`);
+
+    it('token emitido antes del cambio de password -> 401 TOKEN_INVALIDO', async () => {
+      const usuario = dao.agregar(aUsuario({ passwordCambiadaEn: cambiadaEn(60) }));
+      emisor.registrar('token-viejo', claimsDe(usuario));
+      const res = await llamar('token-viejo');
+      expect(res.status).toBe(401);
+      expect(res.body).toEqual({ message: 'Token inválido o expirado.', code: 'TOKEN_INVALIDO', errors: [] });
+    });
+
+    it('token emitido despues del cambio -> continua', async () => {
+      const usuario = dao.agregar(aUsuario({ passwordCambiadaEn: cambiadaEn(-60) }));
+      emisor.registrar('token-nuevo', claimsDe(usuario));
+      expect((await llamar('token-nuevo')).status).toBe(200);
+    });
+
+    it('en el mismo segundo del cambio el token sigue valido (iat tiene resolucion de segundos)', async () => {
+      const usuario = dao.agregar(aUsuario({ passwordCambiadaEn: new Date((SEGUNDOS_BASE + 0.9) * 1000) }));
+      emisor.registrar('token-mismo-segundo', claimsDe(usuario));
+      expect((await llamar('token-mismo-segundo')).status).toBe(200);
+    });
+
+    it('sin cambio de password registrado (null) ningun token se descarta', async () => {
+      const usuario = dao.agregar(aUsuario({ passwordCambiadaEn: null }));
+      emisor.registrar('token-sin-cambio', claimsDe(usuario, { iat: 1 }));
+      expect((await llamar('token-sin-cambio')).status).toBe(200);
+    });
+
+    it('el rechazo ocurre antes de evaluar el estado de la cuenta', async () => {
+      const usuario = dao.agregar(aUsuario({ passwordCambiadaEn: cambiadaEn(60), status: EstadoCuenta.SUSPENDIDO }));
+      emisor.registrar('token-viejo-suspendido', claimsDe(usuario));
+      expect((await llamar('token-viejo-suspendido')).body.code).toBe('TOKEN_INVALIDO');
     });
   });
 

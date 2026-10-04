@@ -14,6 +14,7 @@ const esquemaClaims = z.object({
   email: z.string(),
   rol: z.enum([Rol.USUARIO, Rol.ADMIN]),
   status: z.enum([EstadoCuenta.ACTIVO, EstadoCuenta.SUSPENDIDO]),
+  iat: z.number().int().nonnegative(),
 });
 
 export interface OpcionesJwt {
@@ -30,7 +31,7 @@ export class JwtEmisorToken implements EmisorToken {
   constructor(private readonly opciones: OpcionesJwt) {}
 
   emitir(usuario: Usuario): TokenEmitido {
-    const claims: ClaimsToken = {
+    const claims: Omit<ClaimsToken, 'iat'> = {
       sub: String(usuario.id),
       id: usuario.id,
       email: usuario.email,

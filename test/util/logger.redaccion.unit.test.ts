@@ -35,3 +35,36 @@ describe('crearLogger: redaccion de datos de base de datos y cookies', () => {
     expect(texto).not.toContain('zzz999');
   });
 });
+
+describe('crearLogger: redaccion de campos de validacion y secretos anidados (R1-405)', () => {
+  it('redacta err.fields y los valores de err.errors[*]', () => {
+    const texto = escribir({
+      err: {
+        message: 'validacion',
+        fields: { email: 'ana@secreto.pe' },
+        errors: [
+          { path: 'email', value: 'ana@secreto.pe', message: 'duplicado' },
+          { path: 'otro', value: 'otro-secreto', message: 'x' },
+        ],
+      },
+    });
+    expect(texto).toContain('duplicado');
+    expect(texto).not.toContain('secreto');
+  });
+
+  it.each([
+    ['un nivel', { body: { password: 'clave-uno' } }],
+    ['dos niveles', { req: { body: { password: 'clave-uno' } } }],
+    ['tres niveles', { a: { b: { c: { password: 'clave-uno' } } } }],
+    ['passwordActual', { body: { passwordActual: 'clave-uno' } }],
+    ['nuevaPassword', { req: { body: { nuevaPassword: 'clave-uno' } } }],
+    ['token anidado', { respuesta: { data: { token: 'clave-uno' } } }],
+    ['token de recuperacion', { dto: { tokenRecuperacion: 'clave-uno' } }],
+  ])('redacta secretos a cualquier profundidad razonable: %s', (_caso, objeto) => {
+    expect(escribir(objeto)).not.toContain('clave-uno');
+  });
+
+  it('no redacta campos inocuos', () => {
+    expect(escribir({ body: { nombre: 'visible-ok' } })).toContain('visible-ok');
+  });
+});

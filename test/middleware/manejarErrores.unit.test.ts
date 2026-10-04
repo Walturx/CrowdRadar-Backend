@@ -3,13 +3,21 @@
  * Error mapping table, exercised through real Express routes.
  */
 import type { NextFunction, Request, Response } from 'express';
-import { ConnectionRefusedError, ConnectionTimedOutError, HostNotFoundError, UniqueConstraintError } from 'sequelize';
+import {
+  ConnectionAcquireTimeoutError,
+  ConnectionRefusedError,
+  ConnectionTimedOutError,
+  DatabaseError,
+  HostNotFoundError,
+  UniqueConstraintError,
+} from 'sequelize';
 import request from 'supertest';
 import { describe, expect, it, vi } from 'vitest';
 import { CodigoError } from '../../src/exception/CodigoError.js';
 import { AccesoDenegadoException } from '../../src/exception/http/AccesoDenegadoException.js';
 import { ConflictoException } from '../../src/exception/http/ConflictoException.js';
 import { DemasiadasSolicitudesException } from '../../src/exception/http/DemasiadasSolicitudesException.js';
+import { DemasiadosIntentosException } from '../../src/exception/http/DemasiadosIntentosException.js';
 import { NoAutenticadoException } from '../../src/exception/http/NoAutenticadoException.js';
 import { NoImplementadoException } from '../../src/exception/http/NoImplementadoException.js';
 import { RecursoNoEncontradoException } from '../../src/exception/http/RecursoNoEncontradoException.js';
@@ -129,6 +137,59 @@ describe('manejarErrores: errores de infraestructura', () => {
     const res = await request(appQueLanza('texto suelto')).get('/falla');
     expect(res.status).toBe(500);
     expect(res.body.code).toBe('ERROR_INTERNO');
+  });
+});
+
+describe('manejarErrores: reintento sugerido (R4-414, R1-401)', () => {
+  const statementTimeout = () =>
+    new DatabaseError(Object.assign(new Error('canceling statement due to statement timeout'), { code: '57014', sql: '' }));
+
+  it('statement_timeout de Postgres (57014) -> 503 SERVICIO_NO_DISPONIBLE con Retry-After', async () => {
+    const res = await request(appQueLanza(statementTimeout())).get('/falla');
+    expect(res.status).toBe(503);
+    expect(res.body).toEqual({
+      message: 'Servicio no disponible. Inténtalo de nuevo más tarde.',
+      code: 'SERVICIO_NO_DISPONIBLE',
+      errors: [],
+    });
+    expect(Number(res.headers['retry-after'])).toBeGreaterThan(0);
+  });
+
+  it('otro error de base de datos sigue siendo 500 y no lleva Retry-After', async () => {
+    const otro = new DatabaseError(Object.assign(new Error('syntax error at or near'), { code: '42601', sql: '' }));
+    const res = await request(appQueLanza(otro)).get('/falla');
+    expect(res.status).toBe(500);
+    expect(res.headers['retry-after']).toBeUndefined();
+  });
+
+  it('timeout al adquirir una conexion del pool -> 503 con Retry-After', async () => {
+    const res = await request(appQueLanza(new ConnectionAcquireTimeoutError(new Error('acquire')))).get('/falla');
+    expect(res.status).toBe(503);
+    expect(res.body.code).toBe('SERVICIO_NO_DISPONIBLE');
+    expect(Number(res.headers['retry-after'])).toBeGreaterThan(0);
+  });
+
+  it('conectividad (ECONNREFUSED) tambien sugiere reintento', async () => {
+    const res = await request(appQueLanza(new ConnectionRefusedError(new Error('x')))).get('/falla');
+    expect(Number(res.headers['retry-after'])).toBeGreaterThan(0);
+  });
+
+  it('429 con reintentarEnSeg expone Retry-After', async () => {
+    const res = await request(appQueLanza(new DemasiadasSolicitudesException(undefined, 42))).get('/falla');
+    expect(res.status).toBe(429);
+    expect(res.headers['retry-after']).toBe('42');
+  });
+
+  it('DemasiadosIntentosException -> 429 DEMASIADOS_INTENTOS con Retry-After', async () => {
+    const res = await request(appQueLanza(new DemasiadosIntentosException(900))).get('/falla');
+    expect(res.status).toBe(429);
+    expect(res.body.code).toBe('DEMASIADOS_INTENTOS');
+    expect(res.headers['retry-after']).toBe('900');
+  });
+
+  it('un 429 sin reintentarEnSeg no inventa la cabecera', async () => {
+    const res = await request(appQueLanza(new DemasiadasSolicitudesException())).get('/falla');
+    expect(res.headers['retry-after']).toBeUndefined();
   });
 });
 

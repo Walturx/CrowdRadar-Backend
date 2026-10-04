@@ -2,6 +2,7 @@ import type { ErrorRequestHandler } from 'express';
 import type { ErrorResponseDTO } from '../dto/ErrorResponseDTO.js';
 import { AppException, type DetalleError } from '../exception/AppException.js';
 import { CodigoError } from '../exception/CodigoError.js';
+import { REINTENTO_503_SEG } from '../exception/http/ServicioNoDisponibleException.js';
 import type { Logger } from '../util/logger.js';
 
 export interface ErrorTraducido {
@@ -9,6 +10,8 @@ export interface ErrorTraducido {
   body: ErrorResponseDTO;
   /** True for unexpected errors (500 ERROR_INTERNO); false for known, mapped ones. */
   esInterno: boolean;
+  /** Seconds for the `Retry-After` header, when the client should retry later. */
+  reintentarEnSeg?: number;
 }
 
 /** Node network error codes that mean "the dependency is unreachable". */
@@ -23,6 +26,14 @@ const NOMBRE_CONECTIVIDAD = /^Sequelize(Connection|HostNotFound|HostNotReachable
 function esErrorDeConectividad(error: Error): boolean {
   const codigo = (error as { code?: unknown }).code;
   return NOMBRE_CONECTIVIDAD.test(error.name) || (typeof codigo === 'string' && CODIGOS_DE_RED.has(codigo));
+}
+
+/** Postgres SQLSTATE for `statement_timeout` (query_canceled); Sequelize wraps it in a DatabaseError. */
+const SQLSTATE_QUERY_CANCELED = '57014';
+
+function esTimeoutDeSentencia(error: Error): boolean {
+  const { parent, original } = error as { parent?: { code?: unknown }; original?: { code?: unknown } };
+  return error.name === 'SequelizeDatabaseError' && (parent?.code ?? original?.code) === SQLSTATE_QUERY_CANCELED;
 }
 
 const sobre = (code: string, message: string, errors: readonly DetalleError[] = []): ErrorResponseDTO => ({
@@ -44,7 +55,12 @@ function statusDeClienteHttp(error: Error): number | undefined {
 /** Pure mapping from any thrown value to the HTTP status and the error envelope. */
 export function traducirError(error: unknown, requestId?: string): ErrorTraducido {
   if (error instanceof AppException) {
-    return { status: error.status, body: sobre(error.code, error.message, error.errors), esInterno: false };
+    return {
+      status: error.status,
+      body: sobre(error.code, error.message, error.errors),
+      esInterno: false,
+      ...(error.reintentarEnSeg === undefined ? {} : { reintentarEnSeg: error.reintentarEnSeg }),
+    };
   }
   if (error instanceof Error) {
     const tipo = (error as { type?: unknown }).type;
@@ -69,11 +85,12 @@ export function traducirError(error: unknown, requestId?: string): ErrorTraducid
         esInterno: false,
       };
     }
-    if (esErrorDeConectividad(error)) {
+    if (esErrorDeConectividad(error) || esTimeoutDeSentencia(error)) {
       return {
         status: 503,
         body: sobre(CodigoError.SERVICIO_NO_DISPONIBLE, 'Servicio no disponible. Inténtalo de nuevo más tarde.'),
         esInterno: false,
+        reintentarEnSeg: REINTENTO_503_SEG,
       };
     }
     const statusCliente = statusDeClienteHttp(error);
@@ -100,10 +117,11 @@ export function crearManejadorErrores(logger: Logger): ErrorRequestHandler {
       next(error);
       return;
     }
-    const { status, body } = traducirError(error, req.id === undefined ? undefined : String(req.id));
+    const { status, body, reintentarEnSeg } = traducirError(error, req.id === undefined ? undefined : String(req.id));
     if (status >= 500 && status !== 501) {
       (req.log ?? logger).error({ err: error }, 'Error al atender la petición');
     }
+    if (reintentarEnSeg !== undefined) res.setHeader('Retry-After', String(Math.max(1, Math.ceil(reintentarEnSeg))));
     res.status(status).json(body);
   };
 }

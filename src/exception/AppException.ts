@@ -17,6 +17,8 @@ export class AppException extends Error {
     readonly code: CodigoErrorValor,
     mensaje: string,
     readonly errors: readonly DetalleError[] = [],
+    /** Seconds the client should wait before retrying; becomes the `Retry-After` header (429 and 503). */
+    readonly reintentarEnSeg?: number,
   ) {
     super(mensaje);
     this.name = new.target.name;

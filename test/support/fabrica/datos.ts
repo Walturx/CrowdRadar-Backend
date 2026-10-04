@@ -23,6 +23,7 @@ export function aUsuario(sobrescritos: Partial<Usuario> = {}): Usuario {
     rol: Rol.USUARIO,
     status: EstadoCuenta.ACTIVO,
     puntosKarma: 0,
+    passwordCambiadaEn: null,
     createdAt: new Date('2026-10-05T10:00:00Z'),
     updatedAt: new Date('2026-10-05T10:00:00Z'),
     ...sobrescritos,

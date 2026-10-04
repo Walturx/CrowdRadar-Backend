@@ -34,6 +34,14 @@ describe('JwtEmisorToken.verificar', () => {
     expect(emisor.verificar(token)).toMatchObject({ id: 7, email: 'a@b.pe', rol: 'USUARIO', status: 'ACTIVO' });
   });
 
+  it('expone iat (segundos) para que autenticar compare con el ultimo cambio de password', () => {
+    const antes = Math.floor(Date.now() / 1000);
+    const { token } = emisor.emitir(aUsuario({ id: 7 }));
+    const { iat } = emisor.verificar(token);
+    expect(iat).toBeGreaterThanOrEqual(antes);
+    expect(iat).toBeLessThanOrEqual(Math.floor(Date.now() / 1000));
+  });
+
   it('rechaza un token firmado con otro secreto', () => {
     const ajeno = jwt.sign(claimsValidos, 'o'.repeat(48), { algorithm: 'HS256' });
     expect(() => emisor.verificar(ajeno)).toThrow();

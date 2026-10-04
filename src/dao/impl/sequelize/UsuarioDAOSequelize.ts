@@ -42,6 +42,7 @@ function aEntidad(modelo: UsuarioModel): Usuario {
     rol: modelo.rol as Rol,
     status: modelo.status as EstadoCuenta,
     puntosKarma: modelo.puntosKarma,
+    passwordCambiadaEn: modelo.passwordCambiadaEn ?? null,
     createdAt: modelo.createdAt,
     updatedAt: modelo.updatedAt,
   };
@@ -83,7 +84,7 @@ export class UsuarioDAOSequelize implements UsuarioDAO {
   }
 
   async actualizarPasswordHash(id: number, passwordHash: string, tx?: ContextoTx): Promise<boolean> {
-    const [filas] = await UsuarioModel.update({ passwordHash }, { where: { id }, transaction: aTransaccion(tx) });
+    const [filas] = await UsuarioModel.update({ passwordHash, passwordCambiadaEn: new Date() }, { where: { id }, transaction: aTransaccion(tx) });
     return filas > 0;
   }
 

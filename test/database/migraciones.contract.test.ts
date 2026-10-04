@@ -114,7 +114,7 @@ describe.skipIf(!URL_BD_TEST)('migraciones (PostgreSQL real)', () => {
       expect(await tablas()).toEqual(TODAS);
     });
 
-    it('SequelizeMeta registra las 10 migraciones en orden', async () => {
+    it('SequelizeMeta registra las 11 migraciones en orden', async () => {
       const filas = await q<{ name: string }>('SELECT name FROM "SequelizeMeta" ORDER BY name');
       expect(filas.map((f) => f.name)).toEqual([
         '20261005000001-crear-usuario.cjs',
@@ -127,6 +127,7 @@ describe.skipIf(!URL_BD_TEST)('migraciones (PostgreSQL real)', () => {
         '20261005000008-crear-alerta.cjs',
         '20261005000009-crear-token-recuperacion.cjs',
         '20261005000010-crear-dispositivo-push.cjs',
+        '20261005000012-usuario-password-cambiada-en.cjs',
       ]);
     });
   });
@@ -182,6 +183,7 @@ describe.skipIf(!URL_BD_TEST)('migraciones (PostgreSQL real)', () => {
         'puntos_karma',
         'created_at',
         'updated_at',
+        'password_cambiada_en',
       ]);
       const porNombre = Object.fromEntries(columnas.map((c) => [c.column_name, c]));
       expect(porNombre.puntos_karma?.data_type).toBe('integer');
@@ -440,7 +442,27 @@ describe.skipIf(!URL_BD_TEST)('migraciones (PostgreSQL real)', () => {
       expect(await tablas()).toEqual(TODAS);
     });
 
-    it('db:migrate:undo deshace solo la ultima migracion (dispositivo_push) y la rehace', async () => {
+    const columnaPasswordCambiadaEn = () =>
+      q<{ data_type: string; is_nullable: string }>(
+        "SELECT data_type, is_nullable FROM information_schema.columns WHERE table_name = 'usuario' AND column_name = 'password_cambiada_en'",
+      );
+
+    it('usuario.password_cambiada_en es TIMESTAMPTZ nullable (R1-402)', async () => {
+      expect(await columnaPasswordCambiadaEn()).toEqual([{ data_type: 'timestamp with time zone', is_nullable: 'YES' }]);
+    });
+
+    it('db:migrate:undo deshace solo la ultima migracion (password_cambiada_en) y la rehace', async () => {
+      const deshacer = await ejecutarCli(['db:migrate:undo'], bd.url);
+      expect(deshacer.codigo, deshacer.salida).toBe(0);
+      expect(await tablas()).toEqual(TODAS);
+      expect(await columnaPasswordCambiadaEn()).toEqual([]);
+      const rehacer = await ejecutarCli(['db:migrate'], bd.url);
+      expect(rehacer.codigo, rehacer.salida).toBe(0);
+      expect(await columnaPasswordCambiadaEn()).toHaveLength(1);
+    });
+
+    it('un segundo db:migrate:undo deshace dispositivo_push y la rehace', async () => {
+      await ejecutarCli(['db:migrate:undo'], bd.url);
       const deshacer = await ejecutarCli(['db:migrate:undo'], bd.url);
       expect(deshacer.codigo, deshacer.salida).toBe(0);
       expect(await tablas()).toEqual(TODAS.filter((t) => t !== 'dispositivo_push'));

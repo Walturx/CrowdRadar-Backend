@@ -173,11 +173,11 @@ or missing value prints every offending key (never its value) and exits with cod
 | `BCRYPT_COSTO` | bcrypt cost, 4-15 (10) |
 | `POLITICA_MENSAJES_AUTH` | `GENERICA` (identical answer for unknown email and wrong password) or `DETALLADA` (GENERICA) |
 | `LIMITE_VENTANA_MIN` | Rate-limit window in minutes (15) |
-| `LIMITE_LOGIN` | Failed logins per window and IP (10) |
+| `LIMITE_LOGIN` | Logins per window and IP, successful or not (10); also the failed logins per email before the account locks (10) |
 | `LIMITE_REGISTRO` | Registrations per window and IP (10) |
 | `LIMITE_RECUPERAR` | Recovery requests per window (5), wired when M1 delivers the route |
 | `LIMITE_RESTABLECER` | Reset attempts per window (10), wired when M1 delivers the route |
-| `LIMITE_PASSWORD` | Failed password changes per window and IP (5) |
+| `LIMITE_PASSWORD` | Password changes per window and IP, successful or not (5) |
 | `RECUPERACION_EXPIRA_MIN` | Recovery token lifetime in minutes (30) |
 | `COOLDOWN_REPORTE_MIN` | Minutes between reports of one user for one place (30) |
 | `KARMA_POR_REPORTE` | Karma for a report (10) |
@@ -218,7 +218,15 @@ Test tooling only: `DATABASE_URL_TEST` (see Test).
 - Passwords are bcrypt hashes (cost from config); login always runs a hash comparison, with a decoy hash for unknown emails.
 - JWT is HS256 only (pinned on sign and verify), its payload is validated, and `autenticar` re-reads the user so a
   suspended account loses access immediately.
-- Logs redact passwords, tokens, `Authorization`, cookies and database error details (SQL text, bound values).
+- Logs redact passwords, tokens, `Authorization`, cookies, validation `fields`/`errors[*].value` and database error
+  details (SQL text, bound values); secret keys are matched at any depth up to five levels.
+- Rate limits count every attempt per IP; login also locks an email after `LIMITE_LOGIN` failed attempts from any IP
+  (`429 DEMASIADOS_INTENTOS`, `Retry-After`). Trade-off: anyone can lock a known email for one window; the alternative
+  (per IP+email) would let a distributed attacker guess freely. Counters are in memory, per process.
+- Changing the password invalidates every token issued before the change (`usuario.password_cambiada_en`).
+- `POST /api/auth/register` answers `409 EMAIL_DUPLICADO`, which lets a client discover whether an email is registered.
+  Accepted trade-off: the Sprint 1 frontend contract needs that code to show the "email already used" message, and the
+  per-IP register limit slows enumeration. Revisit if the product stops needing the explicit message.
 - No secret is tracked: `.env` is ignored, `.env.example` only has placeholders that fail validation.
 
 ## Baseline

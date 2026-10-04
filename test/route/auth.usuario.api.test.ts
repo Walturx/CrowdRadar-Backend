@@ -3,7 +3,7 @@
  * register, login, profile, password. Spec R-B1..R-B4, R-A7, R-A8.1; frontend contract.
  */
 import request from 'supertest';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../../src/app.js';
 import { EstadoCuenta } from '../../src/enum/EstadoCuenta.js';
 import { crearContenedorPrueba, type ContenedorPrueba } from '../support/crearContenedorPrueba.js';
@@ -146,6 +146,45 @@ describe('API de cuentas (contenedor de prueba)', () => {
       expect(res.status).toBe(429);
       expect(res.body).toMatchObject({ code: 'DEMASIADAS_SOLICITUDES' });
     });
+
+    it('los logins exitosos tambien consumen el cupo por IP (R1-401)', async () => {
+      preparar({ cfg: { LIMITE_LOGIN: 2 } });
+      await registrar();
+      const entrar = () => request(app).post('/api/auth/login').send({ email: 'ana@crowdradar.pe', password: 'Secreta123' });
+      expect((await entrar()).status).toBe(200);
+      expect((await entrar()).status).toBe(200);
+      const res = await entrar();
+      expect(res.status).toBe(429);
+      expect(Number(res.headers['retry-after'])).toBeGreaterThan(0);
+    });
+
+    describe('bloqueo por cuenta (varias IP contra un mismo email)', () => {
+      const desde = (ip: string, email: string, password: string) =>
+        request(app).post('/api/auth/login').set('X-Forwarded-For', ip).send({ email, password });
+
+      beforeEach(async () => {
+        preparar({ cfg: { LIMITE_LOGIN: 3, TRUST_PROXY: '1' } });
+        await registrar();
+      });
+
+      it('tras LIMITE_LOGIN fallos al mismo email, aun la password correcta responde 429 DEMASIADOS_INTENTOS con Retry-After', async () => {
+        for (const ip of ['10.0.0.1', '10.0.0.2', '10.0.0.3']) {
+          expect((await desde(ip, 'ana@crowdradar.pe', 'Incorrecta1')).status).toBe(401);
+        }
+        const res = await desde('10.0.0.4', 'ANA@crowdradar.pe', 'Secreta123');
+        expect(res.status).toBe(429);
+        expect(res.body.code).toBe('DEMASIADOS_INTENTOS');
+        expect(Number(res.headers['retry-after'])).toBeGreaterThan(0);
+      });
+
+      it('no afecta a otros emails ni a los logins exitosos de la propia cuenta', async () => {
+        await desde('10.0.0.1', 'ana@crowdradar.pe', 'Secreta123');
+        await desde('10.0.0.2', 'ana@crowdradar.pe', 'Secreta123');
+        expect((await desde('10.0.0.3', 'ana@crowdradar.pe', 'Secreta123')).status).toBe(200);
+        for (const ip of ['10.0.0.4', '10.0.0.5', '10.0.0.6']) await desde(ip, 'otra@crowdradar.pe', 'Incorrecta1');
+        expect((await desde('10.0.0.7', 'ana@crowdradar.pe', 'Secreta123')).status).toBe(200);
+      });
+    });
   });
 
   describe('GET/PUT /api/users/profile', () => {
@@ -251,6 +290,87 @@ describe('API de cuentas (contenedor de prueba)', () => {
     it('401 sin token', async () => {
       const res = await request(app).put('/api/users/password').send(cuerpo);
       expect(res.status).toBe(401);
+    });
+
+    describe('validacion del cuerpo (R3-408)', () => {
+      const enviar = (cuerpoEnviado: unknown) => request(app).put('/api/users/password').set(conToken(token)).send(cuerpoEnviado as object);
+      const camposDe = (res: { body: { errors: { campo: string }[] } }) => res.body.errors.map((e) => e.campo);
+
+      it('nuevaPassword de menos de 8 caracteres -> 400 en nuevaPassword', async () => {
+        const res = await enviar({ ...cuerpo, nuevaPassword: 'Corta1', confirmarPassword: 'Corta1' });
+        expect(res.status).toBe(400);
+        expect(res.body.code).toBe('VALIDACION_FALLIDA');
+        expect(camposDe(res)).toContain('nuevaPassword');
+      });
+
+      it('nuevaPassword de mas de 72 bytes -> 400 (limite de bcrypt), medido en bytes y no en caracteres', async () => {
+        const larga = 'a'.repeat(73);
+        const res = await enviar({ ...cuerpo, nuevaPassword: larga, confirmarPassword: larga });
+        expect(res.status).toBe(400);
+        expect(camposDe(res)).toContain('nuevaPassword');
+        const multibyte = 'ñ'.repeat(40);
+        const res2 = await enviar({ ...cuerpo, nuevaPassword: multibyte, confirmarPassword: multibyte });
+        expect(res2.status).toBe(400);
+      });
+
+      it('exactamente 72 bytes se acepta', async () => {
+        const justa = 'a'.repeat(72);
+        const res = await enviar({ ...cuerpo, nuevaPassword: justa, confirmarPassword: justa });
+        expect(res.status).toBe(200);
+      });
+
+      it.each(['passwordActual', 'nuevaPassword', 'confirmarPassword'])('falta %s -> 400 con ese campo', async (campo) => {
+        const incompleto: Record<string, string> = { ...cuerpo };
+        delete incompleto[campo];
+        const res = await enviar(incompleto);
+        expect(res.status).toBe(400);
+        expect(camposDe(res)).toContain(campo);
+      });
+
+      it('un campo desconocido se rechaza (cuerpo estricto)', async () => {
+        const res = await enviar({ ...cuerpo, rol: 'ADMIN' });
+        expect(res.status).toBe(400);
+        expect(camposDe(res)).toContain('rol');
+      });
+    });
+
+    it('429 al superar LIMITE_PASSWORD por IP: cuentan todos los intentos, tambien los exitosos (R1-401, R3-408)', async () => {
+      preparar({ cfg: { LIMITE_PASSWORD: 2 } });
+      token = (await registrar()).token;
+      const cambiar = (actual: string, nueva: string) =>
+        request(app).put('/api/users/password').set(conToken(token)).send({ passwordActual: actual, nuevaPassword: nueva, confirmarPassword: nueva });
+      expect((await cambiar('Secreta123', 'Nueva12345')).status).toBe(200);
+      expect((await cambiar('Nueva12345', 'Otra123456')).status).toBe(200);
+      const res = await cambiar('Otra123456', 'Tercera12345');
+      expect(res.status).toBe(429);
+      expect(res.body.code).toBe('DEMASIADAS_SOLICITUDES');
+      expect(Number(res.headers['retry-after'])).toBeGreaterThan(0);
+    });
+
+    describe('invalidacion de tokens anteriores (R1-402)', () => {
+      afterEach(() => vi.useRealTimers());
+
+      it('tras cambiar la password el token viejo da 401 TOKEN_INVALIDO y el de un nuevo login sirve', async () => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(new Date('2026-10-05T10:00:00Z'));
+        preparar();
+        const viejo = (await registrar()).token;
+        expect((await request(app).get('/api/users/profile').set(conToken(viejo))).status).toBe(200);
+
+        vi.setSystemTime(new Date('2026-10-05T10:05:00Z'));
+        const cambio = await request(app).put('/api/users/password').set(conToken(viejo)).send(cuerpo);
+        expect(cambio.status).toBe(200);
+
+        vi.setSystemTime(new Date('2026-10-05T10:05:30Z'));
+        const rechazado = await request(app).get('/api/users/profile').set(conToken(viejo));
+        expect(rechazado.status).toBe(401);
+        expect(rechazado.body.code).toBe('TOKEN_INVALIDO');
+
+        const login = await request(app).post('/api/auth/login').send({ email: 'ana@crowdradar.pe', password: 'Nueva12345' });
+        expect(login.status).toBe(200);
+        const nuevo = await request(app).get('/api/users/profile').set(conToken(login.body.data.token));
+        expect(nuevo.status).toBe(200);
+      });
     });
   });
 

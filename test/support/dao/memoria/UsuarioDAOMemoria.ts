@@ -59,6 +59,7 @@ export class UsuarioDAOMemoria implements UsuarioDAO {
       rol: Rol.USUARIO,
       status: EstadoCuenta.ACTIVO,
       puntosKarma: 0,
+      passwordCambiadaEn: null,
       createdAt: ahora,
       updatedAt: ahora,
     };
@@ -71,7 +72,7 @@ export class UsuarioDAOMemoria implements UsuarioDAO {
   }
 
   async actualizarPasswordHash(id: number, passwordHash: string): Promise<boolean> {
-    return (await this.modificar(id, { passwordHash })) !== null;
+    return (await this.modificar(id, { passwordHash, passwordCambiadaEn: new Date() })) !== null;
   }
 
   async actualizarStatus(id: number, status: EstadoCuenta): Promise<Usuario | null> {
