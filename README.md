@@ -64,6 +64,21 @@ Seeder notes: seeders run through sequelize-cli and read `process.env` directly 
 so the admin seeder repeats the password rules. Undoing the admin seeder fails with a foreign-key error if that admin
 already authored sanctions (`sancion_usuario.administrador_id` is `ON DELETE RESTRICT` on purpose).
 
+Place data comes from OpenStreetMap (ODbL). The app must show "© OpenStreetMap contributors" wherever it displays that
+data (the map and the place detail); this is tracked for the About screen of M1.
+
+Migration 13 (`lugar.osm_tipo`) gives the six places seeded by change 0 their real type (`3570374` is a relation, `28993402`,
+`44364378` and `396258998` are ways); the Lima seeder also fixes a legacy row that still carries the default `node` instead of
+inserting a duplicate, and runs in one transaction.
+
+### Undoing migration 13
+
+`npm run db:migrate:undo` restores the old unique key on `osm_id` alone, so it **fails, naming every `osm_id` that exists with
+several types** (for example `osm_id 777 (node, way)`), when two places share a number. Nothing is changed in that case.
+Decide which row of each pair to keep (the one with favourites and reports, if any), move or delete the other (reports use
+`ON DELETE RESTRICT`: re-point `reporte_saturacion.lugar_id` first), then run the undo again. Take the backup of the rollback
+runbook first.
+
 ## Test
 
 | Script | Purpose |

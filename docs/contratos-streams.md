@@ -100,7 +100,8 @@ the `contratoTokenRecuperacionDAO` contract (`test/dao/TokenRecuperacionDAO.cont
 Interfaces to implement:
 
 - `service/LugarService.ts` (Pattern: Service layer) -> `service/impl/LugarServiceImpl.ts`.
-- `dao/LugarDAO.ts` -> `dao/impl/sequelize/LugarDAOSequelize.ts` (`explorar` delegates to M3's `filtroExploracion`).
+- `dao/LugarDAO.ts` -> `dao/impl/sequelize/LugarDAOSequelize.ts`: M2 owns the whole implementation, `buscar`, `explorar`
+  and `contarPorCategoria` included (one shared WHERE; every list read is capped by `LUGARES_LIMITE_MAX`).
 
 Owned files: `service/impl/LugarServiceImpl.ts`, `controller/LugarController.ts`, `mapper/LugarMapper.ts`,
 `entity/HorarioAtencion.ts` (`estaAbierto(ahora, zona)`), `dao/impl/sequelize/LugarDAOSequelize.ts`,
@@ -108,8 +109,11 @@ Owned files: `service/impl/LugarServiceImpl.ts`, `controller/LugarController.ts`
 `container/lugar.ts`, `exception/lugar/*`, `dto/**/lugar/*`, seeder `20261005100002-lugares-lima`,
 `database/data/lugares-lima.json`, `scripts/exportar-lugares-osm.ts`. The map adapter belongs to the mobile app.
 The search result type is `ResultadoBusquedaLugar` (`service/LugarService.ts`) and `Bbox` lives in `entity/Bbox.ts`.
+`FiltroExploracion` (`dao/LugarDAO.ts`) is the value object M3 passes to `LugarDAO.explorar`; the one rule for matching and
+ordering names is `util/nombreLugar.ts`, shared by `LugarDAOSequelize` and the `LugarDAOMemoria` fake.
+Until M3 and M4 deliver their DAOs, `container/lugar.ts` wires stand-ins: `esFavorito` is `false` and `reportesRecientes` is `0`.
 
-Must not touch: `dao/impl/sequelize/lugar/filtroExploracion.ts` (M3), `dao/impl/sequelize/ReporteDAOSequelize.ts` and
+Must not touch: `dao/impl/sequelize/ReporteDAOSequelize.ts` and
 `dao/impl/sequelize/Favorito*` (their owners), `container/index.ts` mount order, the delivered migrations.
 
 Shared ports (contract PR required):
@@ -137,11 +141,12 @@ Interfaces to implement:
 
 Owned files: `service/impl/{Exploracion,Favorito,Alerta}ServiceImpl.ts`, `controller/{Exploracion,Favorito,Alerta}Controller.ts`,
 `mapper/{Favorito,Alerta}Mapper.ts`, `pattern/observer/AlertaFavoritosObserver.ts`, `util/geo.ts`,
-`dao/impl/sequelize/lugar/filtroExploracion.ts`, `dao/impl/sequelize/{Favorito,Alerta,Dispositivo}DAOSequelize.ts`,
+`dao/impl/sequelize/{Favorito,Alerta,Dispositivo}DAOSequelize.ts`,
 `adapter/push/impl/FcmNotificadorAdapter.ts`, `route/{favorito,alerta}.routes.ts`, `container/favoritoAlerta.ts`,
 `exception/{favorito,alerta}/*`, `dto/**/{favorito,alerta}/*`.
 
-Must not touch: `dao/impl/sequelize/LugarDAOSequelize.ts` (M2; you only provide `filtroExploracion`),
+Must not touch: `dao/impl/sequelize/LugarDAOSequelize.ts` (M2 owns it, `explorar` included; you consume `LugarDAO.explorar`
+with a `FiltroExploracion` and apply distance and saturation in `ExploracionServiceImpl`),
 `pattern/observer/PublicadorSaturacion.ts`, `container/index.ts` mount order, the delivered migrations.
 
 Shared ports (contract PR required):

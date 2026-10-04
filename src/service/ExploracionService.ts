@@ -21,7 +21,7 @@ export interface LugarExplorado {
 
 /**
  * Pattern: Service layer. Explore places by category, distance and saturation (ISP split from LugarService).
- * Owner: M3 (uses util/geo and lugar/filtroExploracion). Reads LugarDAO.explorar.
+ * Owner: M3 (uses util/geo). Reads LugarDAO.explorar with a FiltroExploracion; the query itself is M2's.
  */
 export interface ExploracionService {
   explorar(consulta: ConsultaExploracion): Promise<LugarExplorado[]>;
