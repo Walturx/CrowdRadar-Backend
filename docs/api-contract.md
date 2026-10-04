@@ -73,17 +73,22 @@ admin route answers `403`, and only then `501`. No frozen path ever answers `404
 |---|---|---|---|---|
 | POST | /api/auth/register | public + limit | real | body `{ nombre, apellido, email, password, telefono?, distrito? }`; `201 { message, data: SesionResponseDTO }`; `409 EMAIL_DUPLICADO`; `400 VALIDACION_FALLIDA` (field `email`) for an address ending in `@sintetico.crowdradar.local`, reserved for the demo users |
 | POST | /api/auth/login | public + limit | real | body `{ email, password }`; `200 { message, data: SesionResponseDTO }`; `401 CREDENCIALES_INVALIDAS`; `403 CUENTA_SUSPENDIDA`; `404 CUENTA_NO_EXISTE` only with `POLITICA_MENSAJES_AUTH=DETALLADA` |
-| POST | /api/auth/recuperar | public | stub | M1 |
-| GET | /api/auth/restablecer/validar | public | stub | M1, query `token` |
-| POST | /api/auth/restablecer | public | stub | M1, body `{ token, nuevaPassword, confirmarPassword }` |
-| GET | /recuperar/restablecer | public | stub | M1, HTML page |
+| POST | /api/auth/recuperar | public + limit | real | body `{ email }`; `200 { message }` with the SAME neutral text whether or not the email is registered (the mail, with the link `URL_PUBLICA/recuperar/restablecer?token=...`, goes out after the answer's transaction and a mail failure does not change the answer); `400 VALIDACION_FALLIDA` for a malformed email; `404 CUENTA_NO_EXISTE` only with `POLITICA_MENSAJES_AUTH=DETALLADA`; `429 DEMASIADAS_SOLICITUDES` |
+| GET | /api/auth/restablecer/validar | public + limit | real | query `token`; `200 { message }` when the token is live; `400 TOKEN_RECUPERACION_INVALIDO` (unknown or already used); `410 TOKEN_RECUPERACION_EXPIRADO` |
+| POST | /api/auth/restablecer | public + limit | real | body `{ token, nuevaPassword, confirmarPassword }`; `200 { message }`; `400 TOKEN_RECUPERACION_INVALIDO`; `410 TOKEN_RECUPERACION_EXPIRADO`; `400 VALIDACION_FALLIDA` with one `errors[]` entry per unmet password requirement or a mismatched confirmation; `422 PASSWORD_REPETIDA`; `429 DEMASIADAS_SOLICITUDES` |
+| GET | /recuperar/restablecer | public | real | HTML page of the emailed link (query `token`): `200` with the new-password form for a live token; `400` / `410` with the "El enlace ha caducado o no es válido" page and no form for an unknown, used or expired one. Not JSON: it is the one route outside the response envelope |
 | GET | /api/users/profile | auth | real | `200 { message, data: PerfilResponseDTO }` |
 | PUT | /api/users/profile | auth | real | body: any non-empty subset of `{ nombre, apellido, telefono, distrito }`; `""` clears `telefono`/`distrito`; `200 { message, data: PerfilResponseDTO }`; `{}` or unknown key `400` |
 | PUT | /api/users/password | auth | real | body `{ passwordActual, nuevaPassword, confirmarPassword }`; `200 { message }`; `422 PASSWORD_ACTUAL_INCORRECTA`; `422 PASSWORD_REPETIDA` |
 
 Field limits (they match the `usuario` columns): `email` at most 120 characters, trimmed and lowercased;
-`nombre`/`apellido` 2-80; `telefono` at most 20; `distrito` at most 60; `password` 8 characters minimum and 72
-bytes maximum (bcrypt limit). The password strength rules (uppercase, digit) belong to M1's recovery schema.
+`nombre`/`apellido` 2-80; `telefono` empty or 9 digits starting with 9 (`^9\d{8}$`, empty is stored as null) on
+register; `distrito` empty or 2-60.
+
+Password policy (register, `POST /api/auth/restablecer` and `PUT /api/users/password`; one schema,
+`passwordSeguraSchema`): 8 to 64 characters, at most 72 UTF-8 bytes (bcrypt reads no more; multibyte characters can
+reach it first), at least one uppercase letter and one digit. Every unmet requirement is its own `errors[]` entry
+(`campo`, `mensaje`), so the client can list them all. Login does not apply the policy to the password it checks.
 
 Anti-enumeration: with the default `POLITICA_MENSAJES_AUTH=GENERICA` an unknown email and a wrong password return the
 same `401` body, and a hash comparison always runs (against a decoy hash when the email is unknown). Registration
@@ -205,6 +210,13 @@ window and every login for that email, even with the right password, answers `42
 Every 429 and every 503 carries a `Retry-After` header (seconds). Behind a reverse proxy set `TRUST_PROXY` to the number
 of proxy hops, otherwise every client shares the proxy's address.
 
+`POST /api/auth/recuperar` (`LIMITE_RECUPERAR`, 5) and `POST /api/auth/restablecer` plus its `validar` check
+(`LIMITE_RESTABLECER`, 10) are limited per client IP the same way.
+
+Recovery token: 32 random bytes (base64url), only its SHA-256 is stored, single use, valid `RECUPERACION_EXPIRA_MIN`
+minutes. A new request, or a successful reset, invalidates every other live token of the user. After a reset the user's
+earlier JWTs are rejected. The token never appears in logs (request URLs are logged with its value redacted).
+
 Changing the password stamps `usuario.password_cambiada_en`: tokens issued before it answer `401 TOKEN_INVALIDO`
 (`iat` has second resolution, so a token issued within the same second as the change survives); sign in again.
 
@@ -214,7 +226,7 @@ Changing the password stamps `usuario.password_cambiada_en`: tokens issued befor
 |---|---|---|
 | 400 | VALIDACION_FALLIDA | Input failed validation (`errors[]` lists the fields); also unsupported charset or encoding (415) and aborted bodies |
 | 400 | JSON_INVALIDO | Malformed JSON body |
-| 400 | TOKEN_RECUPERACION_INVALIDO | Recovery token unknown or used (M1) |
+| 400 | TOKEN_RECUPERACION_INVALIDO | Recovery token unknown or already used |
 | 400 | RANGO_FECHAS_INVALIDO | Invalid date range (M4) |
 | 401 | NO_AUTENTICADO | Missing or non-Bearer Authorization header |
 | 401 | TOKEN_INVALIDO | Expired, malformed or badly signed token, the user no longer exists, or the token predates the last password change |
@@ -236,7 +248,7 @@ Changing the password stamps `usuario.password_cambiada_en`: tokens issued befor
 | 409 | USUARIO_NO_SUSPENDIDO | User is not suspended |
 | 409 | SIN_DENUNCIAS_PENDIENTES | Nothing to resolve |
 | 409 | CONFLICTO | Generic unique-constraint conflict |
-| 410 | TOKEN_RECUPERACION_EXPIRADO | Recovery token expired (M1) |
+| 410 | TOKEN_RECUPERACION_EXPIRADO | Recovery token expired |
 | 422 | REPORTE_EN_ESPERA | Cooldown between reports for the same place |
 | 422 | AUTOVALIDACION_NO_PERMITIDA | Cannot validate your own report |
 | 422 | AUTODENUNCIA_NO_PERMITIDA | Cannot report your own report |
