@@ -3,6 +3,7 @@ import { ConsolaNotificadorAdapter } from '../adapter/push/impl/ConsolaNotificad
 import { FcmNotificadorAdapter } from '../adapter/push/impl/FcmNotificadorAdapter.js';
 import type { ConfiguracionApp } from '../config/ConfiguracionApp.js';
 import { AlertaController } from '../controller/AlertaController.js';
+import { FavoritoController } from '../controller/FavoritoController.js';
 import { DispositivoController } from '../controller/DispositivoController.js';
 import type { AlertaDAO } from '../dao/AlertaDAO.js';
 import type { DispositivoDAO } from '../dao/DispositivoDAO.js';
@@ -15,6 +16,7 @@ import { resolverNombresDesde, type ResolverNombresLugar } from '../dao/Resolver
 import { AlertaFavoritosObserver } from '../pattern/observer/AlertaFavoritosObserver.js';
 import { crearAlertaRouter } from '../route/alerta.routes.js';
 import { crearFavoritoRouter } from '../route/favorito.routes.js';
+import { FavoritoServiceImpl } from '../service/impl/FavoritoServiceImpl.js';
 import { AlertaServiceImpl } from '../service/impl/AlertaServiceImpl.js';
 import { DispositivoServiceImpl } from '../service/impl/DispositivoServiceImpl.js';
 import type { Logger } from '../util/logger.js';
@@ -52,7 +54,7 @@ export function crearNotificadorPush({ proveedor, fcmCredencialesRuta }: Configu
  * level change published after a report commit reaches the followers of the place.
  */
 export function construirFavoritoAlerta(
-  { cfg, guardas, logger, subject }: Infraestructura,
+  { cfg, guardas, logger, subject, lugarDAO, reloj }: Infraestructura,
   daos: DaosFavoritoAlerta,
 ): MontajeRuta[] {
   const { favoritoDAO, alertaDAO, dispositivoDAO, nombresLugar } = daos;
@@ -60,8 +62,11 @@ export function construirFavoritoAlerta(
   subject.suscribir(new AlertaFavoritosObserver({ favoritoDAO, alertaDAO, dispositivoDAO, notificador, nombresLugar, logger }));
   const alertas = new AlertaController(new AlertaServiceImpl({ alertaDAO, nombresLugar }));
   const dispositivos = new DispositivoController(new DispositivoServiceImpl({ dispositivoDAO }));
+  const favoritos = new FavoritoController(
+    new FavoritoServiceImpl({ favoritoDAO, lugarDAO, reloj, ventanaSaturacionMin: cfg.reglas.saturacionVentanaMin }),
+  );
   return [
-    { modulo: 'favorito', ruta: '/api', router: crearFavoritoRouter(guardas) },
+    { modulo: 'favorito', ruta: '/api', router: crearFavoritoRouter(guardas, favoritos) },
     { modulo: 'alerta', ruta: '/api', router: crearAlertaRouter(guardas, { alertas, dispositivos }) },
   ];
 }
