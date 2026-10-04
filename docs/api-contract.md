@@ -89,6 +89,13 @@ Anti-enumeration: with the default `POLITICA_MENSAJES_AUTH=GENERICA` an unknown 
 same `401` body, and a hash comparison always runs (against a decoy hash when the email is unknown). Registration
 still reveals that an email exists (`409`).
 
+`AlertaResponseDTO`: `{ "id": 12, "lugarId": 7, "lugarNombre": "Parque Kennedy", "nivelAnterior": "MODERADO", "nivelNuevo": "SATURADO",
+"mensaje": "Parque Kennedy ahora está Saturado. La saturación cambió de Moderado a Saturado.", "leida": false, "fechaHora": "2026-10-05T15:00:00.000Z" }`.
+`nivelAnterior` is `SIN_INFORMACION` when the place had no level before the change.
+
+`ListadoAlertasResponseDTO` (`data` of `GET /api/alertas`): `{ items: AlertaResponseDTO[], page, size, total, totalPaginas, noLeidas }`;
+`noLeidas` counts every unread alert of the caller, not only the page.
+
 ### Places and exploration (M2, M3)
 
 | Method | Path | Access | Status | Notes |
@@ -121,9 +128,8 @@ Invalid input is `400 VALIDACION_FALLIDA` with one `errors[{ campo }]` per faili
 Effective level: the stored `saturacion_actual` while its reading is not older than `SATURACION_VENTANA_MIN`; `SIN_INFORMACION`
 when there is none or it is stale. M2 never computes it (M4 writes it). `reportesRecientes` counts the reports of the same window.
 
-Interim values until the other streams land: `esFavorito` is always `false` (and `alertasActivadas` `false`) until M3 delivers
-`FavoritoDAOSequelize`, and `saturacion.reportesRecientes` is always `0` until M4 delivers `ReporteDAOSequelize`. The mobile app must
-not treat them as final; `container/lugar.ts` wires the stand-ins and a unit test pins them.
+`esFavorito` / `alertasActivadas` come from M3's `FavoritoDAO` and `saturacion.reportesRecientes` from M4's `ReporteDAO`: since the
+MVP integration `ensamblar` hands the one `FavoritoDAO` of the favourites stream and the shared `ReporteDAO` to the places builder.
 
 `LugarResumenResponseDTO`: `{ "id": 3, "nombre": "Parque John F. Kennedy", "categoria": "PARQUE", "latitud": -12.121791,
 "longitud": -77.030453, "saturacion": "MODERADO" }` (`saturacion` is the effective level as a string).
@@ -148,10 +154,10 @@ not treat them as final; `container/lugar.ts` wires the stand-ins and a unit tes
 | POST | /api/favoritos | auth | stub | body `{ lugarId }`; `409 FAVORITO_DUPLICADO` |
 | DELETE | /api/favoritos/:lugarId | auth | stub | |
 | PATCH | /api/favoritos/:lugarId/alertas | auth | stub | |
-| GET | /api/alertas | auth | stub | |
-| PATCH | /api/alertas/:id/leida | auth | stub | |
-| POST | /api/dispositivos | auth | stub | body `{ token, plataforma }` |
-| DELETE | /api/dispositivos/:token | auth | stub | |
+| GET | /api/alertas | auth | real | query `page`, `size` (1-50, default 20); `200 { message, data: ListadoAlertasResponseDTO }`; no alerts: message `No tienes alertas.`; `400` bad `page`/`size` |
+| PATCH | /api/alertas/:id/leida | auth | real | idempotent; `200 { message, data: AlertaResponseDTO }`; `404 ALERTA_NO_ENCONTRADA` for an unknown or foreign alert; `400` when `id` is not a positive integer |
+| POST | /api/dispositivos | auth | real | body `{ token (1-255), plataforma: ANDROID or IOS }`, strict; `201` new token, `200` known token (upsert: a token held by another user moves to the caller, who becomes its only owner); `400` bad body |
+| DELETE | /api/dispositivos/:token | auth | real | token URL-encoded; `204` always (idempotent): a token that is not the caller's is left untouched and its existence is not revealed; `400` token longer than 255 |
 
 ### Reports, validation and reporting abuse (M4, M5)
 

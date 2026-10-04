@@ -1,17 +1,29 @@
 import type { Alerta } from '../entity/Alerta.js';
-import type { PlataformaPush } from '../enum/PlataformaPush.js';
 import type { Pagina, Paginacion } from '../dao/Paginacion.js';
 
+/** An alert with the display name of its place (the list and the mark-as-read answer show it). */
+export interface AlertaConLugar {
+  alerta: Alerta;
+  /** Empty when the place can no longer be resolved. */
+  lugarNombre: string;
+}
+
+export interface ListadoAlertas {
+  pagina: Pagina<AlertaConLugar>;
+  /** Unread alerts of the caller in total, not only on this page (drives the badge). */
+  noLeidas: number;
+}
+
 /**
- * Pattern: Service layer. In-app alerts and push device registration. Owner: M3.
- * The alerts themselves are created by AlertaFavoritosObserver, not by this service.
- * Throws AlertaNoEncontradaException (404) when the alert is not the caller's.
+ * Pattern: Service layer. In-app alerts of the caller. Owner: M3.
+ * The alerts themselves are created by AlertaFavoritosObserver, not by this service; push devices belong to
+ * DispositivoService.
+ * Throws AlertaNoEncontradaException (404) when the alert is not the caller's or does not exist.
  */
 export interface AlertaService {
-  /** Alerts of the caller, newest first; with `soloNoLeidas` only the unread ones. */
-  listar(usuarioId: number, paginacion: Paginacion, soloNoLeidas: boolean): Promise<Pagina<Alerta>>;
-  marcarLeida(usuarioId: number, alertaId: number): Promise<Alerta>;
-  /** Upsert by token: a token moves to the latest user that registers it. */
-  registrarDispositivo(usuarioId: number, token: string, plataforma: PlataformaPush): Promise<void>;
-  eliminarDispositivo(usuarioId: number, token: string): Promise<void>;
+  /** Alerts of the caller, newest first, with the total unread count. */
+  listar(usuarioId: number, paginacion: Paginacion): Promise<ListadoAlertas>;
+  /** Idempotent. */
+  marcarLeida(usuarioId: number, alertaId: number): Promise<AlertaConLugar>;
+  contarNoLeidas(usuarioId: number): Promise<number>;
 }

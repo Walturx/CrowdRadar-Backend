@@ -38,9 +38,11 @@ export interface DependenciasInfraestructura {
   estado?: EstadoServicio;
   /** The system clock when omitted; tests pin it. */
   reloj?: Reloj;
+  /** Saturation-change subject shared by publishers (M4, M6) and subscribers (M3); a new publisher when omitted. */
+  subject?: SaturacionSubject;
 }
 
-export interface Infraestructura extends Omit<DependenciasInfraestructura, 'estado' | 'reloj'> {
+export interface Infraestructura extends Omit<DependenciasInfraestructura, 'estado' | 'reloj' | 'subject'> {
   estado: EstadoServicio;
   reloj: Reloj;
   /** The one subject of level changes: M4 and M6 publish through it, M3 subscribes. */
@@ -63,7 +65,7 @@ export function construirInfraestructura(dependencias: DependenciasInfraestructu
     ...dependencias,
     estado: dependencias.estado ?? new EstadoServicio(),
     reloj: dependencias.reloj ?? relojSistema,
-    subject: new PublicadorSaturacion(dependencias.logger),
+    subject: dependencias.subject ?? new PublicadorSaturacion(dependencias.logger),
     verificador,
     autenticar,
     guardas: { autenticar, requerirAdmin: requerirRol(Rol.ADMIN) },

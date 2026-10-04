@@ -111,7 +111,7 @@ Owned files: `service/impl/LugarServiceImpl.ts`, `controller/LugarController.ts`
 The search result type is `ResultadoBusquedaLugar` (`service/LugarService.ts`) and `Bbox` lives in `entity/Bbox.ts`.
 `FiltroExploracion` (`dao/LugarDAO.ts`) is the value object M3 passes to `LugarDAO.explorar`; the one rule for matching and
 ordering names is `util/nombreLugar.ts`, shared by `LugarDAOSequelize` and the `LugarDAOMemoria` fake.
-Until M3 and M4 deliver their DAOs, `container/lugar.ts` wires stand-ins: `esFavorito` is `false` and `reportesRecientes` is `0`.
+After the MVP integration `container/lugar.ts` takes `lugarDAO` and `reporteDAO` from the shared infrastructure and `ensamblar` hands it the `FavoritoDAO` of the M3 stream; only a unit-test default (`favoritosPendientesDeM3`) remains.
 
 Must not touch: `dao/impl/sequelize/ReporteDAOSequelize.ts` and
 `dao/impl/sequelize/Favorito*` (their owners), `container/index.ts` mount order, the delivered migrations.
@@ -131,8 +131,8 @@ How to run tests: `npm test` for the service (fake `LugarDAOMemoria`, `FavoritoD
 
 Interfaces to implement:
 
-- `service/ExploracionService.ts`, `service/FavoritoService.ts`, `service/AlertaService.ts` (Pattern: Service layer)
-  -> `service/impl/{Exploracion,Favorito,Alerta}ServiceImpl.ts`.
+- `service/ExploracionService.ts`, `service/FavoritoService.ts`, `service/AlertaService.ts`, `service/DispositivoService.ts`
+  (Pattern: Service layer) -> `service/impl/{Exploracion,Favorito,Alerta,Dispositivo}ServiceImpl.ts`.
 - `pattern/observer/SaturacionObserver.ts` -> `pattern/observer/AlertaFavoritosObserver.ts` (Pattern: Observer;
   subscribes in `container/favoritoAlerta.ts`).
 - `adapter/push/NotificadorPush.ts` -> `adapter/push/impl/FcmNotificadorAdapter.ts` (`ConsolaNotificadorAdapter`
@@ -213,8 +213,8 @@ M4 notes (delivered in the BE-01..03 slices):
   the facade and mounts `ReporteController` (POST /reportes, GET /reportes/mios).
 - Contract touch (M4-BE-04): `DependenciasInfraestructura` gained `lugarDAO` and `reporteDAO` (Sequelize in
   `crearContenedor`, in memory in `crearContenedorPrueba`) and `Infraestructura` gained the shared `subject`
-  (`PublicadorSaturacion`, one instance for M3 to subscribe to and M4/M6 to publish through). When M2 wires its own
-  `lugarDAO` in `crearContenedor` the line is the same one: keep a single instance.
+  (`PublicadorSaturacion`, one instance for M3 to subscribe to and M4/M6 to publish through). M2's `LugarDAOSequelize` is built
+  once in `crearContenedor` with `{ limiteMax }` and shared (also by M3's place-name resolver).
 - Contract touch (M4-BE-04): `ReporteService.listarMios(usuarioId, paginacion)` now returns
   `Pagina<{ reporte, lugarNombre }>` (the interim first page of 50 is gone); `ReporteServiceImpl` takes a `LugarDAO`.
 - Contract touch (M4-BE-05): `AnaliticaService` was reshaped from the frozen sketch (`PuntoHistorial[]` / `{ a, b }`) to the

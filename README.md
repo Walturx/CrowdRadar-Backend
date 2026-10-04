@@ -202,6 +202,28 @@ finds nothing; `rg "console\.log" src` finds nothing.
 | Strategy / Observer | placeholders for saturation and reliability strategies and the saturation observer (M4, M5, M3) |
 | composition root | `container/`: manual DI; each stream edits only its own builder; `crearContenedorPrueba` reuses it with fakes |
 
+## Alertas y push
+
+When the saturation level of a place changes, `AlertaFavoritosObserver` (subscribed to the shared `PublicadorSaturacion`
+in `container/favoritoAlerta.ts`) alerts every user that follows the place with alerts on, except the author of the report:
+
+1. the in-app alert is stored first (`GET /api/alertas`, `PATCH /api/alertas/:id/leida`); it is the guaranteed channel;
+2. then a push is sent to that user's devices (`POST /api/dispositivos`, `DELETE /api/dispositivos/:token`).
+
+A failing push provider, or a failure with one recipient, is logged and never blocks the others nor the report request.
+A device token belongs to one user: registering a token another user holds moves it to the caller.
+
+**Console adapter (default).** `PUSH_PROVEEDOR=consola` (or unset) uses `ConsolaNotificadorAdapter`: it logs the payload and
+the recipient count (never the tokens) and needs no Firebase, so the whole alert flow runs locally and in CI.
+
+**Enabling FCM later.** `PUSH_PROVEEDOR=fcm` plus `FCM_CREDENCIALES_RUTA=<service-account.json>` selects
+`FcmNotificadorAdapter`; the process refuses to start without the credentials path. The adapter is a skeleton: until a
+Firebase client (`ClienteFcm`, a thin wrapper of `firebase-admin` `sendEachForMulticast`) is wired in
+`crearNotificadorPush`, `enviar` throws `NoImplementadoException`, which the observer logs while the in-app alert stays.
+To finish it: add `firebase-admin`, implement `ClienteFcm` (load the package lazily so the console mode never needs it) and
+pass it to the adapter. Tokens answered with `registration-token-not-registered` or `invalid-registration-token` are
+returned as `tokensInvalidos` and deleted.
+
 ## Environment variables
 
 All configuration comes from the environment, validated at startup with zod (`src/config/esquemaEntorno.ts`). An invalid
