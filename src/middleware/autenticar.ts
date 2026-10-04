@@ -20,7 +20,7 @@ const tokenInvalido = () => new NoAutenticadoException(CodigoError.TOKEN_INVALID
 
 /**
  * Builds the `autenticar` middleware: verifies the JWT, re-reads the user by id and runs
- * the account status check. Authorization decisions use the database row, never the
+ * the account status check; tokens issued before the last password change are rejected. Authorization decisions use the database row, never the
  * token claims; the row ends up in `req.usuario`. Dependencies are injected ports.
  */
 export function crearAutenticar({ emisorToken, usuarioDAO, verificador }: DependenciasAutenticar): RequestHandler {
@@ -38,6 +38,10 @@ export function crearAutenticar({ emisorToken, usuarioDAO, verificador }: Depend
 
     const usuario = await usuarioDAO.buscarPorId(claims.id);
     if (!usuario) throw tokenInvalido();
+    // iat has second resolution: a token issued in the same second as the change is not rejected.
+    if (usuario.passwordCambiadaEn && claims.iat < Math.floor(usuario.passwordCambiadaEn.getTime() / 1000)) {
+      throw tokenInvalido();
+    }
 
     req.usuario = await verificador.verificar(usuario);
     next();

@@ -137,10 +137,16 @@ still reveals that an email exists (`409`).
 
 ## Rate limits
 
-`POST /api/auth/login` (failed attempts only) and `POST /api/auth/register` are limited per client IP
-(`LIMITE_LOGIN`, `LIMITE_REGISTRO` per `LIMITE_VENTANA_MIN` minutes); `PUT /api/users/password` (failed attempts only)
-uses `LIMITE_PASSWORD`. Exceeding a limit answers `429 DEMASIADAS_SOLICITUDES`. Behind a reverse proxy set
-`TRUST_PROXY` to the number of proxy hops, otherwise every client shares the proxy's address.
+`POST /api/auth/login`, `POST /api/auth/register` and `PUT /api/users/password` are limited per client IP, counting
+EVERY attempt (successful or not): `LIMITE_LOGIN`, `LIMITE_REGISTRO` and `LIMITE_PASSWORD` per `LIMITE_VENTANA_MIN`
+minutes. Exceeding a limit answers `429 DEMASIADAS_SOLICITUDES`. On top of that, `POST /api/auth/login` counts FAILED
+attempts per email (case-insensitive, any IP): after `LIMITE_LOGIN` failures the account is locked for the rest of the
+window and every login for that email, even with the right password, answers `429 DEMASIADOS_INTENTOS`.
+Every 429 and every 503 carries a `Retry-After` header (seconds). Behind a reverse proxy set `TRUST_PROXY` to the number
+of proxy hops, otherwise every client shares the proxy's address.
+
+Changing the password stamps `usuario.password_cambiada_en`: tokens issued before it answer `401 TOKEN_INVALIDO`
+(`iat` has second resolution, so a token issued within the same second as the change survives); sign in again.
 
 ## Error codes
 
@@ -151,7 +157,7 @@ uses `LIMITE_PASSWORD`. Exceeding a limit answers `429 DEMASIADAS_SOLICITUDES`. 
 | 400 | TOKEN_RECUPERACION_INVALIDO | Recovery token unknown or used (M1) |
 | 400 | RANGO_FECHAS_INVALIDO | Invalid date range (M4) |
 | 401 | NO_AUTENTICADO | Missing or non-Bearer Authorization header |
-| 401 | TOKEN_INVALIDO | Expired, malformed or badly signed token, or the user no longer exists |
+| 401 | TOKEN_INVALIDO | Expired, malformed or badly signed token, the user no longer exists, or the token predates the last password change |
 | 401 | CREDENCIALES_INVALIDAS | Wrong email or password |
 | 403 | CUENTA_SUSPENDIDA | The account is suspended (the app signs the user out) |
 | 403 | ACCESO_DENEGADO | The role is not allowed on this route |
@@ -177,7 +183,8 @@ uses `LIMITE_PASSWORD`. Exceeding a limit answers `429 DEMASIADAS_SOLICITUDES`. 
 | 422 | PASSWORD_ACTUAL_INCORRECTA | Current password does not match |
 | 422 | PASSWORD_REPETIDA | New password equals the current one |
 | 422 | OPERACION_NO_PERMITIDA | Business rule violation without a more specific code |
-| 429 | DEMASIADAS_SOLICITUDES | Rate limit exceeded |
+| 429 | DEMASIADAS_SOLICITUDES | Rate limit exceeded (`Retry-After`) |
+| 429 | DEMASIADOS_INTENTOS | Too many failed logins for this email; account locked until the window ends (`Retry-After`) |
 | 500 | ERROR_INTERNO | Unexpected failure (body carries `requestId`, no detail) |
 | 501 | NO_IMPLEMENTADO | Frozen route not delivered yet |
-| 503 | SERVICIO_NO_DISPONIBLE | The database is unreachable |
+| 503 | SERVICIO_NO_DISPONIBLE | The database is unreachable, the pool is exhausted or a query hit `statement_timeout` (`Retry-After`) |

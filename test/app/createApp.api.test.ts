@@ -167,6 +167,38 @@ describe('errores 500 y request id', () => {
   });
 });
 
+describe('registro de peticiones rechazadas por el parser (R3-406)', () => {
+  const estatusDe = (lineas: ReturnType<typeof crearLoggerEspia>['lineas'], status: number) =>
+    lineas.find((l) => (l.res as { statusCode?: number } | undefined)?.statusCode === status);
+
+  it('JSON mal formado deja una linea de log 400 con reqId', async () => {
+    const espia = crearLoggerEspia('info');
+    const { app } = crear({ logger: espia.logger });
+    await request(app)
+      .post('/api/auth/login')
+      .set('X-Request-Id', 'traza-400')
+      .set('Content-Type', 'application/json')
+      .send('{bad');
+    const linea = estatusDe(espia.lineas, 400);
+    expect(linea?.reqId).toBe('traza-400');
+    expect(linea?.req).toMatchObject({ method: 'POST', url: '/api/auth/login' });
+  });
+
+  it('cuerpo demasiado grande deja una linea de log 413', async () => {
+    const espia = crearLoggerEspia('info');
+    const { app } = crear({ logger: espia.logger });
+    await request(app).post('/api/auth/login').send({ password: 'x'.repeat(150_000) });
+    expect(estatusDe(espia.lineas, 413)).toBeDefined();
+  });
+
+  it('charset no soportado deja una linea de log 415', async () => {
+    const espia = crearLoggerEspia('info');
+    const { app } = crear({ logger: espia.logger });
+    await request(app).post('/api/auth/login').set('Content-Type', 'application/json; charset=desconocido-9').send('{}');
+    expect(estatusDe(espia.lineas, 415)).toBeDefined();
+  });
+});
+
 describe('GET /api/salud', () => {
   it('200 cuando la base de datos responde', async () => {
     const { app, ctx } = crear();

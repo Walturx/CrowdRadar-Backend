@@ -96,6 +96,17 @@ export function contratoUsuarioDAO(nombre: string, crearEntorno: () => Promise<E
         expect((await dao.buscarPorId(creado.id))?.passwordHash).toBe('hash-nuevo');
         expect(await dao.actualizarPasswordHash(987654, 'x')).toBe(false);
       });
+
+      it('sella passwordCambiadaEn (null mientras no se cambie la password) (R1-402)', async () => {
+        const creado = await dao.crear(nuevo());
+        expect(creado.passwordCambiadaEn).toBeNull();
+        const antes = Date.now();
+        await dao.actualizarPasswordHash(creado.id, 'hash-nuevo');
+        const cambiada = (await dao.buscarPorId(creado.id))?.passwordCambiadaEn;
+        expect(cambiada).toBeInstanceOf(Date);
+        expect(cambiada!.getTime()).toBeGreaterThanOrEqual(antes - 2000);
+        expect(cambiada!.getTime()).toBeLessThanOrEqual(Date.now() + 2000);
+      });
     });
 
     describe('actualizarStatus', () => {

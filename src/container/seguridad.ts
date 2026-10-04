@@ -11,7 +11,8 @@ import type { Infraestructura } from './infraestructura.js';
 
 /**
  * Account stream: register/login, own profile and password, and the password recovery stubs (M1).
- * Rate limits come from configuration; login and register are keyed by IP only.
+ * Rate limits come from configuration. Register, login and password change count every attempt per IP;
+ * login also locks an email after LIMITE_LOGIN failed attempts (any IP) for the rest of the window.
  */
 export function construirSeguridad({ cfg, usuarioDAO, hasher, emisorToken, verificador, autenticar }: Infraestructura): MontajeRuta[] {
   const { limites, politicaMensajesAuth } = cfg.seguridad;
@@ -29,7 +30,8 @@ export function construirSeguridad({ cfg, usuarioDAO, hasher, emisorToken, verif
       router: crearAuthRouter({
         controller: authController,
         limitarRegistro: limitarIntentos({ max: limites.registro, ventanaMs }),
-        limitarLogin: limitarIntentos({ max: limites.login, ventanaMs, soloFallidos: true }),
+        limitarLogin: limitarIntentos({ max: limites.login, ventanaMs }),
+        limitarBloqueoLogin: limitarIntentos({ max: limites.login, ventanaMs, clave: 'email', soloFallidos: true, bloqueo: true }),
       }),
     },
     {
@@ -38,7 +40,7 @@ export function construirSeguridad({ cfg, usuarioDAO, hasher, emisorToken, verif
       router: crearUsuarioRouter({
         controller: usuarioController,
         autenticar,
-        limitarPassword: limitarIntentos({ max: limites.password, ventanaMs, soloFallidos: true }),
+        limitarPassword: limitarIntentos({ max: limites.password, ventanaMs }),
       }),
     },
     { modulo: 'recuperacion', ruta: '/', router: crearRecuperacionRouter() },

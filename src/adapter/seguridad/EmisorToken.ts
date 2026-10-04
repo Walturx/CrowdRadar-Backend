@@ -9,6 +9,8 @@ export interface ClaimsToken {
   email: string;
   rol: Rol;
   status: EstadoCuenta;
+  /** Issue time, seconds since the epoch; `autenticar` compares it with the last password change. */
+  iat: number;
 }
 
 export interface TokenEmitido {

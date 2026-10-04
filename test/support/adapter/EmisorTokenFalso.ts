@@ -21,6 +21,7 @@ export class EmisorTokenFalso implements EmisorToken {
       email: usuario.email,
       rol: usuario.rol,
       status: usuario.status,
+      iat: Math.floor(Date.now() / 1000),
     });
     return { token, expiraEn: new Date('2026-10-05T12:00:00Z') };
   }

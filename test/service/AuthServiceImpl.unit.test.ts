@@ -41,6 +41,19 @@ describe('AuthServiceImpl', () => {
     hasher = new HasherFalso();
   });
 
+  describe('registrar: concurrencia (R3-403)', () => {
+    it('dos registros simultaneos con el mismo email: exactamente uno entra y el otro es EmailYaRegistrado', async () => {
+      const servicio = crear();
+      const resultados = await Promise.allSettled([servicio.registrar(registro), servicio.registrar({ ...registro, email: 'ANA@crowdradar.pe' })]);
+      const aceptados = resultados.filter((r) => r.status === 'fulfilled');
+      const rechazados = resultados.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+      expect(aceptados).toHaveLength(1);
+      expect(rechazados).toHaveLength(1);
+      expect(rechazados[0]?.reason).toBeInstanceOf(EmailYaRegistradoException);
+      expect((await dao.listar({}, { page: 1, size: 10 })).total).toBe(1);
+    });
+  });
+
   describe('registrar', () => {
     it('guarda la cuenta con el hash (nunca la password) y devuelve token y usuario publico', async () => {
       const sesion = await crear().registrar(registro);

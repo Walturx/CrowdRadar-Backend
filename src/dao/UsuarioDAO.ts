@@ -42,7 +42,7 @@ export interface UsuarioDAO {
   crear(datos: NuevoUsuario, tx?: ContextoTx): Promise<Usuario>;
   /** Updates only the given fields; null when the user does not exist. */
   actualizarPerfil(id: number, datos: DatosPerfil, tx?: ContextoTx): Promise<Usuario | null>;
-  /** True when a row was updated. */
+  /** Stores the new hash and stamps `passwordCambiadaEn` (invalidating older tokens). True when a row was updated. */
   actualizarPasswordHash(id: number, passwordHash: string, tx?: ContextoTx): Promise<boolean>;
   actualizarStatus(id: number, status: EstadoCuenta, tx?: ContextoTx): Promise<Usuario | null>;
   /** Atomic add (floor 0); returns the new total, or null when the user does not exist. */

@@ -9,7 +9,7 @@ import { rutaNoEncontrada } from './middleware/rutaNoEncontrada.js';
 /**
  * Builds the Express app from an assembled container; no module-level state and no
  * database access of its own. Mount order matters: security headers and CORS first,
- * body parsing, request logging, the routers in container order, 404 and, last, the
+ * request logging, body parsing, the routers in container order, 404 and, last, the
  * single error middleware.
  */
 export function createApp(contenedor: Contenedor): Express {
@@ -19,8 +19,9 @@ export function createApp(contenedor: Contenedor): Express {
   app.use(cors({ origin: [...contenedor.corsOrigenes] }));
   app.disable('x-powered-by');
   app.set('trust proxy', contenedor.trustProxy);
-  app.use(express.json({ limit: '100kb' }));
+  // Request logging goes first so 400/413/415 body-parser rejections are logged too.
   app.use(crearRegistroPeticiones(contenedor.logger));
+  app.use(express.json({ limit: '100kb' }));
 
   for (const { ruta, router } of contenedor.rutas) app.use(ruta, router);
 
