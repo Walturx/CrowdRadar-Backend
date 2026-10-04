@@ -1,9 +1,8 @@
 import type { NuevaDenuncia, DenunciaDAO, ReporteDenunciado, ResumenMotivo } from '../../../../src/dao/DenunciaDAO.js';
-import type { Pagina, Paginacion } from '../../../../src/dao/Paginacion.js';
+import { armarPagina, desplazamiento, type Pagina, type Paginacion } from '../../../../src/dao/Paginacion.js';
 import type { Denuncia } from '../../../../src/entity/Denuncia.js';
 import { EstadoDenuncia } from '../../../../src/enum/EstadoDenuncia.js';
 import { ConflictoException } from '../../../../src/exception/http/ConflictoException.js';
-import { armarPagina, desplazamiento } from '../../../../src/util/paginacion.js';
 
 /**
  * In-memory DenunciaDAO for tests; behaves like the Sequelize one (shared contract test).

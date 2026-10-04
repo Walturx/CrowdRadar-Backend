@@ -5,12 +5,11 @@ import type {
   OrdenUsuarios,
   UsuarioDAO,
 } from '../../../../src/dao/UsuarioDAO.js';
-import type { Pagina, Paginacion } from '../../../../src/dao/Paginacion.js';
+import { armarPagina, desplazamiento, type Pagina, type Paginacion } from '../../../../src/dao/Paginacion.js';
 import type { Usuario } from '../../../../src/entity/Usuario.js';
 import { EstadoCuenta } from '../../../../src/enum/EstadoCuenta.js';
 import { Rol } from '../../../../src/enum/Rol.js';
 import { EmailYaRegistradoException } from '../../../../src/exception/usuario/EmailYaRegistradoException.js';
-import { armarPagina, desplazamiento } from '../../../../src/util/paginacion.js';
 
 const comparadores: Record<OrdenUsuarios, (a: Usuario, b: Usuario) => number> = {
   RECIENTES: (a, b) => b.createdAt.getTime() - a.createdAt.getTime() || b.id - a.id,

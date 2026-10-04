@@ -21,7 +21,7 @@ export function createApp(contenedor: Contenedor): Express {
   app.set('trust proxy', contenedor.trustProxy);
   // Request logging goes first so 400/413/415 body-parser rejections are logged too.
   app.use(crearRegistroPeticiones(contenedor.logger));
-  app.use(express.json({ limit: '100kb' }));
+  app.use(express.json({ limit: contenedor.limiteCuerpo }));
 
   for (const { ruta, router } of contenedor.rutas) app.use(ruta, router);
 

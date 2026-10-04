@@ -7,8 +7,8 @@ import { Sequelize } from 'sequelize';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from '../../src/app.js';
-import { BcryptHasher } from '../../src/adapter/seguridad/impl/BcryptHasher.js';
-import { JwtEmisorToken } from '../../src/adapter/seguridad/impl/JwtEmisorToken.js';
+import { BcryptHasherAdapter } from '../../src/adapter/seguridad/impl/BcryptHasherAdapter.js';
+import { JwtEmisorTokenAdapter } from '../../src/adapter/seguridad/impl/JwtEmisorTokenAdapter.js';
 import { ensamblar } from '../../src/container/index.js';
 import { UsuarioDAOSequelize } from '../../src/dao/impl/sequelize/UsuarioDAOSequelize.js';
 import { initModels } from '../../src/dao/impl/sequelize/model/initModels.js';
@@ -33,8 +33,8 @@ describe.skipIf(!URL_BD_TEST)('registro concurrente (PostgreSQL real)', () => {
   let bd: BaseTemporal;
   let sequelize: Sequelize;
   const cfg = configPrueba();
-  const hasher = new BcryptHasher(cfg.seguridad.bcryptCosto);
-  const emisorToken = new JwtEmisorToken(cfg.seguridad);
+  const hasher = new BcryptHasherAdapter(cfg.seguridad.bcryptCosto);
+  const emisorToken = new JwtEmisorTokenAdapter(cfg.seguridad);
   const usuarioDAO = new UsuarioDAOSequelize();
 
   beforeAll(async () => {

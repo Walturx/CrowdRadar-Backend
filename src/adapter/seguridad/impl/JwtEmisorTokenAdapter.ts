@@ -27,7 +27,7 @@ export interface OpcionesJwt {
  * Pattern: Adapter. jsonwebtoken behind the EmisorToken port. The payload is validated
  * with zod before anything trusts `id`; even then `autenticar` re-reads the user.
  */
-export class JwtEmisorToken implements EmisorToken {
+export class JwtEmisorTokenAdapter implements EmisorToken {
   constructor(private readonly opciones: OpcionesJwt) {}
 
   emitir(usuario: Usuario): TokenEmitido {

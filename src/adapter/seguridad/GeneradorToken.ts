@@ -1,6 +1,6 @@
 /**
  * Pattern: Adapter (port). Opaque single-use tokens (password recovery, M1): only the hash is stored.
- * Implementations: CryptoGeneradorToken.
+ * Implementations: CryptoGeneradorTokenAdapter.
  */
 export interface GeneradorToken {
   /** A new unguessable token to send to the user. */

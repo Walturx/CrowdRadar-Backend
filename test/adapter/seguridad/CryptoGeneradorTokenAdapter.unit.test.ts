@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { CryptoGeneradorToken } from '../../../src/adapter/seguridad/impl/CryptoGeneradorToken.js';
+import { CryptoGeneradorTokenAdapter } from '../../../src/adapter/seguridad/impl/CryptoGeneradorTokenAdapter.js';
 
-describe('CryptoGeneradorToken', () => {
-  const generador = new CryptoGeneradorToken();
+describe('CryptoGeneradorTokenAdapter', () => {
+  const generador = new CryptoGeneradorTokenAdapter();
 
   it('generar devuelve 32 bytes en base64url (43 caracteres, sin relleno) y nunca repite', () => {
     const tokens = Array.from({ length: 20 }, () => generador.generar());

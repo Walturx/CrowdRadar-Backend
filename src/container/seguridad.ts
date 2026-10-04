@@ -16,13 +16,15 @@ import type { Infraestructura } from './infraestructura.js';
  */
 export function construirSeguridad({ cfg, usuarioDAO, hasher, emisorToken, verificador, autenticar }: Infraestructura): MontajeRuta[] {
   const { limites, politicaMensajesAuth } = cfg.seguridad;
-  const ventanaMs = limites.ventanaMin * 60_000;
+  const { ventanaMs } = limites;
 
   const authController = new AuthController(
     new AuthServiceImpl({ usuarioDAO, hasher, emisorToken, verificador, politicaMensajes: politicaMensajesAuth }),
   );
   const usuarioController = new UsuarioController(new UsuarioServiceImpl({ usuarioDAO, hasher }));
 
+  // The paths /api/auth and /api/users are frozen by the Sprint 1 frontend contract (the app already calls them);
+  // every other resource uses Spanish paths. Do not "fix" the inconsistency without a coordinated frontend change.
   return [
     {
       modulo: 'auth',

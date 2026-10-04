@@ -1,16 +1,16 @@
 /** Unit tests of the JWT Adapter: HS256 pinned on sign and verify, expiry from config, payload validated. */
 import jwt from 'jsonwebtoken';
 import { describe, expect, it } from 'vitest';
-import { JwtEmisorToken } from '../../../src/adapter/seguridad/impl/JwtEmisorToken.js';
+import { JwtEmisorTokenAdapter } from '../../../src/adapter/seguridad/impl/JwtEmisorTokenAdapter.js';
 import { EstadoCuenta } from '../../../src/enum/EstadoCuenta.js';
 import { Rol } from '../../../src/enum/Rol.js';
 import { aUsuario } from '../../support/fabrica/datos.js';
 
 const SECRETO = 'j'.repeat(48);
-const emisor = new JwtEmisorToken({ jwtSecreto: SECRETO, jwtExpiraEn: '1h' });
+const emisor = new JwtEmisorTokenAdapter({ jwtSecreto: SECRETO, jwtExpiraEn: '1h' });
 const claimsValidos = { sub: '7', id: 7, email: 'a@b.pe', rol: Rol.USUARIO, status: EstadoCuenta.ACTIVO };
 
-describe('JwtEmisorToken.emitir', () => {
+describe('JwtEmisorTokenAdapter.emitir', () => {
   it('firma HS256 con claims {sub, id, email, rol, status} y expira segun la configuracion', () => {
     const usuario = aUsuario({ id: 7, email: 'a@b.pe', rol: Rol.ADMIN });
     const antes = Date.now();
@@ -28,7 +28,7 @@ describe('JwtEmisorToken.emitir', () => {
   });
 });
 
-describe('JwtEmisorToken.verificar', () => {
+describe('JwtEmisorTokenAdapter.verificar', () => {
   it('devuelve los claims de un token propio', () => {
     const { token } = emisor.emitir(aUsuario({ id: 7, email: 'a@b.pe' }));
     expect(emisor.verificar(token)).toMatchObject({ id: 7, email: 'a@b.pe', rol: 'USUARIO', status: 'ACTIVO' });

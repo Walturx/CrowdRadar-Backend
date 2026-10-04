@@ -1,9 +1,9 @@
 import { Router } from 'express';
-import type { MiddlewaresRuta } from './middlewaresRuta.js';
+import type { MiddlewareRuta } from './middlewareRuta.js';
 import { noImplementado } from './stub.js';
 
 /** Moderation (M6), admin chain (autenticar -> requerirRol(ADMIN)), mounted at /api/admin. */
-export function crearModeracionRouter({ autenticar, requerirAdmin }: MiddlewaresRuta): Router {
+export function crearModeracionRouter({ autenticar, requerirAdmin }: MiddlewareRuta): Router {
   const router = Router();
   const admin = [autenticar, requerirAdmin];
   router.get('/reportes-denunciados', ...admin, noImplementado('moderacion.listarReportesDenunciados'));

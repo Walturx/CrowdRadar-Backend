@@ -61,6 +61,28 @@ describe('coherencia entre claves', () => {
   });
 });
 
+describe('SERVIDOR_LIMITE_CUERPO (R2-402)', () => {
+  it('por defecto es 100kb y se expone en la configuracion', () => {
+    expect(configPrueba().servidor.limiteCuerpo).toBe('100kb');
+  });
+
+  it.each(['1mb', '500kb', '2048b', '1MB'])('acepta %s', (valor) => {
+    expect(claves({ SERVIDOR_LIMITE_CUERPO: valor })).toEqual([]);
+    expect(configPrueba({ SERVIDOR_LIMITE_CUERPO: valor }).servidor.limiteCuerpo).toBe(valor);
+  });
+
+  it.each(['grande', '0kb', '-1kb', '100', '1gb', '1.5mb'])('rechaza %s y nombra la clave', (valor) => {
+    expect(claves({ SERVIDOR_LIMITE_CUERPO: valor })).toEqual(['SERVIDOR_LIMITE_CUERPO']);
+  });
+});
+
+describe('ventana de limites (R2-403)', () => {
+  it('la configuracion expone la ventana en milisegundos', () => {
+    expect(configPrueba().seguridad.limites.ventanaMs).toBe(15 * 60 * 1000);
+    expect(configPrueba({ LIMITE_VENTANA_MIN: 2 }).seguridad.limites.ventanaMs).toBe(120_000);
+  });
+});
+
 describe('SUSPENSION_DIAS_PERMITIDOS frente al CHECK dias IN (3,7,30) de sancion_usuario', () => {
   it.each(['3,7,30', '7,3', '30', '3'])('acepta %s (subconjunto de 3,7,30)', (valor) => {
     expect(claves({ SUSPENSION_DIAS_PERMITIDOS: valor })).toEqual([]);
