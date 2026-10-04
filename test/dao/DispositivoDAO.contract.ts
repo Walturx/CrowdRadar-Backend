@@ -69,27 +69,37 @@ export function contratoDispositivoDAO(nombre: string, crearEntorno: () => Promi
     });
 
     describe('conservarMasRecientes', () => {
+      // Unique tokens per test: leftovers from other tests can never collide with these.
+      const unico = (): string => Math.random().toString(36).slice(2, 10);
+
       it('borra los mas antiguos del usuario por encima del maximo y devuelve cuantos borro', async () => {
-        for (const token of ['a', 'b', 'c']) await dao.registrar(usuarioId, token, PlataformaPush.ANDROID);
+        const s = unico();
+        const [a, b, c] = [`a-${s}`, `b-${s}`, `c-${s}`];
+        for (const token of [a, b, c]) await dao.registrar(usuarioId, token, PlataformaPush.ANDROID);
         expect(await dao.conservarMasRecientes(usuarioId, 2)).toBe(1);
-        expect(await dao.listarTokensPorUsuario(usuarioId)).toEqual(['b', 'c']);
+        expect(await dao.listarTokensPorUsuario(usuarioId)).toEqual([b, c]);
       });
 
       it('volver a registrar un token lo rejuvenece: el que se borra es el que lleva mas sin usarse', async () => {
-        for (const token of ['a', 'b', 'c']) await dao.registrar(usuarioId, token, PlataformaPush.ANDROID);
-        await dao.registrar(usuarioId, 'a', PlataformaPush.ANDROID);
+        const s = unico();
+        const [a, b, c] = [`a-${s}`, `b-${s}`, `c-${s}`];
+        for (const token of [a, b, c]) await dao.registrar(usuarioId, token, PlataformaPush.ANDROID);
+        await dao.registrar(usuarioId, a, PlataformaPush.ANDROID);
         expect(await dao.conservarMasRecientes(usuarioId, 2)).toBe(1);
-        expect((await dao.listarTokensPorUsuario(usuarioId)).sort()).toEqual(['a', 'c']);
+        expect((await dao.listarTokensPorUsuario(usuarioId)).sort()).toEqual([a, c].sort());
       });
 
       it('con el usuario por debajo del maximo no borra nada y nunca toca a otros usuarios', async () => {
+        const s = unico();
         const otro = await sembrador.usuario();
-        await dao.registrar(usuarioId, 'a', PlataformaPush.ANDROID);
-        for (const token of ['x', 'y', 'z']) await dao.registrar(otro, token, PlataformaPush.IOS);
+        const a = `a-${s}`;
+        const [x, y, z] = [`x-${s}`, `y-${s}`, `z-${s}`];
+        await dao.registrar(usuarioId, a, PlataformaPush.ANDROID);
+        for (const token of [x, y, z]) await dao.registrar(otro, token, PlataformaPush.IOS);
         expect(await dao.conservarMasRecientes(usuarioId, 2)).toBe(0);
         expect(await dao.conservarMasRecientes(otro, 1)).toBe(2);
-        expect(await dao.listarTokensPorUsuario(usuarioId)).toEqual(['a']);
-        expect(await dao.listarTokensPorUsuario(otro)).toEqual(['z']);
+        expect(await dao.listarTokensPorUsuario(usuarioId)).toEqual([a]);
+        expect(await dao.listarTokensPorUsuario(otro)).toEqual([z]);
       });
     });
 
