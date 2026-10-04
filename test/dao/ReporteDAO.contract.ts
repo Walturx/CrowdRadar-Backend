@@ -15,6 +15,8 @@ import { ID_INEXISTENTE, type Sembrador } from './Sembrador.js';
 export interface EntornoReporteDAO {
   dao: ReporteDAO;
   sembrador: Sembrador;
+  /** Records a vote of `usuarioId` on the report (the pending list leaves out what the voter already voted on). */
+  votar: (reporteId: number, usuarioId: number) => Promise<void>;
 }
 
 const LIMA = 'America/Lima';
@@ -27,6 +29,7 @@ export function contratoReporteDAO(nombre: string, crearEntorno: () => Promise<E
     let usuarioId: number;
     let lugarId: number;
     let sembrador: Sembrador;
+    let votar: EntornoReporteDAO['votar'];
     const crear = (nivel: NivelSaturacion, fechaHora: Date, extra: { usuarioId?: number; lugarId?: number } = {}) =>
       dao.crear({
         usuarioId: extra.usuarioId ?? usuarioId,
@@ -36,7 +39,7 @@ export function contratoReporteDAO(nombre: string, crearEntorno: () => Promise<E
       });
 
     beforeEach(async () => {
-      ({ dao, sembrador } = await crearEntorno());
+      ({ dao, sembrador, votar } = await crearEntorno());
       usuarioId = await sembrador.usuario();
       lugarId = await sembrador.lugar();
     });
@@ -234,16 +237,26 @@ export function contratoReporteDAO(nombre: string, crearEntorno: () => Promise<E
       });
     });
 
-    it('listarPendientesDeValidar omite los reportes de excluirIds (los que ya voto)', async () => {
+    it('listarPendientesDeValidar omite los reportes en que el votante ya voto (NOT EXISTS), no los votados por otros', async () => {
       const otro = await sembrador.usuario();
+      const tercero = await sembrador.usuario();
       const votado = await crear(NivelSaturacion.MODERADO, desplazar(T0, -30), { usuarioId: otro });
+      const votadoPorOtro = await crear(NivelSaturacion.MODERADO, desplazar(T0, -25), { usuarioId: otro });
       const pendiente = await crear(NivelSaturacion.MODERADO, desplazar(T0, -20), { usuarioId: otro });
+      await votar(votado.id, usuarioId);
+      await votar(votadoPorOtro.id, tercero);
       const pagina = await dao.listarPendientesDeValidar(
-        { usuarioId, desde: desplazar(T0, -180), lugarIds: [lugarId], excluirIds: [votado.id] },
+        { usuarioId, desde: desplazar(T0, -180), lugarIds: [lugarId] },
         { page: 1, size: 20 },
       );
-      expect(pagina.items.map((r) => r.id)).toEqual([pendiente.id]);
-      expect(pagina.total).toBe(1);
+      expect(pagina.items.map((r) => r.id)).toEqual([pendiente.id, votadoPorOtro.id]);
+      expect(pagina.total).toBe(2);
+    });
+
+    it('buscarPorIdParaActualizar devuelve el reporte (cualquier estado) o null', async () => {
+      const creado = await crear(NivelSaturacion.MODERADO, T0);
+      expect((await dao.buscarPorIdParaActualizar(creado.id))?.id).toBe(creado.id);
+      expect(await dao.buscarPorIdParaActualizar(creado.id + 1000)).toBeNull();
     });
 
     it('crear con usuario o lugar inexistente lanza ForeignKeyConstraintError', async () => {

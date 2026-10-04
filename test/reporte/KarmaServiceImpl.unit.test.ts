@@ -9,6 +9,8 @@ import { UsuarioNoEncontradoException } from '../../src/exception/usuario/Usuari
 import { KarmaServiceImpl } from '../../src/service/impl/KarmaServiceImpl.js';
 import { RelojFijo } from '../support/RelojFijo.js';
 import { ReporteDAOMemoria } from '../support/dao/memoria/ReporteDAOMemoria.js';
+import { ValidacionDAOMemoria } from '../support/dao/memoria/ValidacionDAOMemoria.js';
+import { TipoAccionValidacion } from '../../src/enum/TipoAccionValidacion.js';
 import { UsuarioDAOMemoria } from '../support/dao/memoria/UsuarioDAOMemoria.js';
 
 // 2026-10-05 20:00 in Lima (UTC-5); the Lima day ends at 2026-10-06T05:00:00Z.
@@ -111,6 +113,37 @@ describe('KarmaServiceImpl', () => {
       expect(await servicio.otorgarPorValidacion(usuarioId, TX)).toBe(2);
       expect(await servicio.otorgarPorValidacion(usuarioId, TX)).toBe(2);
       expect(await karmaDe()).toBe(4);
+    });
+
+    describe('tope diario (KARMA_VALIDACION_MAX_DIA)', () => {
+      let validacionDAO: ValidacionDAOMemoria;
+      const votar = (puntosOtorgados: number, fechaHora: Date) =>
+        validacionDAO.crear({ reporteId: ++secuencia, usuarioId, tipoAccion: TipoAccionValidacion.CONFIRMAR, karmaVotante: 0, puntosOtorgados, fechaHora });
+
+      beforeEach(() => {
+        validacionDAO = new ValidacionDAOMemoria();
+        servicio = new KarmaServiceImpl({
+          usuarioDAO, reporteDAO, reloj, karmaPorReporte: 10, karmaPorValidacion: 2, reportesPremiadosPorDia: 5, zonaHoraria: 'America/Lima',
+          validacionDAO, karmaValidacionMaxDia: 5,
+        });
+      });
+
+      it('con el tope alcanzado hoy otorga 0 y no suma karma', async () => {
+        await votar(5, AHORA);
+        expect(await servicio.otorgarPorValidacion(usuarioId, TX)).toBe(0);
+        expect(await karmaDe()).toBe(0);
+      });
+
+      it('otorga solo lo que falta para el tope', async () => {
+        await votar(4, AHORA);
+        expect(await servicio.otorgarPorValidacion(usuarioId, TX)).toBe(1);
+        expect(await karmaDe()).toBe(1);
+      });
+
+      it('los votos de ayer (dia de Lima) no cuentan', async () => {
+        await votar(5, new Date('2026-10-05T04:00:00Z')); // 23:00 Lima of the 4th
+        expect(await servicio.otorgarPorValidacion(usuarioId, TX)).toBe(2);
+      });
     });
 
     it('un usuario inexistente lanza UsuarioNoEncontradoException, igual que otorgarPorReporte', async () => {

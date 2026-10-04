@@ -127,12 +127,15 @@ export const esquemaEntorno = z
     LIMITE_RECUPERAR: entero(5, 1),
     LIMITE_RESTABLECER: entero(10, 1),
     LIMITE_PASSWORD: entero(5, 1),
+    LIMITE_VALIDACIONES: entero(60, 1),
+    LIMITE_DENUNCIAS: entero(10, 1),
 
     // business rules
     RECUPERACION_EXPIRA_MIN: entero(30, 1),
     COOLDOWN_REPORTE_MIN: entero(30, 0),
     KARMA_POR_REPORTE: entero(10, 0),
     KARMA_POR_VALIDACION: entero(2, 0),
+    KARMA_VALIDACION_MAX_DIA: entero(20, 0),
     KARMA_REPORTES_PREMIADOS_DIA: entero(5, 0),
     SATURACION_ESTRATEGIA: z.enum(['PONDERADA', 'ULTIMO_REPORTE']).default('PONDERADA'),
     SATURACION_VENTANA_MIN: entero(60, 1),

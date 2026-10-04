@@ -50,6 +50,11 @@ function cuentaDia(fecha: Date, consulta: ConsultaAgregada): boolean {
   return true;
 }
 
+/** What the pending list needs of the votes: the memory stand-in of `NOT EXISTS (SELECT 1 FROM validacion_reporte ...)`. */
+export interface VotosDeUsuario {
+  yaVoto(usuarioId: number, reporteId: number): boolean;
+}
+
 /** In-memory ReporteDAO for tests; behaves like the Sequelize one (shared contract test). */
 export class ReporteDAOMemoria implements ReporteDAO {
   private readonly filas = new Map<number, ReporteSaturacion>();
@@ -57,10 +62,12 @@ export class ReporteDAOMemoria implements ReporteDAO {
   private siguienteId = 1;
   private readonly reloj: Reloj;
   private readonly sembrador?: SembradorMemoria;
+  private readonly validaciones?: VotosDeUsuario;
 
-  constructor(opciones: OpcionesMemoria = {}) {
+  constructor(opciones: OpcionesMemoria & { validaciones?: VotosDeUsuario } = {}) {
     this.reloj = opciones.reloj ?? relojSistema;
     this.sembrador = opciones.sembrador;
+    this.validaciones = opciones.validaciones;
   }
 
   /** Seeds a ready-made entity (tests that need specific ids or states). */
@@ -87,6 +94,12 @@ export class ReporteDAOMemoria implements ReporteDAO {
   async buscarPorId(id: number): Promise<ReporteSaturacion | null> {
     const reporte = this.filas.get(id);
     return reporte ? copia(reporte) : null;
+  }
+
+  /** Like the Sequelize one (`FOR UPDATE`): the row lock (key `reporte:<id>`) is held until the transaction ends. */
+  async buscarPorIdParaActualizar(id: number, tx?: ContextoTx): Promise<ReporteSaturacion | null> {
+    await this.cerrojos.adquirir(`reporte:${id}`, tx);
+    return this.buscarPorId(id);
   }
 
   /** Like the Sequelize one, takes the (usuario, lugar) lock until the transaction ends (pg_advisory_xact_lock). */
@@ -171,7 +184,6 @@ export class ReporteDAOMemoria implements ReporteDAO {
 
   async listarPendientesDeValidar(filtro: FiltroPendientes, paginacion: Paginacion): Promise<Pagina<ReporteSaturacion>> {
     const lugares = filtro.lugarIds ? new Set(filtro.lugarIds) : undefined;
-    const excluidos = new Set(filtro.excluirIds);
     return this.paginar(
       this.todos().filter(
         (r) =>
@@ -179,7 +191,7 @@ export class ReporteDAOMemoria implements ReporteDAO {
           r.estado === EstadoReporte.ACTIVO &&
           r.fechaHora >= filtro.desde &&
           (!lugares || lugares.has(r.lugarId)) &&
-          !excluidos.has(r.id),
+          !this.validaciones?.yaVoto(filtro.usuarioId, r.id),
       ),
       paginacion,
     );

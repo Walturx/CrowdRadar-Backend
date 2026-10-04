@@ -1,4 +1,4 @@
-import { Op, UniqueConstraintError, type Order, type Transaction } from 'sequelize';
+import { Op, QueryTypes, UniqueConstraintError, type Order, type Transaction } from 'sequelize';
 import type { ContextoTx } from '../../../datasource/ConexionBD.js';
 import type { ValidacionReporte } from '../../../entity/ValidacionReporte.js';
 import type { TipoAccionValidacion } from '../../../enum/TipoAccionValidacion.js';
@@ -72,13 +72,14 @@ export class ValidacionDAOSequelize implements ValidacionDAO {
     return modelos.map(aEntidad);
   }
 
-  async listarReporteIdsVotadosPor(usuarioId: number, tx?: ContextoTx): Promise<number[]> {
-    const modelos = await ValidacionModel.findAll({
-      attributes: ['reporteId'],
-      where: { usuarioId },
-      order: [['reporteId', 'ASC']],
-      transaction: aTransaccion(tx),
+  async sumarPuntosDelDiaDe(usuarioId: number, desde: Date, tx?: ContextoTx): Promise<number> {
+    const transaction = aTransaccion(tx);
+    await ValidacionModel.sequelize!.query('SELECT pg_advisory_xact_lock(:usuarioId, 0)', {
+      replacements: { usuarioId },
+      type: QueryTypes.SELECT,
+      transaction,
     });
-    return modelos.map((m) => m.reporteId);
+    const suma = await ValidacionModel.sum('puntosOtorgados', { where: { usuarioId, fechaHora: { [Op.gte]: desde } }, transaction });
+    return Number(suma ?? 0);
   }
 }

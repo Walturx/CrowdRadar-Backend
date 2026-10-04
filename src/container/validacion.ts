@@ -8,14 +8,16 @@ import type { ValidacionDAO } from '../dao/ValidacionDAO.js';
 import type { EstrategiaConfiabilidad } from '../pattern/strategy/confiabilidad/EstrategiaConfiabilidad.js';
 import { ConfiabilidadPonderadaKarmaStrategy } from '../pattern/strategy/confiabilidad/impl/ConfiabilidadPonderadaKarmaStrategy.js';
 import { ConfiabilidadSimpleStrategy } from '../pattern/strategy/confiabilidad/impl/ConfiabilidadSimpleStrategy.js';
+import { limitarIntentos } from '../middleware/limitarIntentos.js';
 import { crearValidacionRouter } from '../route/validacion.routes.js';
 import { DenunciaServiceImpl } from '../service/impl/DenunciaServiceImpl.js';
+import { KarmaServiceImpl } from '../service/impl/KarmaServiceImpl.js';
 import { ValidacionServiceImpl } from '../service/impl/ValidacionServiceImpl.js';
 import type { DenunciaService } from '../service/DenunciaService.js';
 import type { ValidacionService } from '../service/ValidacionService.js';
+import { MS_POR_HORA } from '../util/tiempo.js';
 import type { MontajeRuta } from './Contenedor.js';
 import type { Infraestructura } from './infraestructura.js';
-import { construirServiciosReporte } from './reporte.js';
 
 /** DAOs of the validation stream; tests hand in the in-memory ones, production builds the Sequelize ones. */
 export interface DaosValidacion {
@@ -41,11 +43,21 @@ export interface ServiciosValidacion {
   denunciaService: DenunciaService;
 }
 
-/** Wires the validation and complaint services; the karma service is the same one the report stream builds. */
+/** Wires the validation and complaint services; the karma service adds the daily cap of validation karma. */
 export function construirServiciosValidacion(infra: Infraestructura, daos: DaosValidacion): ServiciosValidacion {
-  const { cfg, reloj, logger, conexion, usuarioDAO, lugarDAO, reporteDAO, subject } = infra;
-  const { karmaService } = construirServiciosReporte({ cfg, reloj, logger, conexion, usuarioDAO, lugarDAO, reporteDAO, subject });
+  const { cfg, reloj, conexion, usuarioDAO, lugarDAO, reporteDAO } = infra;
   const { reglas } = cfg;
+  const karmaService = new KarmaServiceImpl({
+    usuarioDAO,
+    reporteDAO,
+    reloj,
+    karmaPorReporte: reglas.karmaPorReporte,
+    karmaPorValidacion: reglas.karmaPorValidacion,
+    reportesPremiadosPorDia: reglas.karmaReportesPremiadosDia,
+    zonaHoraria: cfg.servidor.zonaHoraria,
+    validacionDAO: daos.validacionDAO,
+    karmaValidacionMaxDia: reglas.karmaValidacionMaxDia,
+  });
   return {
     validacionService: new ValidacionServiceImpl({
       ...daos,
@@ -68,11 +80,16 @@ export function construirServiciosValidacion(infra: Infraestructura, daos: DaosV
 export function construirValidacion(infra: Infraestructura, daos: DaosValidacion): MontajeRuta[] {
   const { validacionService, denunciaService } = construirServiciosValidacion(infra, daos);
   const { radioPendientesKm, ventanaPendientesHoras } = infra.cfg.reglas;
+  const { limites } = infra.cfg.seguridad;
   const router = crearValidacionRouter(
     infra.guardas,
     new ValidacionController(validacionService),
     new DenunciaController(denunciaService),
     { radioKm: radioPendientesKm, horas: ventanaPendientesHoras },
+    {
+      limitarValidaciones: limitarIntentos({ max: limites.validaciones, ventanaMs: MS_POR_HORA, clave: 'usuario' }),
+      limitarDenuncias: limitarIntentos({ max: limites.denuncias, ventanaMs: MS_POR_HORA, clave: 'usuario' }),
+    },
   );
   return [{ modulo: 'validacion', ruta: '/api', router }];
 }

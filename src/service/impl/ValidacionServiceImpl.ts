@@ -43,7 +43,7 @@ export interface DependenciasValidacionService {
   reloj: Reloj;
   /** CONFIABILIDAD_MIN_VOTOS_ESTADO: votes before a report counts as VALIDADO or RECHAZADO. */
   minVotosEstado: number;
-  /** KARMA_POR_VALIDACION: stored on the vote as `puntosOtorgados`. */
+  /** KARMA_POR_VALIDACION: kept for the wiring; the points a vote stores are the ones KarmaService granted. */
   karmaPorValidacion: number;
   /** Cap of the places read around the caller (LUGARES_LIMITE_MAX). */
   limiteLugares: number;
@@ -52,7 +52,8 @@ export interface DependenciasValidacionService {
 /**
  * Pending reports are ordered by distance, which no single DAO query can do (the distance lives on the place), so the
  * newest candidates of the nearby places are loaded and sorted here. The window is at most 24 h of reports in one
- * radius, far below this cap; past it the oldest candidates are dropped.
+ * radius, far below this cap; past it the oldest candidates are dropped, so a page beyond the cap is empty and `total`
+ * never exceeds it (docs/api-contract.md). Reports the caller already voted on are left out by the DAO.
  */
 const TOPE_CANDIDATOS_PENDIENTES = 500;
 
@@ -79,7 +80,6 @@ export class ValidacionServiceImpl implements ValidacionService {
         usuarioId,
         desde: new Date(reloj.ahora().getTime() - consulta.horas * MS_POR_HORA),
         lugarIds: [...distancias.keys()],
-        excluirIds: await validacionDAO.listarReporteIdsVotadosPor(usuarioId),
       },
       { page: 1, size: TOPE_CANDIDATOS_PENDIENTES },
     );
@@ -123,18 +123,21 @@ export class ValidacionServiceImpl implements ValidacionService {
   }
 
   async validar(usuarioId: number, reporteId: number, tipoAccion: TipoAccionValidacion): Promise<ResultadoValidacion> {
-    const { reporteDAO, validacionDAO, usuarioDAO, karmaService, conexion, reloj, karmaPorValidacion } = this.deps;
-    const reporte = await this.exigirReporteActivo(reporteId);
-    if (reporte.usuarioId === usuarioId) throw new AutovalidacionException();
+    const { reporteDAO, validacionDAO, usuarioDAO, karmaService, conexion, reloj } = this.deps;
     return conexion.transaccion(async (tx) => {
+      // The row lock comes first: votes on one report apply one at a time, so each recomputation sees every earlier
+      // vote, and the state read here is the one the vote is written against (no check-then-act gap).
+      const reporte = this.exigirActivo(await reporteDAO.buscarPorIdParaActualizar(reporteId, tx));
+      if (reporte.usuarioId === usuarioId) throw new AutovalidacionException();
       if (await validacionDAO.buscarPorUsuarioYReporte(usuarioId, reporteId, tx)) throw new ValidacionDuplicadaException();
       const votante = await usuarioDAO.buscarPorId(usuarioId, tx);
       if (!votante) throw new UsuarioNoEncontradoException();
+      // Karma first: past the daily cap the vote still counts but stores (and earns) 0 points.
+      const puntosGanados = await karmaService.otorgarPorValidacion(usuarioId, tx);
       const validacion = await this.guardarVoto(
-        { reporteId, usuarioId, tipoAccion, karmaVotante: votante.puntosKarma, puntosOtorgados: karmaPorValidacion, fechaHora: reloj.ahora() },
+        { reporteId, usuarioId, tipoAccion, karmaVotante: votante.puntosKarma, puntosOtorgados: puntosGanados, fechaHora: reloj.ahora() },
         tx,
       );
-      const puntosGanados = await karmaService.otorgarPorValidacion(usuarioId, tx);
       const confiabilidad = this.describir(await validacionDAO.listarVotos(reporteId, tx));
       if (confiabilidad.porcentaje !== null) await reporteDAO.actualizarConfiabilidad(reporteId, confiabilidad.porcentaje, tx);
       const total = (await usuarioDAO.buscarPorId(usuarioId, tx))?.puntosKarma ?? votante.puntosKarma + puntosGanados;
@@ -159,7 +162,10 @@ export class ValidacionServiceImpl implements ValidacionService {
 
   /** 404 for a report that does not exist or was removed. */
   private async exigirReporteActivo(reporteId: number): Promise<ReporteSaturacion> {
-    const reporte = await this.deps.reporteDAO.buscarPorId(reporteId);
+    return this.exigirActivo(await this.deps.reporteDAO.buscarPorId(reporteId));
+  }
+
+  private exigirActivo(reporte: ReporteSaturacion | null): ReporteSaturacion {
     if (!reporte || reporte.estado === EstadoReporte.ELIMINADO) throw new ReporteNoEncontradoException();
     return reporte;
   }

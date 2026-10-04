@@ -1,4 +1,4 @@
-import { Op, QueryTypes, type Transaction, type WhereOptions } from 'sequelize';
+import { literal, Op, QueryTypes, type Transaction, type WhereOptions } from 'sequelize';
 import type { ContextoTx } from '../../../datasource/ConexionBD.js';
 import type { ReporteSaturacion } from '../../../entity/ReporteSaturacion.js';
 import { EstadoReporte } from '../../../enum/EstadoReporte.js';
@@ -69,6 +69,12 @@ export class ReporteDAOSequelize implements ReporteDAO {
 
   async buscarPorId(id: number, tx?: ContextoTx): Promise<ReporteSaturacion | null> {
     const modelo = await ReporteModel.findByPk(id, { transaction: aTransaccion(tx) });
+    return modelo ? aEntidad(modelo) : null;
+  }
+
+  async buscarPorIdParaActualizar(id: number, tx?: ContextoTx): Promise<ReporteSaturacion | null> {
+    const transaction = aTransaccion(tx);
+    const modelo = await ReporteModel.findByPk(id, { transaction, lock: transaction ? transaction.LOCK.UPDATE : false });
     return modelo ? aEntidad(modelo) : null;
   }
 
@@ -188,7 +194,9 @@ export class ReporteDAOSequelize implements ReporteDAO {
       estado: EstadoReporte.ACTIVO,
       fechaHora: { [Op.gte]: filtro.desde },
       ...(filtro.lugarIds ? { lugarId: { [Op.in]: [...filtro.lugarIds] } } : {}),
-      ...(filtro.excluirIds?.length ? { id: { [Op.notIn]: [...filtro.excluirIds] } } : {}),
+      [Op.and]: literal(
+        `NOT EXISTS (SELECT 1 FROM validacion_reporte v WHERE v.reporte_id = "Reporte"."id" AND v.usuario_id = ${Number(filtro.usuarioId)})`,
+      ),
     };
     return this.paginar(donde, paginacion, tx);
   }

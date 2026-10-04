@@ -1,12 +1,15 @@
 import type { NuevaValidacion, ValidacionDAO } from '../../../../src/dao/ValidacionDAO.js';
 import type { ValidacionReporte } from '../../../../src/entity/ValidacionReporte.js';
 import { ConflictoException } from '../../../../src/exception/http/ConflictoException.js';
+import type { ContextoTx } from '../../../../src/datasource/ConexionBD.js';
 import { relojSistema, type Reloj } from '../../../../src/util/Reloj.js';
+import { CerrojosMemoria } from './cerrojosMemoria.js';
 import { copia, sellosNuevos, type OpcionesMemoria } from './comun.js';
 
 /** In-memory ValidacionDAO for tests; behaves like the Sequelize one (shared contract test). */
 export class ValidacionDAOMemoria implements ValidacionDAO {
   private readonly filas: ValidacionReporte[] = [];
+  private readonly cerrojos = new CerrojosMemoria();
   private siguienteId = 1;
   private readonly reloj: Reloj;
 
@@ -45,7 +48,13 @@ export class ValidacionDAOMemoria implements ValidacionDAO {
     );
   }
 
-  async listarReporteIdsVotadosPor(usuarioId: number): Promise<number[]> {
-    return this.filas.filter((v) => v.usuarioId === usuarioId).map((v) => v.reporteId).sort((a, b) => a - b);
+  /** Like the Sequelize one, takes the per-user lock (key `usuario:<id>`) until the transaction ends. */
+  async sumarPuntosDelDiaDe(usuarioId: number, desde: Date, tx?: ContextoTx): Promise<number> {
+    await this.cerrojos.adquirir(`usuario:${usuarioId}`, tx);
+    return this.filas.filter((v) => v.usuarioId === usuarioId && v.fechaHora >= desde).reduce((suma, v) => suma + v.puntosOtorgados, 0);
+  }
+
+  yaVoto(usuarioId: number, reporteId: number): boolean {
+    return this.filas.some((v) => v.usuarioId === usuarioId && v.reporteId === reporteId);
   }
 }

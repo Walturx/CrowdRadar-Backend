@@ -34,14 +34,15 @@ export interface AgregadoHora {
   muestras: number;
 }
 
-/** Reports a user may vote on (M5): other people's ACTIVO reports from `desde` on, optionally within some places. */
+/**
+ * Reports a user may vote on (M5): other people's ACTIVO reports from `desde` on, optionally within some places, that
+ * the user has not voted on yet (the DAO excludes them itself: NOT EXISTS over `validacion_reporte`).
+ */
 export interface FiltroPendientes {
-  /** The voter: their own reports are excluded. */
+  /** The voter: their own reports and the ones they already voted on are excluded. */
   usuarioId: number;
   desde: Date;
   lugarIds?: readonly number[];
-  /** Reports to leave out, typically the ones the voter already voted on. */
-  excluirIds?: readonly number[];
 }
 
 /**
@@ -53,6 +54,11 @@ export interface ReporteDAO {
   /** Inserts an ACTIVO report with no points and no reliability. */
   crear(datos: NuevoReporte, tx?: ContextoTx): Promise<ReporteSaturacion>;
   buscarPorId(id: number, tx?: ContextoTx): Promise<ReporteSaturacion | null>;
+  /**
+   * Like `buscarPorId` but takes a row lock (`SELECT ... FOR UPDATE`) held until the transaction ends, so the votes of
+   * one report are applied one at a time (M5). Without a transaction there is nothing to hold it on.
+   */
+  buscarPorIdParaActualizar(id: number, tx?: ContextoTx): Promise<ReporteSaturacion | null>;
   /**
    * Latest report (any estado) of the user at the place, for the cooldown check. The Sequelize
    * impl must take pg_advisory_xact_lock(usuarioId, lugarId) here so check and insert serialize.

@@ -290,8 +290,10 @@ Shared ports (contract PR required):
 Delivered (M5-BE-01..03):
 
 - Contract touch (M5-BE-01): new config key `CONFIABILIDAD_MIN_VOTOS_ESTADO` (10; votes before a report is VALIDADO or RECHAZADO).
-  `ValidacionDAO` gained `listarVotosDeReportes(reporteIds)` and `listarReporteIdsVotadosPor(usuarioId)`; `FiltroPendientes`
-  (`ReporteDAO.listarPendientesDeValidar`) gained `excluirIds`, which M5 fills with the reports the caller already voted on.
+  `ValidacionDAO` gained `listarVotosDeReportes(reporteIds)` and `sumarPuntosDelDiaDe(usuarioId, desde)` (daily validation karma cap,
+  under `pg_advisory_xact_lock(usuarioId, 0)`); `ReporteDAO.listarPendientesDeValidar` leaves out the reports the caller already voted
+  on with `NOT EXISTS` over `validacion_reporte`, and `ReporteDAO.buscarPorIdParaActualizar(id, tx)` is `SELECT ... FOR UPDATE`,
+  which `ValidacionService.validar` takes before the vote (M5-BE-04).
   Sequelize models `ValidacionModel` and `DenunciaModel` (registered in `initModels`) and both DAOs are in; both Sequelize DAOs map a
   unique-constraint violation to `ConflictoException`.
 - Contract touch (M5-BE-02): `ValidacionService` was reshaped from the frozen sketch to what the controllers need
