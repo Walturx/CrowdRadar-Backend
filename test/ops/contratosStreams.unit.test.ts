@@ -112,3 +112,21 @@ describe.each(['M1', 'M2', 'M3', 'M4', 'M5', 'M6'])('docs/contratos-streams.md: 
     }
   });
 });
+
+describe('docs/contratos-streams.md: LugarDAO es de M2 por completo', () => {
+  const seccion = (stream: string) => doc.split(/^## /m).find((s) => s.startsWith(`${stream} `)) ?? '';
+
+  it('M3 y M4 no tocan LugarDAOSequelize; M3 consume LugarDAO.explorar con un FiltroExploracion', () => {
+    for (const stream of ['M3', 'M4']) {
+      expect(seccion(stream), stream).toMatch(/Must not touch:[^]*LugarDAOSequelize/);
+    }
+    expect(seccion('M3')).toMatch(/LugarDAO\.explorar/);
+    expect(seccion('M3')).not.toMatch(/filtroExploracion\.ts/);
+  });
+
+  it('M2 es dueno de explorar y contarPorCategoria y ya no delega en un modulo de M3', () => {
+    expect(seccion('M2')).toMatch(/explorar[^]*contarPorCategoria/);
+    expect(seccion('M2')).not.toMatch(/filtroExploracion/);
+    expect(readFileSync(resolve(RAIZ, 'src/dao/LugarDAO.ts'), 'utf8')).not.toMatch(/delegates to M3/);
+  });
+});

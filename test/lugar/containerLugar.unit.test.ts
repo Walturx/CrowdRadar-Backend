@@ -1,6 +1,13 @@
 /** container/lugar.ts: builds LugarService from the shared infrastructure, with the other streams' ports replaceable. */
 import { describe, expect, it } from 'vitest';
-import { crearLugarService, type DependenciasLugar } from '../../src/container/lugar.js';
+import {
+  crearLugarService,
+  favoritosPendientesDeM3,
+  reportesPendientesDeM4,
+  resolverDependenciasLugar,
+  type DependenciasLugar,
+} from '../../src/container/lugar.js';
+import { LugarDAOSequelize } from '../../src/dao/impl/sequelize/LugarDAOSequelize.js';
 import { construirInfraestructura } from '../../src/container/infraestructura.js';
 import { NivelSaturacion } from '../../src/enum/NivelSaturacion.js';
 import { EmisorTokenFalso } from '../support/adapter/EmisorTokenFalso.js';
@@ -47,5 +54,23 @@ describe('crearLugarService', () => {
     const lugar = lugarDAO.agregar({ saturacionActual: NivelSaturacion.SATURADO, saturacionActualizadaEn: new Date(Date.now() - 45 * 60_000) });
     const detalle = await crearLugarService(infra({ lugarDAO })).obtenerDetalle(lugar.id, 1);
     expect(detalle.nivel).toBe('SIN_INFORMACION');
+  });
+});
+
+describe('contenedor de produccion (sin puertos inyectados)', () => {
+  it('usa LugarDAOSequelize con el tope LUGARES_LIMITE_MAX y los marcadores de M3 y M4: esFavorito=false y reportesRecientes=0 hasta que existan', async () => {
+    const dependencias = resolverDependenciasLugar(infra());
+    expect(dependencias.lugarDAO).toBeInstanceOf(LugarDAOSequelize);
+    expect(dependencias.favoritoDAO).toBe(favoritosPendientesDeM3);
+    expect(dependencias.reporteDAO).toBe(reportesPendientesDeM4);
+    expect(await dependencias.favoritoDAO.buscar(1, 1)).toBeNull();
+    expect(await dependencias.reporteDAO.contarPorLugarDesde(1, new Date())).toBe(0);
+  });
+
+  it('un puerto inyectado reemplaza a su marcador y deja los otros', () => {
+    const favoritoDAO = new FavoritoDAOMemoria();
+    const dependencias = resolverDependenciasLugar(infra({ favoritoDAO }));
+    expect(dependencias.favoritoDAO).toBe(favoritoDAO);
+    expect(dependencias.reporteDAO).toBe(reportesPendientesDeM4);
   });
 });
