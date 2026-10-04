@@ -1,3 +1,5 @@
+import type { NivelSaturacion } from '../../../enum/NivelSaturacion.js';
+
 /** data of GET /api/lugares/:id/historial. */
 export interface HistorialResponseDTO {
   puntos: { etiqueta: string; valor: number; muestras: number }[];
@@ -19,3 +21,10 @@ export interface CompararResponseDTO {
   sintetico: boolean;
 }
 
+/** data of GET /api/lugares/:id/mejor-horario. */
+export interface MejorHorarioResponseDTO {
+  recomendaciones: { horaInicio: number; horaFin: number; nivel: NivelSaturacion; promedio: number; muestras: number }[];
+  suficiente: boolean;
+  mensaje: string | null;
+  sintetico: boolean;
+}

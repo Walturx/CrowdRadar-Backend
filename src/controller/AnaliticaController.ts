@@ -2,6 +2,7 @@ import type { RequestHandler } from 'express';
 import type {
   CompararQueryDTO,
   HistorialQueryDTO,
+  MejorHorarioQueryDTO,
 } from '../dto/request/analitica/AnaliticaRequestDTO.js';
 import { respuesta } from '../dto/RespuestaDTO.js';
 import { AnaliticaMapper } from '../mapper/AnaliticaMapper.js';
@@ -27,5 +28,11 @@ export class AnaliticaController {
       { desde: desdeB, hasta: hastaB, dias: diasB },
     );
     res.status(200).json(respuesta('Comparación obtenida correctamente.', AnaliticaMapper.aComparacion(resultado)));
+  };
+
+  obtenerMejorHorario: RequestHandler = async (_req, res) => {
+    const { dias, semanas } = res.locals.query as MejorHorarioQueryDTO;
+    const resultado = await this.analiticaService.obtenerMejorHorario(idDelLugar(res.locals), dias, semanas);
+    res.status(200).json(respuesta('Mejor horario obtenido correctamente.', AnaliticaMapper.aMejorHorario(resultado)));
   };
 }

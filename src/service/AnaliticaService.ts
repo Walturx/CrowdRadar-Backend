@@ -1,5 +1,6 @@
 import type { AgrupacionHistorial } from '../enum/AgrupacionHistorial.js';
 import type { FiltroDias } from '../enum/FiltroDias.js';
+import type { NivelSaturacion } from '../enum/NivelSaturacion.js';
 
 export interface ConsultaHistorial {
   agrupacion: AgrupacionHistorial;
@@ -54,6 +55,23 @@ export interface ResultadoComparacion {
   diasB: FiltroDias;
 }
 
+export interface FranjaRecomendada {
+  horaInicio: number;
+  /** Exclusive; 24 for the 23:00 hour. */
+  horaFin: number;
+  nivel: NivelSaturacion;
+  promedio: number;
+  muestras: number;
+}
+
+export interface ResultadoMejorHorario {
+  /** False when no hour inside the opening hours reaches ANALITICA_MIN_MUESTRAS; the list is then empty. */
+  hayDatos: boolean;
+  sintetico: boolean;
+  /** Up to 3 hours, calmest first. */
+  recomendaciones: FranjaRecomendada[];
+}
+
 /**
  * Pattern: Service layer. Historical analytics over ReporteDAO.agregarPorHora; the day aggregation is computed here from the
  * hourly one. Owner: M4. Throws RecursoNoEncontradoException (LUGAR_NO_ENCONTRADO) and a 400 RANGO_FECHAS_INVALIDO when a
@@ -62,4 +80,6 @@ export interface ResultadoComparacion {
 export interface AnaliticaService {
   obtenerHistorial(lugarId: number, consulta: ConsultaHistorial): Promise<ResultadoHistorial>;
   compararPeriodos(lugarId: number, periodoA: PeriodoComparacion, periodoB: PeriodoComparacion): Promise<ResultadoComparacion>;
+  /** Best hours of the last `semanas` weeks (1..12) up to today, for the day filter `dias`. */
+  obtenerMejorHorario(lugarId: number, dias: FiltroDias, semanas: number): Promise<ResultadoMejorHorario>;
 }

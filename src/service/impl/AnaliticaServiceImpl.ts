@@ -3,6 +3,7 @@ import type { AgregadoHora, ConsultaAgregada, ReporteDAO } from '../../dao/Repor
 import type { Lugar } from '../../entity/Lugar.js';
 import { AgrupacionHistorial } from '../../enum/AgrupacionHistorial.js';
 import { FiltroDias } from '../../enum/FiltroDias.js';
+import { NivelSaturacion } from '../../enum/NivelSaturacion.js';
 import { CodigoError } from '../../exception/CodigoError.js';
 import { RecursoNoEncontradoException } from '../../exception/http/RecursoNoEncontradoException.js';
 import { ValidacionException } from '../../exception/http/ValidacionException.js';
@@ -12,20 +13,27 @@ import type {
   AnaliticaService,
   ConsultaHistorial,
   DiferenciaHora,
+  FranjaRecomendada,
   PeriodoComparacion,
   PuntoHistorial,
   PuntoHora,
   ResultadoComparacion,
   ResultadoHistorial,
+  ResultadoMejorHorario,
 } from '../AnaliticaService.js';
 
 const HORAS_POR_DIA = 24;
+const DIAS_POR_SEMANA = 7;
 /** Longest range between `desde` and `hasta`. */
 const MAXIMO_DIAS_RANGO = 31;
 /** The daily history without dates covers a week: today and the six days before. */
 const DIAS_ANTES_HISTORIAL_DIARIO = 6;
 /** Smallest difference between periods worth naming in the summary. */
 const UMBRAL_DIFERENCIA_NOTABLE = 0.3;
+const MEJORES_HORAS = 3;
+/** Opening hours assumed for a place that has none recorded. */
+const APERTURA_POR_DEFECTO = 8;
+const CIERRE_POR_DEFECTO = 22;
 
 export interface DependenciasAnaliticaService {
   lugarDAO: LugarDAO;
@@ -35,6 +43,8 @@ export interface DependenciasAnaliticaService {
   zonaHoraria: string;
   /** Samples a period or an hour needs before it counts (ANALITICA_MIN_MUESTRAS). */
   minMuestras: number;
+  umbralModerado: number;
+  umbralSaturado: number;
 }
 
 /** Weighted accumulator: hourly averages are combined by their number of samples. */
@@ -132,6 +142,29 @@ export class AnaliticaServiceImpl implements AnaliticaService {
     };
   }
 
+  async obtenerMejorHorario(lugarId: number, dias: FiltroDias, semanas: number): Promise<ResultadoMejorHorario> {
+    const lugar = await this.exigirLugar(lugarId);
+    const hasta = diaDe(this.deps.reloj.ahora(), this.deps.zonaHoraria);
+    const desde = sumarDias(hasta, -(semanas * DIAS_POR_SEMANA - 1));
+    const ventana = this.ventana(lugarId, desde, hasta, dias);
+    const { reporteDAO, minMuestras } = this.deps;
+    const [agregados, sintetico] = await Promise.all([reporteDAO.agregarPorHora(ventana), reporteDAO.hayReportesSinteticos(ventana)]);
+    const abierto = horarioDe(lugar);
+    const recomendaciones: FranjaRecomendada[] = [...porHoraDelDia(agregados).entries()]
+      .filter(([hora, celda]) => abierto(hora) && celda.muestras >= minMuestras)
+      .map(([hora, celda]) => ({ hora, promedio: promedioDe(celda), muestras: celda.muestras }))
+      .sort((x, y) => x.promedio - y.promedio || y.muestras - x.muestras || x.hora - y.hora)
+      .slice(0, MEJORES_HORAS)
+      .map(({ hora, promedio, muestras }) => ({
+        horaInicio: hora,
+        horaFin: hora + 1,
+        nivel: this.nivelDe(promedio),
+        promedio: redondear(promedio),
+        muestras,
+      }));
+    return { hayDatos: recomendaciones.length > 0, sintetico, recomendaciones };
+  }
+
   private async exigirLugar(lugarId: number): Promise<Lugar> {
     const lugar = await this.deps.lugarDAO.buscarPorId(lugarId);
     if (!lugar) throw new RecursoNoEncontradoException(CodigoError.LUGAR_NO_ENCONTRADO, 'Lugar no encontrado.');
@@ -180,6 +213,17 @@ export class AnaliticaServiceImpl implements AnaliticaService {
     return diferencias;
   }
 
+  private nivelDe(promedio: number): NivelSaturacion {
+    if (promedio < this.deps.umbralModerado) return NivelSaturacion.TRANQUILO;
+    return promedio < this.deps.umbralSaturado ? NivelSaturacion.MODERADO : NivelSaturacion.SATURADO;
+  }
+}
+
+/** Whether an hour of day lies inside the opening hours; a closing hour before the opening one crosses midnight. */
+function horarioDe(lugar: Lugar): (hora: number) => boolean {
+  const apertura = lugar.horaApertura ?? APERTURA_POR_DEFECTO;
+  const cierre = lugar.horaCierre ?? CIERRE_POR_DEFECTO;
+  return apertura < cierre ? (hora) => hora >= apertura && hora < cierre : (hora) => hora >= apertura || hora < cierre;
 }
 
 /** The run of consecutive notable hours around the largest difference, or null when none is notable. */
