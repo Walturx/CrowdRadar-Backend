@@ -1,39 +1,223 @@
 # CrowdRadar Backend
 
-REST API for CrowdRadar (Express 5, Sequelize 6, PostgreSQL 16, TypeScript).
-This README is a skeleton; the full version (layout, layering rule, docker run) lands with BE-09.
+REST API for CrowdRadar: real-time crowding reports for places in Lima. Express 5, Sequelize 6, PostgreSQL 16,
+TypeScript (strict). The API contract is frozen in [`docs/api-contract.md`](docs/api-contract.md).
 
 ## Prerequisites
 
 - Node 22 or newer
-- PostgreSQL 16 (or `docker compose up -d postgres`)
+- PostgreSQL 16 (or Docker: `docker compose up -d postgres`)
 
 ## Quick start
 
 ```bash
-cp .env.example .env   # adjust values, never commit .env
+cp .env.example .env     # then replace the three CAMBIAR_* placeholders (see Environment variables)
 npm ci
 docker compose up -d postgres
+npm run db:migrate
+npm run db:seed          # admin user + Lima places
 npm run dev
 ```
 
-## Scripts
+The API refuses to start with the placeholder secrets from `.env.example` (and `npm run db:seed` refuses to run with
+the placeholder `ADMIN_PASSWORD`), so a copied example never boots with a known secret.
+
+## Run
+
+| How | Command |
+|---|---|
+| Day to day (reload) | `npm run dev` |
+| Compiled | `npm run build && npm start` |
+| Everything in containers | `docker compose up --build` (runs `npm run db:migrate && node dist/server.js`; `GET /api/salud` answers 200) |
+
+`docker compose` needs `DB_PASSWORD` (it has no default) and publishes PostgreSQL on `127.0.0.1` only.
+The API shuts down gracefully on `SIGTERM`/`SIGINT` (stops accepting connections, finishes in-flight requests,
+closes the pool) and retries the database connection at boot (`DB_REINTENTOS`, exponential backoff) before exiting with 1.
+
+## Migrate
+
+Schema changes only happen through sequelize-cli migrations (`database/migrations/*.cjs`); the API never calls
+`sequelize.sync()`. Migrations 01-10 are frozen: a new column is a new migration.
 
 | Script | Purpose |
 |---|---|
-| `npm run dev` | API with reload (`tsx watch`) |
-| `npm run build` | Compile to `dist/` (`tsc -p tsconfig.build.json`) |
-| `npm start` | Run the compiled server |
+| `npm run db:migrate` | Apply pending migrations (re-running is a no-op) |
+| `npm run db:migrate:undo` | Undo the last migration |
+| `npm run db:migrate:undo:all` | Undo all of them |
+| `npm run db:seed` | Seed the admin user (`ADMIN_EMAIL`/`ADMIN_PASSWORD`) and the Lima places (`database/data/lugares-lima.json`, OpenStreetMap, ODbL); idempotent |
+| `npm run db:reset` | Undo all, migrate, seed |
+
+Seeder notes: seeders run through sequelize-cli and read `process.env` directly (the API's zod schema does not apply),
+so the admin seeder repeats the password rules. Undoing the admin seeder fails with a foreign-key error if that admin
+already authored sanctions (`sancion_usuario.administrador_id` is `ON DELETE RESTRICT` on purpose).
+
+## Test
+
+| Script | Purpose |
+|---|---|
+| `npm test` | Vitest, no database and no network |
+| `npm run test:cov` | Same with a coverage report (`coverage/`) |
+| `npm run test:db` | The whole suite **including** the database-backed tests; fails immediately when `DATABASE_URL_TEST` is not set |
 | `npm run lint` | `tsc --noEmit` and ESLint |
-| `npm test` | Vitest (no database required) |
-| `npm run test:cov` | Tests with coverage report |
+| `npm run build` | Compile to `dist/` (`tsc -p tsconfig.build.json`) |
 
-## Opt-in database tests
+Database-backed tests (migrations contract, DAO contract, real-server characterization) are opt-in: `npm test` skips
+them unless `DATABASE_URL_TEST` points to a throwaway PostgreSQL, for example
+`postgres://crowdradar:<password>@localhost:5432/crowdradar_test`. The tests create and drop temporary databases next
+to it. Use `npm run test:db` in CI so those tests can never be skipped silently. `.only` is forbidden
+(`allowOnly: false`).
 
-Tests that need a real PostgreSQL are skipped unless `DATABASE_URL_TEST` is set, for example
-`postgres://crowdradar:cambiar-password-local@localhost:5432/crowdradar_test`. That database is
-throwaway: the tests may create and drop tables in it.
+Tests follow strict TDD (red, green, refactor). `test/support` holds the in-memory DAOs, fakes and
+`crearContenedorPrueba`, which assembles the real composition root with fakes instead of a database.
+
+## Project layout
+
+```
+src/
+  server.ts            process entry: config, retry, http.Server, graceful shutdown
+  app.ts               createApp(container): helmet, cors, json, request log, routers, 404, error middleware
+  config/              ConfiguracionApp (Singleton) and the zod environment schema
+  container/           composition root: one builder per stream + index.ts (ensamblar, crearContenedor)
+  route/               routers and the frozen mount contract; stubs answer 501 until a stream delivers
+  middleware/          autenticar, requerirRol, validar, limitarIntentos, registroPeticiones, rutaNoEncontrada, manejarErrores
+  controller/          HTTP adapters: call a service, wrap the result in a response envelope
+  service/             use-case interfaces; impl/ holds the implementations
+  facade/              (later) Recuperacion, Reporte, Moderacion facades
+  dao/                 DAO interfaces; impl/sequelize/ holds Sequelize DAOs and models
+  entity/              domain entities (plain TypeScript, no ORM)
+  dto/                 request schemas (zod) and response shapes
+  mapper/              entity -> response DTO
+  adapter/             ports and adapters: seguridad (Hasher, EmisorToken); later correo and push
+  pattern/             (later) strategy and observer
+  exception/           AppException, CodigoError, http/ (one class per HTTP status), usuario/ (module exceptions)
+  datasource/          ConexionBD port, ConexionFactory (Factory Method), impl/ (PostgreSQL + Sequelize)
+  enum/                domain enumerations as const objects
+  types/               ambient Express typings (req.usuario)
+  util/                logger, Reloj, paginacion, reintentar, servidorHttp
+database/              sequelize-cli: config.cjs, migrations/, seeders/, data/
+test/                  mirrors src/; support/ holds fakes and builders
+docs/api-contract.md   the frozen API contract
+```
+
+Layer folders are singular and one type lives in one PascalCase file. `datasource/`, `enum/` and `types/` are the
+three folders that do not map to one request-chain layer: `datasource/` is the connection port plus its Factory Method
+(infrastructure), `enum/` holds the shared domain vocabulary (const objects, no logic) and `types/` only extends
+Express's `Request`. They are intentional and listed in the design tree.
+
+## Layering rule
+
+The request chain is **route -> middleware -> controller -> [facade] -> service -> dao (interface) -> dao/impl/sequelize**.
+
+1. A controller imports only facade/service interfaces, DTOs and Express types: never a DAO, `sequelize` or an entity.
+2. Services and facades import interfaces, never `impl/` (the composition root `container/` is the only exception).
+3. `sequelize` is imported only by `datasource/impl`, `dao/impl/sequelize` and the composition root that instantiates them.
+4. `ConfiguracionApp.getInstance()` is called only by `server.ts`; everything else receives the configuration injected.
+5. What leaves over HTTP is always a response DTO produced by a Mapper, inside the `{message, data}` envelope.
+6. Failures are `AppException` subclasses; only `manejarErrores` decides the HTTP status, per class.
+7. Controllers have no `try/catch`: Express 5 forwards rejected promises to the error middleware.
+
+Quick checks: `rg "from '.*(dao/impl|sequelize|entity)" src/controller` finds nothing; `rg "sequelize\.sync\(" src database`
+finds nothing; `rg "console\.log" src` finds nothing.
+
+## Pattern map
+
+| Pattern | Where |
+|---|---|
+| Singleton | `config/ConfiguracionApp`: immutable, validated once, fail-fast |
+| Factory Method | `datasource/ConexionFactory.conectar()` -> `ConexionPostgresFactory.crearConexion()` |
+| DAO | `dao/*DAO` ports with `dao/impl/sequelize/*DAOSequelize` and in-memory fakes in `test/support/dao/memoria` |
+| Adapter | `adapter/seguridad` (`BcryptHasher`, `JwtEmisorToken`), `datasource/impl/ConexionSequelize`; correo and push to come |
+| Mapper | `mapper/UsuarioMapper` (entity -> response DTO) |
+| Service Layer | `service/*Service` interfaces with `service/impl/*Impl`; controllers never touch DAOs |
+| Facade | placeholders for `RecuperacionFacade`, `ReporteFacade`, `ModeracionFacade` (streams M1, M4, M6) |
+| Strategy / Observer | placeholders for saturation and reliability strategies and the saturation observer (M4, M5, M3) |
+| composition root | `container/`: manual DI; each stream edits only its own builder; `crearContenedorPrueba` reuses it with fakes |
+
+## Environment variables
+
+All configuration comes from the environment, validated at startup with zod (`src/config/esquemaEntorno.ts`). An invalid
+or missing value prints every offending key (never its value) and exits with code 1 before the server listens.
+`.env.example` lists every key. Defaults in parentheses.
+
+| Variable | Meaning |
+|---|---|
+| `NODE_ENV` | `development`, `test` or `production` (development) |
+| `PUERTO` | Port the API listens on (3000) |
+| `URL_PUBLICA` | Public base URL, used in links (http://localhost:3000) |
+| `CORS_ORIGENES` | Comma separated allowed origins; others get no CORS headers (http://localhost:3000) |
+| `LOG_NIVEL` | pino level: fatal, error, warn, info, debug, trace, silent (info) |
+| `ZONA_HORARIA` | Time zone for aggregations (America/Lima) |
+| `TRUST_PROXY` | Proxy hops trusted for the client IP: `false`, a number, or a name such as `loopback`; `true` is too permissive (false) |
+| `SERVIDOR_REQUEST_TIMEOUT_MS` | Time to receive a whole request (30000) |
+| `SERVIDOR_HEADERS_TIMEOUT_MS` | Time to receive the headers; not above the request timeout (15000) |
+| `SERVIDOR_KEEPALIVE_TIMEOUT_MS` | Idle keep-alive time (5000) |
+| `APAGADO_TIMEOUT_MS` | Hard limit of the graceful shutdown (10000) |
+| `DB_HOST` | Database host (localhost) |
+| `DB_PUERTO` | Database port (5432) |
+| `DB_NOMBRE` | Database name (crowdradar) |
+| `DB_USUARIO` | Database user (crowdradar) |
+| `DB_PASSWORD` | **Required**, no default; not a `CAMBIAR*` placeholder |
+| `DB_SSL` | TLS to the database; the certificate is verified (use `NODE_EXTRA_CA_CERTS` for a private CA) (false) |
+| `DB_POOL_MAX` | Connection pool maximum (10) |
+| `DB_POOL_MIN` | Connection pool minimum, not above the maximum (0) |
+| `DB_POOL_ACQUIRE_MS` | Max wait for a pooled connection (30000) |
+| `DB_POOL_IDLE_MS` | Idle time before a pooled connection is released (10000) |
+| `DB_STATEMENT_TIMEOUT_MS` | Server-side statement timeout (15000) |
+| `DB_REINTENTOS` | Boot attempts to reach the database before exiting (5) |
+| `DB_REINTENTO_ESPERA_MS` | First backoff wait, doubling each attempt (500) |
+| `JWT_SECRETO` | **Required**, at least 32 characters, not a `CAMBIAR*` placeholder |
+| `JWT_EXPIRA_EN` | Token lifetime with a unit s, m, h or d (2h) |
+| `BCRYPT_COSTO` | bcrypt cost, 4-15 (10) |
+| `POLITICA_MENSAJES_AUTH` | `GENERICA` (identical answer for unknown email and wrong password) or `DETALLADA` (GENERICA) |
+| `LIMITE_VENTANA_MIN` | Rate-limit window in minutes (15) |
+| `LIMITE_LOGIN` | Failed logins per window and IP (10) |
+| `LIMITE_REGISTRO` | Registrations per window and IP (10) |
+| `LIMITE_RECUPERAR` | Recovery requests per window (5), wired when M1 delivers the route |
+| `LIMITE_RESTABLECER` | Reset attempts per window (10), wired when M1 delivers the route |
+| `LIMITE_PASSWORD` | Failed password changes per window and IP (5) |
+| `RECUPERACION_EXPIRA_MIN` | Recovery token lifetime in minutes (30) |
+| `COOLDOWN_REPORTE_MIN` | Minutes between reports of one user for one place (30) |
+| `KARMA_POR_REPORTE` | Karma for a report (10) |
+| `KARMA_POR_VALIDACION` | Karma for a validation (2) |
+| `KARMA_REPORTES_PREMIADOS_DIA` | Rewarded reports per day (5) |
+| `SATURACION_ESTRATEGIA` | `PONDERADA` or `ULTIMO_REPORTE` (PONDERADA) |
+| `SATURACION_VENTANA_MIN` | Report window for saturation in minutes (60) |
+| `SATURACION_MIN_REPORTES` | Minimum reports to compute saturation (3) |
+| `SATURACION_UMBRAL_MODERADO` | Weighted average threshold for MODERADO (1.67) |
+| `SATURACION_UMBRAL_SATURADO` | Weighted average threshold for SATURADO (2.34) |
+| `CONFIABILIDAD_ESTRATEGIA` | `PONDERADA_KARMA` or `SIMPLE` (PONDERADA_KARMA) |
+| `CONFIABILIDAD_MIN_VOTOS` | Minimum votes for a reliability level (3) |
+| `CONFIABILIDAD_UMBRAL_ALTA` | Percentage for ALTA (70) |
+| `CONFIABILIDAD_UMBRAL_MEDIA` | Percentage for MEDIA (40) |
+| `TOPE_KARMA_PESO` | Karma cap when weighting votes (500) |
+| `RADIO_BUSQUEDA_KM` | Default exploration radius in km (2) |
+| `RADIO_PENDIENTES_KM` | Radius for reports pending validation in km (5) |
+| `VENTANA_PENDIENTES_HORAS` | Window for pending reports in hours, 1-24 (3) |
+| `ANALITICA_MIN_MUESTRAS` | Minimum samples per time slot (5) |
+| `SUSPENSION_DIAS_PERMITIDOS` | Allowed suspension lengths; must be a subset of 3,7,30 because `sancion_usuario.dias` has `CHECK (dias IN (3,7,30))` in the frozen migration 06 (3,7,30) |
+| `CORREO_PROVEEDOR` | `consola` or `smtp` (consola) |
+| `CORREO_REMITENTE` | From address of outgoing mail |
+| `SMTP_HOST` | Required with `smtp` |
+| `SMTP_PUERTO` | SMTP port (587) |
+| `SMTP_USUARIO` | Required with `smtp` |
+| `SMTP_PASSWORD` | Required with `smtp` |
+| `PUSH_PROVEEDOR` | `consola` or `fcm` (consola) |
+| `FCM_CREDENCIALES_RUTA` | Required with `fcm` |
+| `ADMIN_EMAIL` | Email of the seeded admin |
+| `ADMIN_PASSWORD` | Password of the seeded admin: 10 characters minimum, not a `CAMBIAR*` placeholder |
+| `SEED_DEMO` | Seed the synthetic demo history (false) |
+
+Test tooling only: `DATABASE_URL_TEST` (see Test).
+
+## Security notes
+
+- `helmet` headers, CORS allow-list, `x-powered-by` disabled, 100 kb JSON limit, request ids on every response.
+- Passwords are bcrypt hashes (cost from config); login always runs a hash comparison, with a decoy hash for unknown emails.
+- JWT is HS256 only (pinned on sign and verify), its payload is validated, and `autenticar` re-reads the user so a
+  suspended account loses access immediately.
+- Logs redact passwords, tokens, `Authorization`, cookies and database error details (SQL text, bound values).
+- No secret is tracked: `.env` is ignored, `.env.example` only has placeholders that fail validation.
 
 ## Baseline
 
-The tag `sprint1-js` marks the original JavaScript Sprint 1 code.
+The tag `sprint1-js` marks the original JavaScript Sprint 1 code, replaced by this TypeScript layering.

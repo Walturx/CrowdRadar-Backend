@@ -1,4 +1,5 @@
-# Local infrastructure. The api service is added in BE-09.
+# Local and demo infrastructure: `docker compose up` yields the API on :3000 with GET /api/salud 200.
+# DB_PASSWORD has no default on purpose: copy .env.example to .env and set it (compose reads .env).
 services:
   postgres:
     image: postgres:16-alpine
@@ -6,9 +7,10 @@ services:
     environment:
       POSTGRES_DB: ${DB_NOMBRE:-crowdradar}
       POSTGRES_USER: ${DB_USUARIO:-crowdradar}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-cambiar-password-local}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD es obligatoria (copie .env.example a .env)}
     ports:
-      - "${DB_PUERTO:-5432}:5432"
+      # Loopback only: the database is never exposed to the network.
+      - "127.0.0.1:${DB_PUERTO:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./docker/initdb:/docker-entrypoint-initdb.d:ro
@@ -17,6 +19,23 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      # Inside the compose network the database is the postgres service on its container port.
+      DB_HOST: postgres
+      DB_PUERTO: "5432"
+      NODE_ENV: production
+    ports:
+      - "${PUERTO:-3000}:3000"
+    command: ["sh", "-c", "npm run db:migrate && node dist/server.js"]
 
 volumes:
   pgdata:
