@@ -11,8 +11,8 @@ function horaLocal(ahora: Date, zona: string): number {
 }
 
 /**
- * Value object: opening hours of a place as whole hours (`hora_apertura` 0..23, `hora_cierre` 1..24).
- * The place is open from `horaApertura` (inclusive) to `horaCierre` (exclusive); a closing hour smaller than the
+ * Pattern: Value Object. Owner: M2. Opening hours of a place as whole hours (`hora_apertura` 0..23,
+ * `hora_cierre` 1..24). The place is open from `horaApertura` (inclusive) to `horaCierre` (exclusive); a closing hour smaller than the
  * opening one crosses midnight. 0..24 is always open; opening == closing is an empty window (never open).
  */
 export class HorarioAtencion {

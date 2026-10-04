@@ -104,13 +104,13 @@ still reveals that an email exists (`409`).
 
 | Param | Rule |
 |---|---|
-| `q` | 2-60 characters once trimmed; accent- and case-insensitive substring of `nombre` (`%` and `_` are literal) |
-| `bbox` | `minLng,minLat,maxLng,maxLat` in decimal degrees: 4 numbers, lat -90..90, lng -180..180, min < max; edges are inclusive |
+| `q` | `LUGARES_Q_MIN`-`LUGARES_Q_MAX` characters once trimmed (2-60 by default); accent- and case-insensitive substring of `nombre` (`%` and `_` are literal) |
+| `bbox` | `minLng,minLat,maxLng,maxLat` in decimal degrees: 4 numbers, lat -90..90, lng -180..180, min < max; edges are inclusive. A box that crosses the antimeridian (min > max) is not supported and is rejected |
 | `categoria` | `PARQUE`, `CENTRO_COMERCIAL`, `MERCADO`, `TRANSPORTE`, `PLAZA`, `PLAYA` |
 | `nivel` | `TRANQUILO`, `MODERADO`, `SATURADO`, `SIN_INFORMACION` (effective level, see below) |
-| `limite` | 1-200, default 200 |
+| `limite` | 1-`LUGARES_LIMITE_MAX`, `LUGARES_LIMITE_DEFAULT` when absent (200 and 200 by default) |
 
-`200` `data`: `{ "items": LugarResumenResponseDTO[] }` ordered by `nombre` (accents ignored). An empty list is still `200`
+`200` `data`: `{ "items": LugarResumenResponseDTO[] }` ordered by `nombre` (accents and case ignored; then byte order, so spaces and punctuation come before digits, and digits before letters). An empty list is still `200`
 with `items: []` and the explanation in the envelope `message` (`No hay lugares en esta zona.` or
 `No encontramos lugares para “{q}”. Prueba con otro nombre.`); otherwise `message` is `Lugares obtenidos correctamente.`.
 Invalid input is `400 VALIDACION_FALLIDA` with one `errors[{ campo }]` per failing field (`q`, `bbox`, `categoria`, `nivel`,
@@ -119,6 +119,10 @@ Invalid input is `400 VALIDACION_FALLIDA` with one `errors[{ campo }]` per faili
 
 Effective level: the stored `saturacion_actual` while its reading is not older than `SATURACION_VENTANA_MIN`; `SIN_INFORMACION`
 when there is none or it is stale. M2 never computes it (M4 writes it). `reportesRecientes` counts the reports of the same window.
+
+Interim values until the other streams land: `esFavorito` is always `false` (and `alertasActivadas` `false`) until M3 delivers
+`FavoritoDAOSequelize`, and `saturacion.reportesRecientes` is always `0` until M4 delivers `ReporteDAOSequelize`. The mobile app must
+not treat them as final; `container/lugar.ts` wires the stand-ins and a unit test pins them.
 
 `LugarResumenResponseDTO`: `{ "id": 3, "nombre": "Parque John F. Kennedy", "categoria": "PARQUE", "latitud": -12.121791,
 "longitud": -77.030453, "saturacion": "MODERADO" }` (`saturacion` is the effective level as a string).
