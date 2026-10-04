@@ -2,7 +2,7 @@ import type { RequestHandler } from 'express';
 import type { ClaimsToken, EmisorToken } from '../adapter/seguridad/EmisorToken.js';
 import type { UsuarioDAO } from '../dao/UsuarioDAO.js';
 import { CodigoError } from '../exception/CodigoError.js';
-import { NoAutenticadoException } from '../exception/base/NoAutenticadoException.js';
+import { NoAutenticadoException } from '../exception/http/NoAutenticadoException.js';
 import type { VerificadorEstadoCuenta } from '../service/VerificadorEstadoCuenta.js';
 
 export interface DependenciasAutenticar {

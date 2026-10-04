@@ -4,15 +4,15 @@
 import { describe, expect, it } from 'vitest';
 import { AppException } from '../../src/exception/AppException.js';
 import { CodigoError } from '../../src/exception/CodigoError.js';
-import { AccesoDenegadoException } from '../../src/exception/base/AccesoDenegadoException.js';
-import { ConflictoException } from '../../src/exception/base/ConflictoException.js';
-import { DemasiadasSolicitudesException } from '../../src/exception/base/DemasiadasSolicitudesException.js';
-import { NoAutenticadoException } from '../../src/exception/base/NoAutenticadoException.js';
-import { NoImplementadoException } from '../../src/exception/base/NoImplementadoException.js';
-import { RecursoNoEncontradoException } from '../../src/exception/base/RecursoNoEncontradoException.js';
-import { ReglaNegocioException } from '../../src/exception/base/ReglaNegocioException.js';
-import { ServicioNoDisponibleException } from '../../src/exception/base/ServicioNoDisponibleException.js';
-import { ValidacionException } from '../../src/exception/base/ValidacionException.js';
+import { AccesoDenegadoException } from '../../src/exception/http/AccesoDenegadoException.js';
+import { ConflictoException } from '../../src/exception/http/ConflictoException.js';
+import { DemasiadasSolicitudesException } from '../../src/exception/http/DemasiadasSolicitudesException.js';
+import { NoAutenticadoException } from '../../src/exception/http/NoAutenticadoException.js';
+import { NoImplementadoException } from '../../src/exception/http/NoImplementadoException.js';
+import { RecursoNoEncontradoException } from '../../src/exception/http/RecursoNoEncontradoException.js';
+import { ReglaNegocioException } from '../../src/exception/http/ReglaNegocioException.js';
+import { ServicioNoDisponibleException } from '../../src/exception/http/ServicioNoDisponibleException.js';
+import { ValidacionException } from '../../src/exception/http/ValidacionException.js';
 
 const CODIGOS_CONGELADOS = [
   // 400

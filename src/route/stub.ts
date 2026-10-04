@@ -1,5 +1,5 @@
 import type { RequestHandler } from 'express';
-import { NoImplementadoException } from '../exception/base/NoImplementadoException.js';
+import { NoImplementadoException } from '../exception/http/NoImplementadoException.js';
 
 /**
  * Handler of a frozen route whose stream has not delivered it yet: answers 501 NO_IMPLEMENTADO

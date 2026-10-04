@@ -5,6 +5,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfiguracionApp } from '../../src/config/ConfiguracionApp.js';
 import { validarEntorno } from '../../src/config/esquemaEntorno.js';
+import { configPrueba } from '../support/configPrueba.js';
 
 const SECRETO_VALIDO = 'j'.repeat(40);
 
@@ -146,9 +147,9 @@ describe('ConfiguracionApp', () => {
     });
   });
 
-  describe('paraPruebas', () => {
+  describe('configPrueba (test/support)', () => {
     it('refleja el override sin tocar process.env ni el singleton', () => {
-      const cfg = ConfiguracionApp.paraPruebas({ BCRYPT_COSTO: 4 });
+      const cfg = configPrueba({ BCRYPT_COSTO: 4 });
       expect(cfg.seguridad.bcryptCosto).toBe(4);
       expect(process.env.BCRYPT_COSTO).toBeUndefined();
       aplicarEntorno(entornoMinimo());
@@ -157,14 +158,14 @@ describe('ConfiguracionApp', () => {
     });
 
     it('acepta varios overrides y mantiene un entorno valido por defecto', () => {
-      const cfg = ConfiguracionApp.paraPruebas({ COOLDOWN_REPORTE_MIN: 1, POLITICA_MENSAJES_AUTH: 'DETALLADA' });
+      const cfg = configPrueba({ COOLDOWN_REPORTE_MIN: 1, POLITICA_MENSAJES_AUTH: 'DETALLADA' });
       expect(cfg.reglas.cooldownReporteMin).toBe(1);
       expect(cfg.seguridad.politicaMensajesAuth).toBe('DETALLADA');
       expect(cfg.seguridad.jwtSecreto.length).toBeGreaterThanOrEqual(32);
     });
 
     it('un override invalido lanza error con el nombre de la clave (sin salir del proceso)', () => {
-      expect(() => ConfiguracionApp.paraPruebas({ BCRYPT_COSTO: 1 })).toThrow(/BCRYPT_COSTO/);
+      expect(() => configPrueba({ BCRYPT_COSTO: 1 })).toThrow(/BCRYPT_COSTO/);
     });
   });
 });

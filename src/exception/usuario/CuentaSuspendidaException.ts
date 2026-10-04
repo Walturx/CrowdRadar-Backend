@@ -1,5 +1,5 @@
 import { CodigoError } from '../CodigoError.js';
-import { AccesoDenegadoException } from '../base/AccesoDenegadoException.js';
+import { AccesoDenegadoException } from '../http/AccesoDenegadoException.js';
 
 /** 403: the account is suspended; the app signs the user out on this code. */
 export class CuentaSuspendidaException extends AccesoDenegadoException {
