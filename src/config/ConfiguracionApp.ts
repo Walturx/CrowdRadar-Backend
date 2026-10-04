@@ -102,7 +102,7 @@ export class ConfiguracionApp {
       smtp: { host: env.SMTP_HOST, puerto: env.SMTP_PUERTO, usuario: env.SMTP_USUARIO, password: env.SMTP_PASSWORD },
     });
     this.push = congelar({ proveedor: env.PUSH_PROVEEDOR, fcmCredencialesRuta: env.FCM_CREDENCIALES_RUTA });
-    this.semillas = congelar({ adminEmail: env.ADMIN_EMAIL, adminPassword: env.ADMIN_PASSWORD, demo: env.SEED_DEMO });
+    this.semillas = congelar({ adminEmail: env.ADMIN_EMAIL, adminPassword: env.ADMIN_PASSWORD, sinteticos: env.SEED_SINTETICO ?? env.NODE_ENV !== 'production' });
   }
 
   /** Validates process.env once; on failure names every bad key and exits with code 1. */

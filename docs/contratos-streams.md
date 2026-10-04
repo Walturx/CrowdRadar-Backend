@@ -172,7 +172,7 @@ Interfaces to implement:
 Owned files: `facade/ReporteFacade*`, `service/impl/{Reporte,Karma,Saturacion,Analitica}ServiceImpl.ts`,
 `pattern/strategy/saturacion/impl/*`, `controller/{Reporte,Analitica}Controller.ts`, `mapper/{Reporte,Analitica}Mapper.ts`,
 `dao/impl/sequelize/ReporteDAOSequelize.ts`, `route/{reporte,analitica}.routes.ts` (`/reportes/mios` before
-`/reportes/:id`), `container/reporte.ts`, `exception/reporte/*`, `dto/**/reporte/*`, seeder `20261005100003-demo-historial`
+`/reportes/:id`), `container/reporte.ts`, `exception/reporte/*`, `dto/**/reporte/*`, seeder `20261005100003-historial-sintetico`
 (synthetic, declared as such).
 
 Must not touch: `service/impl/Validacion*` and `service/impl/Denuncia*` (M5), `dao/impl/sequelize/LugarDAOSequelize.ts`
