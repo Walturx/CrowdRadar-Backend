@@ -25,7 +25,18 @@ const diasDeSuspension = z
   .transform((texto) => texto.split(',').map((item) => Number(item.trim())))
   .pipe(z.array(z.number().int().positive()).min(1));
 
-const requerida = (mensaje: string) => z.string({ error: mensaje }).min(1, mensaje);
+/** Express `trust proxy`: true/false, a number of hops, or a name/CIDR list such as "loopback". */
+const confiarProxy = z
+  .string()
+  .default('false')
+  .transform((texto): boolean | number | string => {
+    const valor = texto.trim();
+    if (valor === 'true') return true;
+    if (valor === 'false') return false;
+    return /^\d+$/.test(valor) ? Number(valor) : valor;
+  });
+
+const requerida =(mensaje: string) => z.string({ error: mensaje }).min(1, mensaje);
 
 /**
  * Environment schema: every key the backend reads, with the design defaults.
@@ -40,6 +51,7 @@ export const esquemaEntorno = z
     CORS_ORIGENES: lista('http://localhost:3000'),
     LOG_NIVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
     ZONA_HORARIA: z.string().default('America/Lima'),
+    TRUST_PROXY: confiarProxy,
 
     // database
     DB_HOST: z.string().default('localhost'),

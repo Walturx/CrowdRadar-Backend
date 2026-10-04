@@ -12,6 +12,13 @@ const REDACCION = [
   '*.token',
   'req.headers.authorization',
   'headers.authorization',
+  'req.headers.cookie',
+  'res.headers["set-cookie"]',
+  // Database errors echo SQL text and bound values (emails, hashes).
+  'err.sql',
+  'err.parameters',
+  'err.parent',
+  'err.original',
 ];
 
 /**
