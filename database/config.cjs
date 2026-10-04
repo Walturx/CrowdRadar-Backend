@@ -12,7 +12,7 @@ const base = {
   logging: false,
   define: { underscored: true, freezeTableName: true },
   dialectOptions:
-    process.env.DB_SSL === 'true' ? { ssl: { require: true, rejectUnauthorized: false } } : {},
+    process.env.DB_SSL === 'true' ? { ssl: { require: true, rejectUnauthorized: true } } : {},
 };
 
 module.exports = { development: base, test: base, production: base };

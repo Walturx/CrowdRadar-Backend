@@ -36,6 +36,12 @@ export class ConfiguracionApp {
       logNivel: env.LOG_NIVEL,
       zonaHoraria: env.ZONA_HORARIA,
       trustProxy: env.TRUST_PROXY,
+      timeouts: {
+        requestMs: env.SERVIDOR_REQUEST_TIMEOUT_MS,
+        headersMs: env.SERVIDOR_HEADERS_TIMEOUT_MS,
+        keepAliveMs: env.SERVIDOR_KEEPALIVE_TIMEOUT_MS,
+        apagadoMs: env.APAGADO_TIMEOUT_MS,
+      },
     });
     this.bd = congelar({
       host: env.DB_HOST,
@@ -44,6 +50,10 @@ export class ConfiguracionApp {
       usuario: env.DB_USUARIO,
       password: env.DB_PASSWORD,
       ssl: env.DB_SSL,
+      pool: { max: env.DB_POOL_MAX, min: env.DB_POOL_MIN, acquireMs: env.DB_POOL_ACQUIRE_MS, idleMs: env.DB_POOL_IDLE_MS },
+      statementTimeoutMs: env.DB_STATEMENT_TIMEOUT_MS,
+      reintentos: env.DB_REINTENTOS,
+      reintentoEsperaMs: env.DB_REINTENTO_ESPERA_MS,
     });
     this.seguridad = congelar({
       jwtSecreto: env.JWT_SECRETO,

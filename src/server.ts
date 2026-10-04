@@ -1,15 +1,37 @@
 import 'dotenv/config';
+import { createServer } from 'node:http';
 import { createApp } from './app.js';
 import { ConfiguracionApp } from './config/ConfiguracionApp.js';
 import { crearContenedor } from './container/index.js';
 import { crearLogger } from './util/logger.js';
+import { reintentar } from './util/reintentar.js';
+import { configurarTimeouts, crearApagado, instalarHooksProceso } from './util/servidorHttp.js';
 
 const cfg = ConfiguracionApp.getInstance();
 const logger = crearLogger(cfg.servidor.logNivel);
 
 async function iniciar(): Promise<void> {
-  const contenedor = await crearContenedor(cfg, logger);
-  createApp(contenedor).listen(cfg.servidor.puerto, () => {
+  // The database may still be starting (docker compose, managed restarts): retry with backoff.
+  const contenedor = await reintentar(() => crearContenedor(cfg, logger), {
+    intentos: cfg.bd.reintentos,
+    esperaInicialMs: cfg.bd.reintentoEsperaMs,
+    alFallar: (error, intento, proximaEsperaMs) =>
+      logger.warn({ err: error, intento, intentos: cfg.bd.reintentos, proximaEsperaMs }, 'Conexion a la base de datos fallida'),
+  });
+
+  const servidor = createServer(createApp(contenedor));
+  configurarTimeouts(servidor, cfg.servidor.timeouts);
+
+  const apagar = crearApagado({
+    servidor,
+    conexion: contenedor.conexion,
+    logger,
+    timeoutMs: cfg.servidor.timeouts.apagadoMs,
+    salir: (codigo) => process.exit(codigo),
+  });
+  instalarHooksProceso({ proceso: process, logger, apagar });
+
+  servidor.listen(cfg.servidor.puerto, () => {
     logger.info({ puerto: cfg.servidor.puerto }, 'Servidor ejecutandose');
   });
 }

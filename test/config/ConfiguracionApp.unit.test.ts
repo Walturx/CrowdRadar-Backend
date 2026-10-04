@@ -80,14 +80,14 @@ describe('ConfiguracionApp', () => {
       aplicarEntorno(
         entornoMinimo({
           CORS_ORIGENES: 'http://a.pe, http://b.pe',
-          SUSPENSION_DIAS_PERMITIDOS: '1,2',
+          SUSPENSION_DIAS_PERMITIDOS: '7,3',
           COOLDOWN_REPORTE_MIN: '45',
           SEED_DEMO: 'true',
         }),
       );
       const cfg = ConfiguracionApp.getInstance();
       expect(cfg.servidor.corsOrigenes).toEqual(['http://a.pe', 'http://b.pe']);
-      expect(cfg.reglas.suspensionDiasPermitidos).toEqual([1, 2]);
+      expect(cfg.reglas.suspensionDiasPermitidos).toEqual([7, 3]);
       expect(cfg.reglas.cooldownReporteMin).toBe(45);
       expect(cfg.semillas.demo).toBe(true);
     });
