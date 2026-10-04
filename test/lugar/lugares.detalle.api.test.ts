@@ -1,4 +1,4 @@
-/** GET /api/lugares/:id through HTTP: 200 detail, 404 LUGAR_NO_ENCONTRADO, 400 invalid id, 401, and the M3 literals still 501. */
+/** GET /api/lugares/:id through HTTP: 200 detail, 404 LUGAR_NO_ENCONTRADO, 400 invalid id, 401. */
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { createApp } from '../../src/app.js';
@@ -97,11 +97,10 @@ describe('GET /api/lugares/:id', () => {
     expect(res.body.code).toBe('NO_AUTENTICADO');
   });
 
-  it('/lugares/explorar y /lugares/categorias siguen siendo del stream M3 (501), no el detalle de un id', async () => {
-    for (const [ruta, nombre] of [['explorar', 'exploracion.explorar'], ['categorias', 'exploracion.listarCategorias']] as const) {
+  it('/lugares/explorar y /lugares/categorias no caen en el detalle de un id (M3 las entrego)', async () => {
+    for (const ruta of ['explorar', 'categorias']) {
       const res = await request(app).get(`/api/lugares/${ruta}`).set('Authorization', TOKEN);
-      expect(res.status).toBe(501);
-      expect(res.body.message).toContain(nombre);
+      expect(res.status).toBe(200);
     }
   });
 });

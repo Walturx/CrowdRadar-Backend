@@ -1,8 +1,10 @@
+import { ExploracionController } from '../controller/ExploracionController.js';
 import { LugarController } from '../controller/LugarController.js';
 import type { FavoritoDAO } from '../dao/FavoritoDAO.js';
 import type { LugarDAO } from '../dao/LugarDAO.js';
 import type { ReporteDAO } from '../dao/ReporteDAO.js';
 import { crearLugarRouter } from '../route/lugar.routes.js';
+import { ExploracionServiceImpl } from '../service/impl/ExploracionServiceImpl.js';
 import { LugarServiceImpl } from '../service/impl/LugarServiceImpl.js';
 import type { LugarService } from '../service/LugarService.js';
 import type { MontajeRuta } from './Contenedor.js';
@@ -38,8 +40,20 @@ export function crearLugarService(infra: Infraestructura): LugarService {
   });
 }
 
-/** Places stream (M2; exploration M3 shares the router: its two literal routes stay 501 stubs until M3 replaces them). */
+/** Places stream (M2) and exploration (M3), which share the router. */
 export function construirLugar(infra: Infraestructura): MontajeRuta[] {
   const controller = new LugarController(crearLugarService(infra));
-  return [{ modulo: 'lugar', ruta: '/api', router: crearLugarRouter(infra.guardas, controller, infra.cfg.lugares) }];
+  const { cfg, reloj } = infra;
+  const exploracion = {
+    controller: new ExploracionController(
+      new ExploracionServiceImpl({
+        lugarDAO: resolverDependenciasLugar(infra).lugarDAO,
+        reloj,
+        ventanaSaturacionMin: cfg.reglas.saturacionVentanaMin,
+        limiteMax: cfg.lugares.limiteMax,
+      }),
+    ),
+    radioPorDefectoKm: cfg.reglas.radioBusquedaKm,
+  };
+  return [{ modulo: 'lugar', ruta: '/api', router: crearLugarRouter(infra.guardas, controller, cfg.lugares, exploracion) }];
 }
