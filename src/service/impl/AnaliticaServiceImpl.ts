@@ -3,10 +3,10 @@ import type { AgregadoHora, ConsultaAgregada, ReporteDAO } from '../../dao/Repor
 import type { Lugar } from '../../entity/Lugar.js';
 import { AgrupacionHistorial } from '../../enum/AgrupacionHistorial.js';
 import { FiltroDias } from '../../enum/FiltroDias.js';
-import { NivelSaturacion } from '../../enum/NivelSaturacion.js';
 import { CodigoError } from '../../exception/CodigoError.js';
 import { LugarNoEncontradoException } from '../../exception/lugar/LugarNoEncontradoException.js';
 import { ValidacionException } from '../../exception/http/ValidacionException.js';
+import { nivelPorPromedio } from '../../entity/valorNivel.js';
 import { diaDe, diasEntre, inicioDelDiaDe, sumarDias } from '../../util/dia.js';
 import type { Reloj } from '../../util/Reloj.js';
 import type {
@@ -31,9 +31,6 @@ const DIAS_ANTES_HISTORIAL_DIARIO = 6;
 /** Smallest difference between periods worth naming in the summary. */
 const UMBRAL_DIFERENCIA_NOTABLE = 0.3;
 const MEJORES_HORAS = 3;
-/** Opening hours assumed for a place that has none recorded. */
-const APERTURA_POR_DEFECTO = 8;
-const CIERRE_POR_DEFECTO = 22;
 
 export interface DependenciasAnaliticaService {
   lugarDAO: LugarDAO;
@@ -45,6 +42,9 @@ export interface DependenciasAnaliticaService {
   minMuestras: number;
   umbralModerado: number;
   umbralSaturado: number;
+  /** Opening hours assumed for a place with none recorded (ANALITICA_HORA_APERTURA / ANALITICA_HORA_CIERRE). */
+  horaAperturaPorDefecto: number;
+  horaCierrePorDefecto: number;
 }
 
 /** Weighted accumulator: hourly averages are combined by their number of samples. */
@@ -149,7 +149,7 @@ export class AnaliticaServiceImpl implements AnaliticaService {
     const ventana = this.ventana(lugarId, desde, hasta, dias);
     const { reporteDAO, minMuestras } = this.deps;
     const [agregados, sintetico] = await Promise.all([reporteDAO.agregarPorHora(ventana), reporteDAO.hayReportesSinteticos(ventana)]);
-    const abierto = horarioDe(lugar);
+    const abierto = horarioDe(lugar, this.deps.horaAperturaPorDefecto, this.deps.horaCierrePorDefecto);
     const recomendaciones: FranjaRecomendada[] = [...porHoraDelDia(agregados).entries()]
       .filter(([hora, celda]) => abierto(hora) && celda.muestras >= minMuestras)
       .map(([hora, celda]) => ({ hora, promedio: promedioDe(celda), muestras: celda.muestras }))
@@ -158,7 +158,7 @@ export class AnaliticaServiceImpl implements AnaliticaService {
       .map(({ hora, promedio, muestras }) => ({
         horaInicio: hora,
         horaFin: hora + 1,
-        nivel: this.nivelDe(promedio),
+        nivel: nivelPorPromedio(promedio, this.deps),
         promedio: redondear(promedio),
         muestras,
       }));
@@ -212,17 +212,12 @@ export class AnaliticaServiceImpl implements AnaliticaService {
     }
     return diferencias;
   }
-
-  private nivelDe(promedio: number): NivelSaturacion {
-    if (promedio < this.deps.umbralModerado) return NivelSaturacion.TRANQUILO;
-    return promedio < this.deps.umbralSaturado ? NivelSaturacion.MODERADO : NivelSaturacion.SATURADO;
-  }
 }
 
 /** Whether an hour of day lies inside the opening hours; a closing hour before the opening one crosses midnight. */
-function horarioDe(lugar: Lugar): (hora: number) => boolean {
-  const apertura = lugar.horaApertura ?? APERTURA_POR_DEFECTO;
-  const cierre = lugar.horaCierre ?? CIERRE_POR_DEFECTO;
+function horarioDe(lugar: Lugar, aperturaPorDefecto: number, cierrePorDefecto: number): (hora: number) => boolean {
+  const apertura = lugar.horaApertura ?? aperturaPorDefecto;
+  const cierre = lugar.horaCierre ?? cierrePorDefecto;
   return apertura < cierre ? (hora) => hora >= apertura && hora < cierre : (hora) => hora >= apertura || hora < cierre;
 }
 

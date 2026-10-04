@@ -29,8 +29,9 @@ route is a 501 stub until its stream replaces the handler in `route/<modulo>.rou
 - Schema changes are new migrations; the delivered migrations (`database/migrations/20261005000001` to `000010` and
   `000012`) are never edited.
 - Transactions: a service receives `ContextoTx` from its facade and passes it to the DAOs. Events are published
-  after the commit, never inside it. `PublicadorSaturacion` awaits subscribers one at a time, so a slow subscriber
-  delays the ones after it; keep observers fast.
+  after the commit, never inside it. `PublicadorSaturacion` starts every subscriber at once and isolates their
+  failures; the report facade waits for the round at most `EVENTOS_PRESUPUESTO_MS` and lets it finish in the
+  background, so a slow subscriber never holds the HTTP answer. Delivery is at-most-once (`docs/decisiones.md`).
 - Every port doc comment states its pattern (`Pattern:`) and its owning stream (`Owner:`); a new port does too
   (`test/ops/contratosStreams.unit.test.ts` enforces it, and that every method named below exists in its file).
 
@@ -139,6 +140,12 @@ Interfaces to implement:
   already exists).
 - `dao/FavoritoDAO.ts`, `dao/AlertaDAO.ts`, `dao/DispositivoDAO.ts` -> `dao/impl/sequelize/{Favorito,Alerta,Dispositivo}DAOSequelize.ts`.
 
+Breaking changes to `AlertaService` (delivered in M3-BE-03, already merged): `listar(usuarioId, paginacion)` now resolves
+`ListadoAlertas` (`pagina` of `AlertaConLugar` plus `noLeidas`), `marcarLeida` resolves `AlertaConLugar`, `contarNoLeidas`
+was added, `soloNoLeidas` and the device methods were dropped. The device registration moved to the new port
+`service/DispositivoService.ts` (`registrar`, `eliminar`), whose Sequelize side keeps at most `DISPOSITIVOS_MAX_POR_USUARIO`
+devices per user (`DispositivoDAO.conservarMasRecientes`). Any caller written against the frozen sketch must follow them.
+
 Owned files: `service/impl/{Exploracion,Favorito,Alerta}ServiceImpl.ts`, `controller/{Exploracion,Favorito,Alerta}Controller.ts`,
 `mapper/{Favorito,Alerta}Mapper.ts`, `pattern/observer/AlertaFavoritosObserver.ts`, `util/geo.ts`,
 `dao/impl/sequelize/{Favorito,Alerta,Dispositivo}DAOSequelize.ts`,
@@ -192,7 +199,7 @@ Shared ports (contract PR required):
   `revocarPorReporteEliminado`.
 - `service/SaturacionService.ts`: owner M4. Reviewer: M6. Writes: `recalcular`.
 - `pattern/observer/SaturacionCambiadaEvento.ts`: owner M4. Reviewer: M3. Writes: `crearEventoSaturacion`.
-- `dao/LugarDAO.ts`: owner M2. Reviewer: M2, M3. Reads: `buscarPorId`. Writes: `actualizarSaturacion`.
+- `dao/LugarDAO.ts`: owner M2. Reviewer: M2, M3. Reads: `buscarPorId`, `buscarPorIdParaActualizar`. Writes: `actualizarSaturacion`.
 - `dao/UsuarioDAO.ts`: owner C0. Reviewer: lead, M1, M6. Writes: `incrementarKarma`.
 
 How to run tests: `npm test` (strategies and services with `ReporteDAOMemoria`, `RelojFijo`);
@@ -222,8 +229,24 @@ M4 notes (delivered in the BE-01..03 slices):
   `sintetico`); `ReporteDAO` gained `hayReportesSinteticos(consulta)` (implemented in the Sequelize class and in
   `ReporteDAOMemoria`; the shared `Sembrador` gained `usuarioSintetico()`). `DependenciasInfraestructura` gained an optional
   `reloj` (the system clock when omitted). The demo-user marker is the email domain in `util/sintetico.ts`.
-- Test file names: rubric kinds end in `.unit.test.ts` (e.g. `SaturacionPonderadaStrategy.whitebox.unit.test.ts`), since
-  `convenciones.unit.test.ts` only accepts `.unit`, `.api` and `.contract`.
+- Contract touch (M4-BE-05b): `AnaliticaService.obtenerMejorHorario(lugarId, dias, semanas)` (mejor-horario) was split from
+  BE-05 to keep the slice under the review budget; a place without opening hours uses `ANALITICA_HORA_APERTURA` /
+  `ANALITICA_HORA_CIERRE` (8 and 22).
+- Contract touch (M4-BE-06): the seeder `20261005100003-historial-sintetico.cjs` and its pure generator
+  `database/lib/historial-sintetico.cjs` (outside `database/seeders`, because sequelize-cli runs every file of that folder).
+  The switch `SEED_DEMO` was renamed `SEED_SINTETICO` (unset: on outside production, off in production; `true` in
+  production is rejected). `down` deletes what points at the demo users before their reports and the users.
+- Integration touches (mvp-fixes-01): `LugarDAO.buscarPorIdParaActualizar(id, tx)` (`SELECT ... FOR UPDATE`, taken by the
+  facade after the cooldown check), `ReporteDAO.contarPremiadosDeUsuarioDesde` takes `pg_advisory_xact_lock(usuarioId, 0)`,
+  and `DispositivoDAO.conservarMasRecientes`; the locking order is in `docs/decisiones.md`. The nivel-to-number mapping is
+  `entity/valorNivel.ts` (the SQL `CASE` of `agregarPorHora` is generated from it) and time factors live in `util/tiempo.ts`.
+- `SembradorSequelize` has a single owner: the shared test support, `test/support/dao/sequelize/SembradorSequelize.ts`
+  (the M3 and M4 copies were merged at the integration; `usuarioSintetico()` and the idempotent `favorito()` live there).
+  A stream that needs another seeded row adds it there through a contract PR instead of keeping its own copy.
+- Test file names: the per-stream evidence tests use the kind directly, `X.whitebox.test.ts` and `X.blackbox.test.ts`
+  (`SaturacionPonderadaStrategy.whitebox.test.ts`, `comparar.blackbox.test.ts`); `test/ops/convenciones.unit.test.ts`
+  accepts `.unit`, `.api`, `.contract`, `.whitebox` and `.blackbox`. `AlertaFavoritosObserver.whitebox.unit.test.ts` (M3)
+  still carries the older double suffix.
 
 ## M5 Validation and complaints
 

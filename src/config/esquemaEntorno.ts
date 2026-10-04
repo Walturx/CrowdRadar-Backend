@@ -147,6 +147,9 @@ export const esquemaEntorno = z
     RADIO_PENDIENTES_KM: decimal(5),
     VENTANA_PENDIENTES_HORAS: entero(3, 1, 24),
     ANALITICA_MIN_MUESTRAS: entero(5, 1),
+    // Opening hours assumed for a place without them (best-hour recommendations) and used by the demo history seeder.
+    ANALITICA_HORA_APERTURA: entero(8, 0, 23),
+    ANALITICA_HORA_CIERRE: entero(22, 1, 24),
     SUSPENSION_DIAS_PERMITIDOS: diasDeSuspension,
     // After a report commit the answer waits at most this long for the event subscribers (delivery goes on in background).
     EVENTOS_PRESUPUESTO_MS: entero(500, 1),

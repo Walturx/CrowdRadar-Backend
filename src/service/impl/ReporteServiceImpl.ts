@@ -6,9 +6,8 @@ import type { ReporteSaturacion } from '../../entity/ReporteSaturacion.js';
 import type { NivelSaturacion } from '../../enum/NivelSaturacion.js';
 import { ReporteEnEsperaException } from '../../exception/reporte/ReporteEnEsperaException.js';
 import type { Reloj } from '../../util/Reloj.js';
+import { MS_POR_MINUTO } from '../../util/tiempo.js';
 import type { ReporteDeUsuario, ReporteService } from '../ReporteService.js';
-
-const MS_POR_MINUTO = 60_000;
 
 export interface DependenciasReporteService {
   reporteDAO: ReporteDAO;

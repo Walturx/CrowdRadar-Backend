@@ -1,7 +1,5 @@
+import { MS_POR_MINUTO } from '../util/tiempo.js';
 import { validarEntorno, type Entorno } from './esquemaEntorno.js';
-
-/** Milliseconds in a minute, to turn the `*_MIN` settings into timer values. */
-const MS_POR_MINUTO = 60_000;
 
 function congelar<T>(valor: T): Readonly<T> {
   if (typeof valor === 'object' && valor !== null && !Object.isFrozen(valor)) {
@@ -96,6 +94,8 @@ export class ConfiguracionApp {
       radioPendientesKm: env.RADIO_PENDIENTES_KM,
       ventanaPendientesHoras: env.VENTANA_PENDIENTES_HORAS,
       analiticaMinMuestras: env.ANALITICA_MIN_MUESTRAS,
+      analiticaHoraApertura: env.ANALITICA_HORA_APERTURA,
+      analiticaHoraCierre: env.ANALITICA_HORA_CIERRE,
       suspensionDiasPermitidos: env.SUSPENSION_DIAS_PERMITIDOS,
       eventosPresupuestoMs: env.EVENTOS_PRESUPUESTO_MS,
       alertasConcurrencia: env.ALERTAS_CONCURRENCIA,

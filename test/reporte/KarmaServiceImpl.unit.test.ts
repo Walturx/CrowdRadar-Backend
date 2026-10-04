@@ -113,8 +113,8 @@ describe('KarmaServiceImpl', () => {
       expect(await karmaDe()).toBe(4);
     });
 
-    it('un usuario inexistente concede 0', async () => {
-      expect(await servicio.otorgarPorValidacion(999_999, TX)).toBe(0);
+    it('un usuario inexistente lanza UsuarioNoEncontradoException, igual que otorgarPorReporte', async () => {
+      await expect(servicio.otorgarPorValidacion(999_999, TX)).rejects.toBeInstanceOf(UsuarioNoEncontradoException);
     });
   });
 

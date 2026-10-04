@@ -1,4 +1,4 @@
-const MS_POR_SEGUNDO = 1000;
+import { MS_POR_DIA, MS_POR_SEGUNDO } from './tiempo.js';
 
 type Parte = 'hour' | 'minute' | 'second';
 
@@ -23,7 +23,6 @@ export function inicioDelDiaEn(instante: Date, zona: string): Date {
   return new Date(instante.getTime() - milisegundos - segundosDelDia * MS_POR_SEGUNDO);
 }
 
-const MS_POR_DIA = 86_400_000;
 const FORMATO_DIA = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 /** Calendar day (YYYY-MM-DD) of an instant in the IANA zone `zona`. */

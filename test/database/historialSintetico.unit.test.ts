@@ -22,7 +22,7 @@ const lib = requerir('../../database/lib/historial-sintetico.cjs') as {
   USUARIOS: { nombre: string; apellido: string; email: string }[];
   DIAS_HISTORIAL: number;
   habilitado(env: Record<string, string | undefined>): boolean;
-  generarReportes(entrada: { lugares: Lugar[]; usuarioIds: number[]; hoy: string }): Fila[];
+  generarReportes(entrada: { lugares: Lugar[]; usuarioIds: number[]; hoy: string; horario?: { apertura: number; cierre: number } }): Fila[];
 };
 const seeder = requerir('../../database/seeders/20261005100003-historial-sintetico.cjs') as {
   up(queryInterface: unknown): Promise<void>;
@@ -93,6 +93,12 @@ describe('generarReportes', () => {
     }
     expect(filas.length).toBeGreaterThan(45 * 28 * 5);
     expect(filas.length).toBeLessThan(45 * 28 * 14);
+  });
+
+  it('con un horario configurado (ANALITICA_HORA_*) genera solo dentro de esas horas', () => {
+    const filas = lib.generarReportes({ ...entrada, horario: { apertura: 10, cierre: 12 } });
+    expect(filas.length).toBeGreaterThan(45 * 28);
+    expect(new Set(filas.map((f) => enLima(f.fecha_hora).hora))).toEqual(new Set([10, 11]));
   });
 
   it('solo usa los usuarios dados y reparte los reportes entre todos', () => {

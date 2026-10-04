@@ -15,7 +15,7 @@ export interface ResultadoKarma {
 export interface KarmaService {
   /** Awards KARMA_POR_REPORTE unless the daily cap of rewarded reports is reached (then 0 + TOPE_DIARIO). */
   otorgarPorReporte(usuarioId: number, reporteId: number, tx: ContextoTx): Promise<ResultadoKarma>;
-  /** Awards KARMA_POR_VALIDACION to the voter; resolves with the points granted (0 when none applies). */
+  /** Awards KARMA_POR_VALIDACION to the voter and resolves with the points granted; UsuarioNoEncontradoException when the voter does not exist. */
   otorgarPorValidacion(usuarioId: number, tx: ContextoTx): Promise<number>;
   /** Takes back the points of a removed report; the total never goes below 0. */
   revocarPorReporteEliminado(reporteId: number, tx: ContextoTx): Promise<void>;

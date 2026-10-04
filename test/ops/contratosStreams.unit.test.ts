@@ -113,6 +113,40 @@ describe.each(['M1', 'M2', 'M3', 'M4', 'M5', 'M6'])('docs/contratos-streams.md: 
   });
 });
 
+describe('docs/contratos-streams.md: notas de integracion de M3 y M4', () => {
+  const seccion = (stream: string) => doc.split(/^## /m).find((s) => s.startsWith(`${stream} `)) ?? '';
+
+  it('las reglas comunes ya no dicen que el publicador espera a los suscriptores uno a uno', () => {
+    expect(doc).not.toMatch(/awaits subscribers one at a time/);
+    expect(doc).toMatch(/EVENTOS_PRESUPUESTO_MS/);
+  });
+
+  it('M4 documenta los toques de contrato de BE-04 a BE-06 y los bloqueos del flujo de reportes', () => {
+    const m4 = seccion('M4');
+    for (const texto of ['M4-BE-05b', 'M4-BE-06', 'SEED_SINTETICO', 'database/lib/historial-sintetico.cjs', 'buscarPorIdParaActualizar']) {
+      expect(m4, texto).toContain(texto);
+    }
+    expect(m4).toMatch(/SEED_DEMO. was renamed .SEED_SINTETICO/);
+  });
+
+  it('M4 declara la fachada y las estrategias como Observer/Strategy con duenio M4 y nombra los bloqueos', () => {
+    expect(seccion('M4')).toMatch(/pg_advisory_xact_lock\(usuarioId, 0\)/);
+    expect(seccion('M4')).toMatch(/FOR UPDATE/);
+  });
+
+  it('M3 documenta los cambios incompatibles de AlertaService y el puerto DispositivoService', () => {
+    const m3 = seccion('M3');
+    for (const texto of ['ListadoAlertas', 'AlertaConLugar', 'contarNoLeidas', 'soloNoLeidas', 'DispositivoService']) {
+      expect(m3, texto).toContain(texto);
+    }
+  });
+
+  it('un unico duenio del SembradorSequelize: el soporte de pruebas compartido', () => {
+    expect(doc).toMatch(/SembradorSequelize[^\n]*(shared test support|single owner)/i);
+    expect(doc.match(/test\/support\/dao\/sequelize\/SembradorSequelize\.ts/g)?.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
 describe('docs/contratos-streams.md: LugarDAO es de M2 por completo', () => {
   const seccion = (stream: string) => doc.split(/^## /m).find((s) => s.startsWith(`${stream} `)) ?? '';
 
