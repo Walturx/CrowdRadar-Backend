@@ -2,6 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import type { EnviadorCorreo } from '../../adapter/correo/EnviadorCorreo.js';
 import type { GeneradorToken } from '../../adapter/seguridad/GeneradorToken.js';
 import type { Hasher } from '../../adapter/seguridad/Hasher.js';
+import type { DispositivoDAO } from '../../dao/DispositivoDAO.js';
 import type { TokenRecuperacionDAO } from '../../dao/TokenRecuperacionDAO.js';
 import type { UsuarioDAO } from '../../dao/UsuarioDAO.js';
 import type { ConexionBD, ContextoTx } from '../../datasource/ConexionBD.js';
@@ -20,6 +21,8 @@ import type { RecuperacionFacade } from '../RecuperacionFacade.js';
 export interface DependenciasRecuperacionFacade {
   usuarioDAO: UsuarioDAO;
   tokenDAO: TokenRecuperacionDAO;
+  /** A reset ends the user's push sessions: their devices are deleted. */
+  dispositivoDAO: DispositivoDAO;
   hasher: Hasher;
   generador: GeneradorToken;
   correo: EnviadorCorreo;
@@ -33,6 +36,12 @@ export interface DependenciasRecuperacionFacade {
   /** DETALLADA answers 404 for an unknown email; GENERICA hides it. */
   politicaMensajes: 'GENERICA' | 'DETALLADA';
 }
+
+/** Live recovery links one user can hold at once; the oldest is dropped, so a request flood cannot bury the real link nor pile up tokens. */
+export const MAX_TOKENS_VIGENTES = 3;
+
+const escaparHtml = (texto: string): string =>
+  texto.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
 const iguales = (a: string, b: string): boolean => a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 
@@ -57,11 +66,13 @@ export class RecuperacionFacadeImpl implements RecuperacionFacade {
     const token = generador.generar();
     const ahora = reloj.ahora();
     await conexion.transaccion(async (tx) => {
-      await tokenDAO.invalidarVigentesDeUsuario(usuario.id, ahora, tx);
+      // A new request does not kill the link already mailed (a hostile request would otherwise lock the owner out):
+      // the older tokens stay valid until they expire, are spent or fall out of the newest MAX_TOKENS_VIGENTES.
       await tokenDAO.crear(
         { usuarioId: usuario.id, tokenHash: generador.hashear(token), expiraEn: new Date(ahora.getTime() + expiraMin * MS_POR_MINUTO) },
         tx,
       );
+      await tokenDAO.limitarVigentes(usuario.id, MAX_TOKENS_VIGENTES, ahora, tx);
     });
     logger.info({ evento: 'recuperacion.solicitud', resultado: 'enviada', email: emailEnmascarado }, 'Recuperación solicitada');
     // Not awaited: the answer must not depend on the mail provider (nor reveal, by its latency, that the account exists).
@@ -74,7 +85,7 @@ export class RecuperacionFacadeImpl implements RecuperacionFacade {
 
   /** Flow of the white-box test (CC = 7): unknown/used, expired, user missing, repeated password, lost claim, success. */
   async restablecer(token: string, nuevaPassword: string): Promise<void> {
-    const { usuarioDAO, tokenDAO, hasher, conexion, reloj, logger } = this.deps;
+    const { usuarioDAO, tokenDAO, dispositivoDAO, hasher, conexion, reloj, logger } = this.deps;
     await conexion.transaccion(async (tx) => {
       const registro = this.exigirVigente(await this.buscarPorToken(token, tx));
       const usuario = await usuarioDAO.buscarPorId(registro.usuarioId, tx);
@@ -85,6 +96,7 @@ export class RecuperacionFacadeImpl implements RecuperacionFacade {
       // nothing left to spend, so a token works exactly once.
       if ((await tokenDAO.invalidarVigentesDeUsuario(usuario.id, reloj.ahora(), tx)) === 0) throw new TokenRecuperacionInvalidoException();
       await usuarioDAO.actualizarPasswordHash(usuario.id, await hasher.generar(nuevaPassword), tx);
+      await dispositivoDAO.eliminarDeUsuario(usuario.id, tx);
       logger.info({ evento: 'recuperacion.restablecimiento', resultado: 'ok', usuarioId: usuario.id }, 'Contraseña restablecida');
     });
   }
@@ -111,7 +123,7 @@ export class RecuperacionFacadeImpl implements RecuperacionFacade {
         para: usuario.email,
         asunto: 'Restablece tu contraseña de CrowdRadar',
         texto: `Hola ${usuario.nombre}, usa este enlace para elegir una nueva contraseña (vale ${expiraMin} minutos): ${enlace}`,
-        html: `<p>Hola ${usuario.nombre},</p><p><a href="${enlace}">Elige una nueva contraseña</a>. El enlace vale ${expiraMin} minutos.</p>`,
+        html: `<p>Hola ${escaparHtml(usuario.nombre)},</p><p><a href="${enlace}">Elige una nueva contraseña</a>. El enlace vale ${expiraMin} minutos.</p>`,
       });
     } catch (error) {
       logger.error(

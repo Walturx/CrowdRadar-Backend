@@ -240,7 +240,7 @@ or missing value prints every offending key (never its value) and exits with cod
 |---|---|
 | `NODE_ENV` | `development`, `test` or `production` (development) |
 | `PUERTO` | Port the API listens on (3000) |
-| `URL_PUBLICA` | Public base URL, used in links (http://localhost:3000) |
+| `URL_PUBLICA` | Public base URL, used in links; must be an http(s) URL (http://localhost:3000) |
 | `CORS_ORIGENES` | Comma separated allowed origins; others get no CORS headers (http://localhost:3000) |
 | `LOG_NIVEL` | pino level: fatal, error, warn, info, debug, trace, silent (info) |
 | `ZONA_HORARIA` | IANA time zone for aggregations and opening hours (America/Lima); an unknown name stops the boot |
@@ -301,7 +301,8 @@ or missing value prints every offending key (never its value) and exits with cod
 | `LUGARES_Q_MIN` / `LUGARES_Q_MAX` | Length bounds of the search text `q` in `GET /api/lugares` (2 / 60) |
 | `LUGARES_LIMITE_MAX` | Largest `limite` accepted by the places list, and the hard cap of `LugarDAO.buscar` and `explorar` (200) |
 | `LUGARES_LIMITE_DEFAULT` | `limite` used when the request omits it; must not exceed the maximum (200) |
-| `CORREO_PROVEEDOR` | `consola` (the mail is written to the log, so the recovery link can be followed in a demo) or `smtp` (not delivered yet: the server refuses to start with it) (consola) |
+| `CORREO_PROVEEDOR` | `consola` (development only: logs the recipient and the link with the token masked to its last 4 characters; refused when `NODE_ENV=production`) or `smtp` (not delivered yet: the server refuses to start with it) (consola) |
+| `CORREO_MOSTRAR_ENLACE_DEV` | `true` also logs the full recovery link so a demo can follow it; refused when `NODE_ENV=production` (false) |
 | `CORREO_REMITENTE` | From address of outgoing mail |
 | `SMTP_HOST` | Required with `smtp` |
 | `SMTP_PUERTO` | SMTP port (587) |

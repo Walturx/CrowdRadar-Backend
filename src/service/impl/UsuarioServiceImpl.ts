@@ -1,4 +1,5 @@
 import type { Hasher } from '../../adapter/seguridad/Hasher.js';
+import type { DispositivoDAO } from '../../dao/DispositivoDAO.js';
 import type { UsuarioDAO } from '../../dao/UsuarioDAO.js';
 import type { ActualizarPerfilRequestDTO } from '../../dto/request/usuario/ActualizarPerfilRequestDTO.js';
 import type { CambiarPasswordRequestDTO } from '../../dto/request/usuario/CambiarPasswordRequestDTO.js';
@@ -12,6 +13,8 @@ import type { UsuarioService } from '../UsuarioService.js';
 export interface DependenciasUsuarioService {
   usuarioDAO: UsuarioDAO;
   hasher: Hasher;
+  /** A password change ends the push sessions: the user's devices are deleted. */
+  dispositivoDAO: DispositivoDAO;
 }
 
 export class UsuarioServiceImpl implements UsuarioService {
@@ -30,7 +33,7 @@ export class UsuarioServiceImpl implements UsuarioService {
   }
 
   async cambiarPassword(usuarioId: number, dto: CambiarPasswordRequestDTO): Promise<void> {
-    const { usuarioDAO, hasher } = this.deps;
+    const { usuarioDAO, hasher, dispositivoDAO } = this.deps;
     const usuario = await usuarioDAO.buscarPorId(usuarioId);
     if (!usuario) throw new UsuarioNoEncontradoException();
 
@@ -40,5 +43,6 @@ export class UsuarioServiceImpl implements UsuarioService {
     if (dto.nuevaPassword === dto.passwordActual) throw new PasswordRepetidaException();
 
     await usuarioDAO.actualizarPasswordHash(usuarioId, await hasher.generar(dto.nuevaPassword));
+    await dispositivoDAO.eliminarDeUsuario(usuarioId);
   }
 }

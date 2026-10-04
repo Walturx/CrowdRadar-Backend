@@ -76,6 +76,10 @@ export class DispositivoDAOSequelize implements DispositivoDAO {
     return (filas as { rowCount?: number }).rowCount ?? 0;
   }
 
+  eliminarDeUsuario(usuarioId: number, tx?: ContextoTx): Promise<number> {
+    return DispositivoModel.destroy({ where: { usuarioId }, transaction: aTransaccion(tx) });
+  }
+
   eliminarTokens(tokens: readonly string[], tx?: ContextoTx): Promise<number> {
     if (tokens.length === 0) return Promise.resolve(0);
     return DispositivoModel.destroy({ where: { tokenFcm: { [Op.in]: [...tokens] } }, transaction: aTransaccion(tx) });

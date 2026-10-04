@@ -76,9 +76,26 @@ describe('API de recuperacion de contrasena (contenedor de prueba)', () => {
       expect((await solicitar()).status).toBe(200);
     });
 
-    it('429 DEMASIADAS_SOLICITUDES on the 6th request from one IP', async () => {
-      for (let i = 0; i < 5; i++) expect((await solicitar()).status).toBe(200);
+    it('429 on the 4th request for the same email even when the IP limit is not reached (R1-1302, 3 per hour)', async () => {
+      for (let i = 0; i < 3; i++) expect((await solicitar()).status).toBe(200);
       const res = await solicitar();
+      expect(res.status).toBe(429);
+      expect(res.body.code).toBe('DEMASIADAS_SOLICITUDES');
+      expect(Number(res.headers['retry-after'])).toBeGreaterThan(0);
+      // the mails sent are exactly the 3 allowed, and another email is not affected
+      expect(ctx.correo.enviados).toHaveLength(3);
+      expect((await solicitar('otra@crowdradar.pe')).status).toBe(200);
+    });
+
+    it('the per-email counter ignores case and spaces, so a variant of the address cannot dodge it', async () => {
+      for (const variante of [registro.email, registro.email.toUpperCase(), `  ${registro.email}  `]) expect((await solicitar(variante)).status).toBe(200);
+      expect((await solicitar()).status).toBe(429);
+    });
+
+    it('429 DEMASIADAS_SOLICITUDES on the 6th request from one IP', async () => {
+      // distinct emails: the per-email counter (3 per hour) is not what trips here
+      for (let i = 0; i < 5; i++) expect((await solicitar(`persona${i}@crowdradar.pe`)).status).toBe(200);
+      const res = await solicitar('persona5@crowdradar.pe');
       expect(res.status).toBe(429);
       expect(res.body.code).toBe('DEMASIADAS_SOLICITUDES');
       expect(res.headers['retry-after']).toBeDefined();

@@ -123,4 +123,11 @@ describe('GET /recuperar/restablecer (pagina de restablecimiento)', () => {
       expect(JSON.stringify(lineas)).not.toContain(token);
     });
   });
+
+  it('the page is rate limited per IP like the reset endpoint (R1-1306): the 11th view is a 429', async () => {
+    for (let i = 0; i < 10; i++) expect((await pagina('x')).status).not.toBe(429);
+    const res = await pagina('x');
+    expect(res.status).toBe(429);
+    expect(res.headers['retry-after']).toBeDefined();
+  });
 });

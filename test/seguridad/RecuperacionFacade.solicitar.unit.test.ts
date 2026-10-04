@@ -39,11 +39,26 @@ describe('RecuperacionFacadeImpl.solicitar', () => {
     expect((await e.tokenDAO.buscarPorHash(e.hashDe('tok-1')))?.expiraEn).toEqual(new Date(AHORA.getTime() + 5 * 60_000));
   });
 
-  it('a second request invalidates the first token and leaves one live token', async () => {
+  it('a later request does not kill the pending link: an earlier mail keeps working (R1-1302)', async () => {
     await e.facade.solicitar(EMAIL);
     await e.facade.solicitar(EMAIL);
-    expect((await e.tokenDAO.buscarPorHash(e.hashDe('tok-1')))?.usadoEn).toEqual(AHORA);
+    expect((await e.tokenDAO.buscarPorHash(e.hashDe('tok-1')))?.usadoEn).toBeNull();
     expect((await e.tokenDAO.buscarPorHash(e.hashDe('tok-2')))?.usadoEn).toBeNull();
+  });
+
+  it('keeps at most 3 live tokens per user: the 4th request drops the oldest (R1-1302)', async () => {
+    for (let i = 0; i < 4; i++) await e.facade.solicitar(EMAIL);
+    const usados = await Promise.all(['tok-1', 'tok-2', 'tok-3', 'tok-4'].map(async (t) => (await e.tokenDAO.buscarPorHash(e.hashDe(t)))?.usadoEn ?? null));
+    expect(usados).toEqual([AHORA, null, null, null]);
+  });
+
+  it('escapes the name in the HTML body (R1-1305) and leaves the text body as typed', async () => {
+    await e.usuarioDAO.actualizarPerfil(e.usuario.id, { nombre: '<img src=x onerror=alert(1)>&"' });
+    await e.facade.solicitar(EMAIL);
+    const mensaje = e.correo.enviados[0]!;
+    expect(mensaje.html).not.toContain('<img');
+    expect(mensaje.html).toContain('&lt;img src=x onerror=alert(1)&gt;&amp;&quot;');
+    expect(mensaje.texto).toContain('<img');
   });
 
   it('the mail is sent after the transaction commits', async () => {

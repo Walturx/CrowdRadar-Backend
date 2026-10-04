@@ -110,6 +110,7 @@ export class ConfiguracionApp {
     this.correo = congelar({
       proveedor: env.CORREO_PROVEEDOR,
       remitente: env.CORREO_REMITENTE,
+      mostrarEnlaceDev: env.CORREO_MOSTRAR_ENLACE_DEV,
       smtp: { host: env.SMTP_HOST, puerto: env.SMTP_PUERTO, usuario: env.SMTP_USUARIO, password: env.SMTP_PASSWORD },
     });
     this.push = congelar({

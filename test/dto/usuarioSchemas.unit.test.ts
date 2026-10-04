@@ -131,3 +131,20 @@ describe('cambiarPasswordSchema', () => {
     expect(cambiarPasswordSchema.safeParse({ ...valido, extra: 1 }).success).toBe(false);
   });
 });
+
+describe('actualizarPerfilSchema: telefono y distrito como en el registro (R3-1302)', () => {
+  it.each(['12345', '812345678', '98765432', '9876543210', 'abcdefghi'])('rechaza el telefono %s', (telefono) => {
+    expect(campos(actualizarPerfilSchema.safeParse({ telefono }))).toEqual(['telefono']);
+  });
+
+  it('acepta un telefono valido y lo vacio (null)', () => {
+    expect(actualizarPerfilSchema.parse({ telefono: '987654321' })).toEqual({ telefono: '987654321' });
+    expect(actualizarPerfilSchema.parse({ telefono: '' })).toEqual({ telefono: null });
+  });
+
+  it('rechaza un distrito de 1 caracter y acepta 2; lo vacio queda en null', () => {
+    expect(campos(actualizarPerfilSchema.safeParse({ distrito: 'A' }))).toEqual(['distrito']);
+    expect(actualizarPerfilSchema.parse({ distrito: 'Ate' })).toEqual({ distrito: 'Ate' });
+    expect(actualizarPerfilSchema.parse({ distrito: ' ' })).toEqual({ distrito: null });
+  });
+});

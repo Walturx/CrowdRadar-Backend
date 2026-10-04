@@ -59,6 +59,19 @@ export function contratoTokenRecuperacionDAO(
       expect(await dao.invalidarVigentesDeUsuario(usuarioId, minutos(11))).toBe(0);
     });
 
+    it('limitarVigentes conserva solo los N mas recientes vigentes del usuario y gasta los mas viejos (R1-1302)', async () => {
+      const otro = await sembrador.usuario();
+      await dao.crear({ usuarioId, tokenHash: hash('v'), expiraEn: minutos(5) }); // already expired at minute 10: neither counted nor touched
+      for (const c of ['a', 'b', 'c', 'd']) await dao.crear({ usuarioId, tokenHash: hash(c), expiraEn: minutos(30) });
+      await dao.crear({ usuarioId: otro, tokenHash: hash('o'), expiraEn: minutos(30) });
+      expect(await dao.limitarVigentes(usuarioId, 3, minutos(10))).toBe(1);
+      expect((await dao.buscarPorHash(hash('a')))?.usadoEn).toEqual(minutos(10));
+      for (const c of ['b', 'c', 'd']) expect((await dao.buscarPorHash(hash(c)))?.usadoEn).toBeNull();
+      expect((await dao.buscarPorHash(hash('v')))?.usadoEn).toBeNull();
+      expect((await dao.buscarPorHash(hash('o')))?.usadoEn).toBeNull();
+      expect(await dao.limitarVigentes(usuarioId, 3, minutos(11))).toBe(0);
+    });
+
     it('crear con un tokenHash repetido lanza ConflictoException (unique) y conserva el primero', async () => {
       const primero = await dao.crear({ usuarioId, tokenHash: hash('u'), expiraEn: minutos(30) });
       await expect(dao.crear({ usuarioId, tokenHash: hash('u'), expiraEn: minutos(60) })).rejects.toBeInstanceOf(

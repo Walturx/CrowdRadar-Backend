@@ -19,6 +19,16 @@ export const textoOpcional = (max: number) =>
     .nullable()
     .optional();
 
+/** Peruvian mobile number: 9 digits starting with 9 (API contract, section 5). Blank means "no value" (null). */
+export const telefonoSchema = textoOpcional(20)
+  .refine((valor) => valor == null || /^9\d{8}$/.test(valor), 'El teléfono debe tener 9 dígitos y empezar con 9.')
+  .transform((valor) => valor ?? null);
+
+/** District name: at least 2 characters. Blank means "no value" (null). */
+export const distritoSchema = textoOpcional(60)
+  .refine((valor) => valor == null || valor.length >= 2, 'El distrito debe tener al menos 2 caracteres.')
+  .transform((valor) => valor ?? null);
+
 /** Email normalised before it is validated: trimmed, lowercase, at most 120 characters. */
 export const emailSchema = z.string().trim().toLowerCase().pipe(z.email().max(120));
 

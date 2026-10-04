@@ -16,6 +16,20 @@ describe('passwordSeguraSchema', () => {
     expect(mensajes(password)).toEqual([]);
   });
 
+  it('counts code points, not UTF-16 units (R3-1301): 64 code points with emoji are accepted, 65 are rejected', () => {
+    const dosEmoji = '😀😀';
+    const en64 = `A1${'a'.repeat(60)}${dosEmoji}`; // 64 code points, 66 UTF-16 units, 68 bytes
+    expect([...en64]).toHaveLength(64);
+    expect(en64.length).toBeGreaterThan(64);
+    expect(mensajes(en64)).toEqual([]);
+    expect(mensajes(`A1${'a'.repeat(61)}${dosEmoji}`)).toHaveLength(1); // 65 code points
+  });
+
+  it('counts a short emoji password by code points (8 code points, 10 UTF-16 units)', () => {
+    expect(mensajes('A1aaaa😀😀')).toEqual([]);
+    expect(mensajes('A1aaa😀😀')).toHaveLength(1); // 7 code points
+  });
+
   it('rejects 7 characters with exactly one error (the length rule)', () => {
     expect(mensajes('Abcdef1')).toHaveLength(1);
   });

@@ -32,8 +32,8 @@ describe('RecuperacionFacadeImpl.validarToken', () => {
     await expect(e.facade.validarToken('tok-1')).rejects.toBeInstanceOf(TokenRecuperacionExpiradoException);
   });
 
-  it('a token invalidated by a newer request is invalid', async () => {
-    await e.facade.solicitar(e.usuario.email);
+  it('a token pushed out by the newest 3 (R1-1302) is invalid; the newer ones stay valid', async () => {
+    for (let i = 0; i < 3; i++) await e.facade.solicitar(e.usuario.email);
     await expect(e.facade.validarToken('tok-1')).rejects.toBeInstanceOf(TokenRecuperacionInvalidoException);
     await expect(e.facade.validarToken('tok-2')).resolves.toBeUndefined();
   });

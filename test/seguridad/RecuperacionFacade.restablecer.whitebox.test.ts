@@ -9,6 +9,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { TokenRecuperacionDAO } from '../../src/dao/TokenRecuperacionDAO.js';
 import type { UsuarioDAO } from '../../src/dao/UsuarioDAO.js';
+import { PlataformaPush } from '../../src/enum/PlataformaPush.js';
 import { PasswordRepetidaException } from '../../src/exception/usuario/PasswordRepetidaException.js';
 import { TokenRecuperacionExpiradoException } from '../../src/exception/recuperacion/TokenRecuperacionExpiradoException.js';
 import { TokenRecuperacionInvalidoException } from '../../src/exception/recuperacion/TokenRecuperacionInvalidoException.js';
@@ -80,6 +81,21 @@ describe('RecuperacionFacadeImpl.restablecer (CC = 7)', () => {
     expect(usuario?.passwordCambiadaEn).toEqual(e.reloj.ahora());
     expect((await e.tokenDAO.buscarPorHash(e.hashDe('tok-2')))?.usadoEn).toEqual(e.reloj.ahora());
     expect((await e.tokenDAO.buscarPorHash(e.hashDe('tok-9')))?.usadoEn).toEqual(e.reloj.ahora());
+  });
+
+  it('exito: borra los dispositivos push del usuario y no los de otros (R1-1304)', async () => {
+    await e.registrarDispositivo('fcm-1');
+    await e.registrarDispositivo('fcm-2');
+    await e.deps.dispositivoDAO.registrar(e.usuario.id + 1000, 'ajeno', PlataformaPush.IOS);
+    await e.facade.restablecer('tok-1', NUEVA);
+    expect(await e.deps.dispositivoDAO.listarTokensPorUsuario(e.usuario.id)).toEqual([]);
+    expect(await e.deps.dispositivoDAO.listarTokensPorUsuario(e.usuario.id + 1000)).toEqual(['ajeno']);
+  });
+
+  it('fallo (password repetida): los dispositivos se conservan', async () => {
+    await e.registrarDispositivo('fcm-1');
+    await expect(e.facade.restablecer('tok-1', PASSWORD_ACTUAL)).rejects.toBeInstanceOf(PasswordRepetidaException);
+    expect(await e.deps.dispositivoDAO.listarTokensPorUsuario(e.usuario.id)).toEqual(['fcm-1']);
   });
 
   it('un fallo dentro de la transaccion se propaga (la conexion revierte) y no confirma', async () => {
