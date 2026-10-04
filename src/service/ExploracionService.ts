@@ -11,6 +11,8 @@ export interface ConsultaExploracion {
   lng?: number;
   /** 0.1..20 km, default RADIO_BUSQUEDA_KM. */
   radioKm: number;
+  /** Maximum number of results, cut after filtering and ordering. */
+  limite: number;
 }
 
 export interface LugarExplorado {

@@ -168,6 +168,14 @@ How to run tests: `npm test` (the observer runs against `NotificadorEspia` and t
 deleted favourite to its alerts); `npm run test:db` with `DATABASE_URL_TEST` runs the three Sequelize DAOs through
 `ejecutarContratoDAO`; pass `alertas` to the favourite contract environment so the cascade case runs.
 
+Delivered (MVP): favourites (`FavoritoServiceImpl`, `FavoritoController`, 4 routes) and exploration (`ExploracionServiceImpl`,
+`ExploracionController`, `GET /api/lugares/explorar` and `/categorias`) are real, so M3 has no 501 route left. M2 owns
+`LugarDAOSequelize` (`explorar`, `contarPorCategoria`); M3 only consumes `LugarDAO.explorar` with a `FiltroExploracion`
+(category and bbox), reading at most `LUGARES_LIMITE_MAX` candidates and applying exact distance, effective level, order and the
+caller's `limite` itself. `FavoritoService` returns `FavoritoConLugar` (favourite, place, effective level) from every operation;
+`ConsultaExploracion` carries `limite`. `container/lugar.ts` builds `ExploracionServiceImpl` (it shares the places router) and
+`container/favoritoAlerta.ts` builds `FavoritoServiceImpl` from the shared `lugarDAO` and clock.
+
 ## M4 Reports, karma and analytics
 
 Interfaces to implement:
