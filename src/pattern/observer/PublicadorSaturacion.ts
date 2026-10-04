@@ -1,12 +1,13 @@
 import type { Logger } from '../../util/logger.js';
 import type { SaturacionCambiadaEvento } from './SaturacionCambiadaEvento.js';
 import type { SaturacionObserver } from './SaturacionObserver.js';
+import type { SaturacionSubject } from './SaturacionSubject.js';
 
 /**
  * Pattern: Observer (subject). Delivers each event to the subscribers in subscription order.
  * A failing subscriber is logged and skipped: it never breaks the publish nor the others.
  */
-export class PublicadorSaturacion {
+export class PublicadorSaturacion implements SaturacionSubject {
   private readonly suscriptores: SaturacionObserver[] = [];
 
   constructor(private readonly logger: Logger) {}

@@ -4,7 +4,7 @@
  * name every frozen port so no stream starts from a stale list.
  */
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
-import { resolve, join } from 'node:path';
+import { join, relative, resolve, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const RAIZ = resolve(import.meta.dirname, '..', '..');
@@ -15,7 +15,7 @@ function archivos(dir: string, filtro: RegExp): string[] {
   if (!existsSync(absoluto)) return [];
   return readdirSync(absoluto, { withFileTypes: true, recursive: true })
     .filter((e) => e.isFile() && filtro.test(e.name))
-    .map((e) => join(e.parentPath, e.name).replace(RAIZ, '').replaceAll('\', '/').replace(/^\//, ''));
+    .map((e) => relative(RAIZ, join(e.parentPath, e.name)).split(sep).join('/'));
 }
 
 describe('docs/contratos-streams.md', () => {
@@ -31,7 +31,7 @@ describe('docs/contratos-streams.md', () => {
     ...archivos('src/service', /^[A-Z]\w+(?<!Impl)\.ts$/).filter((f) => !f.includes('/impl/')),
     ...archivos('src/facade', /\.ts$/),
     ...archivos('src/pattern/strategy', /^Estrategia\w+\.ts$/),
-    ...archivos('src/pattern/observer', /^Saturacion(Observer|CambiadaEvento)\.ts$/),
+    ...archivos('src/pattern/observer', /^Saturacion(Observer|Subject|CambiadaEvento)\.ts$/),
     ...archivos('src/adapter', /^[A-Z]\w+\.ts$/).filter((f) => !f.includes('/impl/')),
     ...archivos('src/dao', /^[A-Z]\w+DAO\.ts$/).filter((f) => !f.includes('/impl/')),
   ];
