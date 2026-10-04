@@ -2,23 +2,32 @@ import type { ConteoCategoria, FiltroExploracion, FiltroLugares, LugarDAO } from
 import type { Bbox } from '../../../../src/entity/Bbox.js';
 import type { Lugar } from '../../../../src/entity/Lugar.js';
 import { CategoriaLugar } from '../../../../src/enum/CategoriaLugar.js';
+import { nivelEfectivo } from '../../../../src/entity/nivelEfectivo.js';
 import { NivelEfectivo, type NivelSaturacion } from '../../../../src/enum/NivelSaturacion.js';
+import { compararNombres, normalizarNombre } from '../../../../src/util/nombreLugar.js';
 import { relojSistema, type Reloj } from '../../../../src/util/Reloj.js';
 import { aLugar } from '../../fabrica/datos.js';
 import { copia, type OpcionesMemoria } from './comun.js';
 
-const sinAcentos = (texto: string) => texto.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
-const porNombre = (a: Lugar, b: Lugar) => a.nombre.localeCompare(b.nombre) || a.id - b.id;
+/** Same order as the Sequelize DAO: normalised name, exact name (both by code point), then id. */
+const porNombre = (a: Lugar, b: Lugar) =>
+  compararNombres(normalizarNombre(a.nombre), normalizarNombre(b.nombre)) || compararNombres(a.nombre, b.nombre) || a.id - b.id;
 const dentro = (l: Lugar, b: Bbox) =>
   l.latitud >= b.minLat && l.latitud <= b.maxLat && l.longitud >= b.minLng && l.longitud <= b.maxLng;
+/** Criteria `buscar` and `explorar` share: bbox and category. */
+const coincide = (l: Lugar, filtro: Pick<FiltroExploracion, 'bbox' | 'categoria'>) =>
+  (!filtro.bbox || dentro(l, filtro.bbox)) && (!filtro.categoria || l.categoria === filtro.categoria);
 
 /** In-memory LugarDAO for tests; behaves like the Sequelize one (shared contract test). */
 export class LugarDAOMemoria implements LugarDAO {
   private readonly filas = new Map<number, Lugar>();
   private readonly reloj: Reloj;
+  private readonly limiteMax: number;
 
-  constructor(opciones: OpcionesMemoria = {}) {
+  /** `limiteMax` is the cap of every list read (LUGARES_LIMITE_MAX in production); unlimited by default. */
+  constructor(opciones: OpcionesMemoria & { limiteMax?: number } = {}) {
     this.reloj = opciones.reloj ?? relojSistema;
+    this.limiteMax = opciones.limiteMax ?? Number.MAX_SAFE_INTEGER;
   }
 
   /** Seeds a place; unspecified fields take the test-data defaults. */
@@ -38,22 +47,21 @@ export class LugarDAOMemoria implements LugarDAO {
   }
 
   async buscar(filtro: FiltroLugares): Promise<Lugar[]> {
-    const q = filtro.q === undefined ? undefined : sinAcentos(filtro.q);
+    const q = filtro.q === undefined ? undefined : normalizarNombre(filtro.q);
     return copia([...this.filas.values()]
-      .filter((l) => q === undefined || sinAcentos(l.nombre).includes(q))
-      .filter((l) => !filtro.bbox || dentro(l, filtro.bbox))
-      .filter((l) => !filtro.categoria || l.categoria === filtro.categoria)
+      .filter((l) => q === undefined || normalizarNombre(l.nombre).includes(q))
       .filter((l) => !filtro.nivel || this.nivelEfectivo(l, filtro.vigenteDesde) === filtro.nivel)
+      .filter((l) => coincide(l, filtro))
       .sort(porNombre)
-      .slice(0, filtro.limite));
+      .slice(0, this.limiteEfectivo(filtro.limite)));
   }
 
   async explorar(filtro: FiltroExploracion): Promise<Lugar[]> {
     return copia(
       [...this.filas.values()]
-        .filter((l) => !filtro.categoria || l.categoria === filtro.categoria)
-        .filter((l) => !filtro.bbox || dentro(l, filtro.bbox))
-        .sort(porNombre),
+        .filter((l) => coincide(l, filtro))
+        .sort(porNombre)
+        .slice(0, this.limiteEfectivo(filtro.limite)),
     );
   }
 
@@ -72,12 +80,13 @@ export class LugarDAOMemoria implements LugarDAO {
     return copia(nuevo);
   }
 
+  private limiteEfectivo(limite: number): number {
+    return Math.min(limite, this.limiteMax);
+  }
+
+  /** Without `vigenteDesde` the stored level is taken as is (the same as the SQL filter); otherwise the shared rule. */
   private nivelEfectivo(lugar: Lugar, vigenteDesde?: Date): NivelEfectivo {
-    const { saturacionActual, saturacionActualizadaEn } = lugar;
-    if (!saturacionActual) return NivelEfectivo.SIN_INFORMACION;
-    if (vigenteDesde && (!saturacionActualizadaEn || saturacionActualizadaEn < vigenteDesde)) {
-      return NivelEfectivo.SIN_INFORMACION;
-    }
-    return saturacionActual;
+    if (vigenteDesde) return nivelEfectivo(lugar, vigenteDesde);
+    return lugar.saturacionActual ?? NivelEfectivo.SIN_INFORMACION;
   }
 }

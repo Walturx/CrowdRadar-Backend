@@ -3,30 +3,36 @@ import type { ContextoTx } from '../../../datasource/ConexionBD.js';
 import type { Lugar, TipoOsm } from '../../../entity/Lugar.js';
 import { CategoriaLugar } from '../../../enum/CategoriaLugar.js';
 import { NivelEfectivo, type NivelSaturacion } from '../../../enum/NivelSaturacion.js';
+import { CON_ACENTO, SIN_ACENTO, normalizarNombre } from '../../../util/nombreLugar.js';
 import type { ConteoCategoria, FiltroExploracion, FiltroLugares, LugarDAO } from '../../LugarDAO.js';
 import { LugarModel } from './model/LugarModel.js';
 
 const aTransaccion = (tx?: ContextoTx) => tx as unknown as Transaction | undefined;
 
-/** Letters with a diacritic and their plain form, one to one (the `translate()` arguments). */
-const CON_ACENTO = 'ÁÀÂÄÉÈÊËÍÌÎÏÓÒÔÖÚÙÛÜÑÇáàâäéèêëíìîïóòôöúùûüñç';
-const SIN_ACENTO = 'AAAAEEEEIIIIOOOOUUUUNCaaaaeeeeiiiioooouuuunc';
-
 /**
- * `nombre` without accents and in lower case, computed with `translate()` so no extension (`unaccent`) is
- * needed. Upper-case letters are mapped before `lower()` because `lower()` of a non-ASCII letter depends on
- * the database locale. Constant text only: user input never goes into it.
+ * `nombre` normalised by `translate()` with the two alphabets of util/nombreLugar.ts (no extension such as
+ * `unaccent`, no `lower()`, so the result does not depend on the database locale). The application normalises
+ * the text searched with `normalizarNombre`, the same rule. Constant text only: user input never goes into it.
  */
-const NOMBRE_NORMALIZADO = `lower(translate("nombre", '${CON_ACENTO}', '${SIN_ACENTO}'))`;
-
-/** Same normalisation, in the application, for the text searched. */
-const normalizar = (texto: string) => texto.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+const NOMBRE_NORMALIZADO = `translate("nombre", '${CON_ACENTO}', '${SIN_ACENTO}')`;
 
 /** `%`, `_` and `\` in user text must match literally inside LIKE. */
 const escaparLike = (texto: string) => texto.replace(/[\\%_]/g, (caracter) => `\\${caracter}`);
 
-/** Accent-insensitive name order; ties by exact name and id so pages and limits are deterministic. */
-const ORDEN_POR_NOMBRE: Order = [[literal(NOMBRE_NORMALIZADO), 'ASC'], ['nombre', 'ASC'], ['id', 'ASC']];
+/**
+ * Name order: normalised name, then exact name, then id, both names in byte order (`COLLATE "C"`) so it does not
+ * depend on the database collation and equals `compararNombres`; pages and limits are deterministic.
+ */
+const ORDEN_POR_NOMBRE: Order = [
+  [literal(`${NOMBRE_NORMALIZADO} COLLATE "C"`), 'ASC'],
+  [literal('"nombre" COLLATE "C"'), 'ASC'],
+  ['id', 'ASC'],
+];
+
+/** Hard cap of every list read; production passes LUGARES_LIMITE_MAX. */
+export interface OpcionesLugarDAOSequelize {
+  limiteMax: number;
+}
 
 function aEntidad(modelo: LugarModel): Lugar {
   return {
@@ -69,20 +75,26 @@ function condicionNivel(nivel: NonNullable<FiltroLugares['nivel']>, vigenteDesde
   return { [Op.and]: [{ saturacionActual: nivel }, vigente] };
 }
 
-function condiciones(filtro: Omit<FiltroLugares, 'limite'>): WhereOptions[] {
+/** The WHERE shared by `buscar` and `explorar`: every given criterion, combined with AND. */
+function condiciones(filtro: Omit<FiltroLugares, 'limite'> | Omit<FiltroExploracion, 'limite'>): WhereOptions[] {
   const lista: WhereOptions[] = [];
-  if (filtro.q !== undefined) lista.push(where(literal(NOMBRE_NORMALIZADO), Op.like, `%${escaparLike(normalizar(filtro.q))}%`));
+  if ('q' in filtro && filtro.q !== undefined) {
+    lista.push(where(literal(NOMBRE_NORMALIZADO), Op.like, `%${escaparLike(normalizarNombre(filtro.q))}%`));
+  }
   if (filtro.bbox) lista.push(...condicionBbox(filtro.bbox));
   if (filtro.categoria) lista.push({ categoria: filtro.categoria });
-  if (filtro.nivel) lista.push(condicionNivel(filtro.nivel, filtro.vigenteDesde));
+  if ('nivel' in filtro && filtro.nivel) lista.push(condicionNivel(filtro.nivel, filtro.vigenteDesde));
   return lista;
 }
 
 /**
  * Pattern: DAO (Sequelize implementation). The only place that knows how `lugar` is persisted.
  * Search is a plain WHERE over the lat/lng index (no PostGIS); text matching is accent- and case-insensitive.
+ * `buscar` (map and search) and `explorar` (M3's exploration) are one query with two filters.
  */
 export class LugarDAOSequelize implements LugarDAO {
+  constructor(private readonly opciones: OpcionesLugarDAOSequelize) {}
+
   async buscarPorId(id: number, tx?: ContextoTx): Promise<Lugar | null> {
     const modelo = await LugarModel.findByPk(id, { transaction: aTransaccion(tx) });
     return modelo ? aEntidad(modelo) : null;
@@ -94,21 +106,19 @@ export class LugarDAOSequelize implements LugarDAO {
     return modelos.map(aEntidad);
   }
 
-  async buscar(filtro: FiltroLugares, tx?: ContextoTx): Promise<Lugar[]> {
-    const modelos = await LugarModel.findAll({
-      where: { [Op.and]: condiciones(filtro) },
-      order: ORDEN_POR_NOMBRE,
-      limit: filtro.limite,
-      transaction: aTransaccion(tx),
-    });
-    return modelos.map(aEntidad);
+  buscar(filtro: FiltroLugares, tx?: ContextoTx): Promise<Lugar[]> {
+    return this.listar(filtro, tx);
   }
 
-  /** TODO(M3): delegate to `lugar/filtroExploracion` once that module exists; until then the same WHERE, without limit. */
-  async explorar(filtro: FiltroExploracion, tx?: ContextoTx): Promise<Lugar[]> {
+  explorar(filtro: FiltroExploracion, tx?: ContextoTx): Promise<Lugar[]> {
+    return this.listar(filtro, tx);
+  }
+
+  private async listar(filtro: FiltroLugares | FiltroExploracion, tx?: ContextoTx): Promise<Lugar[]> {
     const modelos = await LugarModel.findAll({
       where: { [Op.and]: condiciones(filtro) },
       order: ORDEN_POR_NOMBRE,
+      limit: Math.min(filtro.limite, this.opciones.limiteMax),
       transaction: aTransaccion(tx),
     });
     return modelos.map(aEntidad);

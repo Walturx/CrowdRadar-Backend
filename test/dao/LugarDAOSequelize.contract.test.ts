@@ -13,13 +13,15 @@ import { ejecutarContratoDAO, type FuncionContrato } from './ejecutarContratoDAO
 import { contratoLugarDAO, type EntornoLugarDAO } from './LugarDAO.contract.js';
 
 let osmId = 5_000_000;
+const LIMITE_MAX = 10;
 
 /** Empty `lugar` table and a fresh DAO; `sembrar` inserts through the model so the DAO under test only reads. */
 const crearEntornoSequelize = async (): Promise<EntornoLugarDAO> => {
   await LugarModel.destroy({ where: {} });
   return {
-    dao: new LugarDAOSequelize(),
+    dao: new LugarDAOSequelize({ limiteMax: LIMITE_MAX }),
     sembrar: sembrarLugares,
+    limiteMax: LIMITE_MAX,
   };
 };
 
@@ -28,7 +30,7 @@ async function sembrarLugares(lugares: Partial<Lugar>[]): Promise<Lugar[]> {
   for (const parcial of lugares) {
     osmId += 1;
     const fila = await LugarModel.create({ ...aLugar({ ...parcial, osmId }), id: undefined });
-    sembrados.push((await new LugarDAOSequelize().buscarPorId(fila.id))!);
+    sembrados.push((await new LugarDAOSequelize({ limiteMax: LIMITE_MAX }).buscarPorId(fila.id))!);
   }
   return sembrados;
 }

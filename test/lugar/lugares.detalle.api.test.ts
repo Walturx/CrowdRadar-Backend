@@ -32,6 +32,7 @@ describe('GET /api/lugares/:id', () => {
     const res = await detalle(lugar.id);
 
     expect(res.status).toBe(200);
+    expect(res.body.message).toBe('Lugar obtenido correctamente.');
     expect(res.body.data).toMatchObject({
       id: lugar.id,
       nombre: 'Parque Kennedy',

@@ -16,18 +16,26 @@ export interface DependenciasLugar {
   reporteDAO: Pick<ReporteDAO, 'contarPorLugarDesde'>;
 }
 
-/** Stand-in until M3 delivers FavoritoDAOSequelize: nobody has favourites. */
-const favoritosPendientesDeM3: DependenciasLugar['favoritoDAO'] = { buscar: async () => null };
+/** Stand-in until M3 delivers FavoritoDAOSequelize: nobody has favourites (`esFavorito` is false in production). */
+export const favoritosPendientesDeM3: DependenciasLugar['favoritoDAO'] = { buscar: async () => null };
 
-/** Stand-in until M4 delivers ReporteDAOSequelize: no recent reports. */
-const reportesPendientesDeM4: DependenciasLugar['reporteDAO'] = { contarPorLugarDesde: async () => 0 };
+/** Stand-in until M4 delivers ReporteDAOSequelize: no recent reports (`reportesRecientes` is 0 in production). */
+export const reportesPendientesDeM4: DependenciasLugar['reporteDAO'] = { contarPorLugarDesde: async () => 0 };
 
-/** LugarService over the injected ports (`infra.lugar`) and, for the rest, the production DAOs or the stand-ins above. */
-export function crearLugarService({ cfg, reloj, lugar = {} }: Infraestructura): LugarService {
-  return new LugarServiceImpl({
-    lugarDAO: lugar.lugarDAO ?? new LugarDAOSequelize(),
+/** The injected ports (`infra.lugar`) and, for the rest, the production DAO or the stand-ins above. */
+export function resolverDependenciasLugar({ cfg, lugar = {} }: Infraestructura): DependenciasLugar {
+  return {
+    lugarDAO: lugar.lugarDAO ?? new LugarDAOSequelize({ limiteMax: cfg.lugares.limiteMax }),
     favoritoDAO: lugar.favoritoDAO ?? favoritosPendientesDeM3,
     reporteDAO: lugar.reporteDAO ?? reportesPendientesDeM4,
+  };
+}
+
+/** LugarService over the ports of `resolverDependenciasLugar`. */
+export function crearLugarService(infra: Infraestructura): LugarService {
+  const { cfg, reloj } = infra;
+  return new LugarServiceImpl({
+    ...resolverDependenciasLugar(infra),
     reloj,
     ventanaSaturacionMin: cfg.reglas.saturacionVentanaMin,
     zonaHoraria: cfg.servidor.zonaHoraria,

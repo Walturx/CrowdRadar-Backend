@@ -4,6 +4,7 @@ import { NivelEfectivo } from '../enum/NivelSaturacion.js';
 import type { DetalleLugar, ResultadoBusquedaLugar } from '../service/LugarService.js';
 
 const MENSAJE_LISTA = 'Lugares obtenidos correctamente.';
+export const MENSAJE_DETALLE = 'Lugar obtenido correctamente.';
 const MENSAJE_SIN_ZONA = 'No hay lugares en esta zona.';
 const MENSAJE_SIN_INFORMACION = 'Aún no hay reportes suficientes para determinar la saturación de este lugar.';
 
