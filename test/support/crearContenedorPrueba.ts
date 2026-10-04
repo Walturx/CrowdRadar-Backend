@@ -5,6 +5,7 @@ import { JwtEmisorToken } from '../../src/adapter/seguridad/impl/JwtEmisorToken.
 import type { ConfiguracionApp } from '../../src/config/ConfiguracionApp.js';
 import type { Contenedor } from '../../src/container/Contenedor.js';
 import { ensamblar } from '../../src/container/index.js';
+import type { EstadoServicio } from '../../src/util/EstadoServicio.js';
 import type { Logger } from '../../src/util/logger.js';
 import { ConexionFalsa } from './ConexionFalsa.js';
 import { crearLoggerSilencioso } from './LoggerSilencioso.js';
@@ -19,6 +20,7 @@ export interface OpcionesContenedorPrueba {
   emisorToken?: EmisorToken;
   conexion?: ConexionFalsa;
   logger?: Logger;
+  estado?: EstadoServicio;
 }
 
 export interface ContenedorPrueba {
@@ -44,6 +46,7 @@ export function crearContenedorPrueba(opciones: OpcionesContenedorPrueba = {}): 
     cfg,
     logger: opciones.logger ?? crearLoggerSilencioso(),
     conexion,
+    estado: opciones.estado,
     usuarioDAO,
     hasher,
     emisorToken,

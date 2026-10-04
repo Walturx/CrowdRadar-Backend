@@ -28,11 +28,24 @@ the placeholder `ADMIN_PASSWORD`), so a copied example never boots with a known 
 |---|---|
 | Day to day (reload) | `npm run dev` |
 | Compiled | `npm run build && npm start` |
-| Everything in containers | `docker compose up --build` (runs `npm run db:migrate && node dist/server.js`; `GET /api/salud` answers 200) |
+| Everything in containers | `docker compose up --build` (a one-shot `migrate` service applies the migrations, then `api` starts; `GET /api/salud` answers 200) |
 
 `docker compose` needs `DB_PASSWORD` (it has no default) and publishes PostgreSQL on `127.0.0.1` only.
 The API shuts down gracefully on `SIGTERM`/`SIGINT` (stops accepting connections, finishes in-flight requests,
 closes the pool) and retries the database connection at boot (`DB_REINTENTOS`, exponential backoff) before exiting with 1.
+From the first signal `GET /api/salud` answers `503 APAGANDO`, so a load balancer drains the instance; a second signal
+forces an immediate exit with 1. `APAGADO_TIMEOUT_MS` (35 s) must exceed `SERVIDOR_REQUEST_TIMEOUT_MS` (30 s) and the
+compose `stop_grace_period` (40 s) must exceed `APAGADO_TIMEOUT_MS`, or the orchestrator kills in-flight requests.
+`GET /api/salud` probes the database with its own 2 s limit, so a saturated pool answers 503 instead of hanging.
+
+### Migrations in containers
+
+Migrations are never run by the API container. `docker compose` has a **one-shot** `migrate` service
+(`npm run db:migrate`, `restart: "no"`, after Postgres is healthy); `api` waits for it with
+`depends_on: migrate: condition: service_completed_successfully` and its command only starts the server. In any other
+orchestrator run the same image once per release as a job or init step (`npm run db:migrate`) before rolling out the
+new version. **`api` replicas must not run migrations**: parallel runs race on `SequelizeMeta` and on DDL locks.
+`sequelize-cli` stays in the production dependencies because the migrate job runs from the same image.
 
 ## Migrate
 
@@ -152,9 +165,9 @@ or missing value prints every offending key (never its value) and exits with cod
 | `ZONA_HORARIA` | Time zone for aggregations (America/Lima) |
 | `TRUST_PROXY` | Proxy hops trusted for the client IP: `false`, a number, or a name such as `loopback`; `true` is too permissive (false) |
 | `SERVIDOR_REQUEST_TIMEOUT_MS` | Time to receive a whole request (30000) |
-| `SERVIDOR_HEADERS_TIMEOUT_MS` | Time to receive the headers; not above the request timeout (15000) |
-| `SERVIDOR_KEEPALIVE_TIMEOUT_MS` | Idle keep-alive time (5000) |
-| `APAGADO_TIMEOUT_MS` | Hard limit of the graceful shutdown (10000) |
+| `SERVIDOR_HEADERS_TIMEOUT_MS` | Time to receive the headers; must exceed the keep-alive timeout (66000) |
+| `SERVIDOR_KEEPALIVE_TIMEOUT_MS` | Idle keep-alive time; keep it above the load balancer idle timeout (65000) |
+| `APAGADO_TIMEOUT_MS` | Hard limit of the graceful shutdown; must exceed `SERVIDOR_REQUEST_TIMEOUT_MS` (35000) |
 | `DB_HOST` | Database host (localhost) |
 | `DB_PUERTO` | Database port (5432) |
 | `DB_NOMBRE` | Database name (crowdradar) |
@@ -211,6 +224,34 @@ or missing value prints every offending key (never its value) and exits with cod
 | `SEED_DEMO` | Seed the synthetic demo history (false) |
 
 Test tooling only: `DATABASE_URL_TEST` (see Test).
+
+## Production notes
+
+- **Behind a proxy or load balancer set `TRUST_PROXY`** to the number of hops (for example `1`). Left at `false`, every
+  client shares the proxy's address and the per-IP rate limits throttle everybody together; `true` trusts any
+  `X-Forwarded-For` and lets clients dodge the limits.
+- **Keep-alive vs the balancer idle timeout.** The balancer's idle timeout (60 s on AWS ALB) must be shorter than
+  `SERVIDOR_KEEPALIVE_TIMEOUT_MS` (65 s), otherwise Node closes a connection the balancer is about to reuse and clients
+  see sporadic 502s. `SERVIDOR_HEADERS_TIMEOUT_MS` must stay above the keep-alive timeout (validated at boot).
+- Counters of the rate limiter live in process memory: with several replicas each one counts on its own.
+- Readiness: point the balancer health check at `GET /api/salud` (`503 APAGANDO` during shutdown).
+
+## Runbook de rollback
+
+Migrations 01-10 and 12 are frozen once released; fixes go forward as new migrations. When a release must be undone:
+
+1. **Take a backup first** (`pg_dump -Fc crowdradar > antes-del-rollback.dump`); a `down` that drops a column or table
+   destroys data for good.
+2. **Stop the new API version** (scale to zero or drain it) so nothing writes while the schema changes.
+3. **Undo one step at a time**: `npm run db:migrate:undo` reverts only the latest migration. Check `\d usuario` (or the
+   table the migration touched) and the `SequelizeMeta` rows, then repeat only if the release added several migrations.
+4. **Roll the image back** to the previous tag (the previous version must run on the older schema; every migration so
+   far is additive, so it does) and start it. Verify `GET /api/salud` and a login.
+5. **Do NOT use `db:migrate:undo:all` or `db:reset` outside a disposable database.** They drop every table
+   (`undo:all`) and then re-seed (`reset`): all users, reports and karma are lost. They are for local and test databases.
+6. **Verify `down` safety before shipping a migration**: run `db:migrate`, `db:migrate:undo` and `db:migrate` again on a
+   copy of production-like data (the contract tests do this on an empty database; they cannot prove a `down` keeps data).
+   Migration 12 (`password_cambiada_en`) loses only the timestamp; token invalidation by password change is lost with it.
 
 ## Security notes
 

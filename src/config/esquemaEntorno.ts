@@ -71,9 +71,11 @@ export const esquemaEntorno = z
     ZONA_HORARIA: z.string().default('America/Lima'),
     TRUST_PROXY: confiarProxy,
     SERVIDOR_REQUEST_TIMEOUT_MS: entero(30000, 1000),
-    SERVIDOR_HEADERS_TIMEOUT_MS: entero(15000, 1000),
-    SERVIDOR_KEEPALIVE_TIMEOUT_MS: entero(5000, 1),
-    APAGADO_TIMEOUT_MS: entero(10000, 1),
+    SERVIDOR_HEADERS_TIMEOUT_MS: entero(66000, 1000),
+    // Above the usual load balancer idle timeout (60 s) so the balancer, not Node, closes idle connections.
+    SERVIDOR_KEEPALIVE_TIMEOUT_MS: entero(65000, 1),
+    // Above SERVIDOR_REQUEST_TIMEOUT_MS so in-flight requests can finish before the forced exit.
+    APAGADO_TIMEOUT_MS: entero(35000, 1),
 
     // database
     DB_HOST: z.string().default('localhost'),
@@ -149,12 +151,20 @@ export const esquemaEntorno = z
     if (entorno.DB_POOL_MIN > entorno.DB_POOL_MAX) {
       ctx.addIssue({ code: 'custom', path: ['DB_POOL_MIN'], message: 'no puede superar DB_POOL_MAX' });
     }
-    // Node rejects a headersTimeout above requestTimeout.
-    if (entorno.SERVIDOR_HEADERS_TIMEOUT_MS > entorno.SERVIDOR_REQUEST_TIMEOUT_MS) {
+    // Node guidance: headersTimeout above keepAliveTimeout, or idle keep-alive connections get cut mid-reuse.
+    // (Node only checks headers <= request in the http.Server constructor; the app assigns the values afterwards.)
+    if (entorno.SERVIDOR_HEADERS_TIMEOUT_MS <= entorno.SERVIDOR_KEEPALIVE_TIMEOUT_MS) {
       ctx.addIssue({
         code: 'custom',
         path: ['SERVIDOR_HEADERS_TIMEOUT_MS'],
-        message: 'no puede superar SERVIDOR_REQUEST_TIMEOUT_MS',
+        message: 'debe ser mayor que SERVIDOR_KEEPALIVE_TIMEOUT_MS',
+      });
+    }
+    if (entorno.APAGADO_TIMEOUT_MS <= entorno.SERVIDOR_REQUEST_TIMEOUT_MS) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['APAGADO_TIMEOUT_MS'],
+        message: 'debe ser mayor que SERVIDOR_REQUEST_TIMEOUT_MS',
       });
     }
     if (entorno.CORREO_PROVEEDOR === 'smtp') {

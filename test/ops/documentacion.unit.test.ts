@@ -80,6 +80,22 @@ describe('README.md', () => {
     },
   );
 
+  it.each([
+    'Runbook de rollback',
+    'db:migrate:undo',
+    'db:migrate:undo:all',
+    'db:reset',
+    'backup',
+    'one-shot',
+    'replicas',
+    'SERVIDOR_KEEPALIVE_TIMEOUT_MS',
+    'stop_grace_period',
+    'APAGANDO',
+    'TRUST_PROXY',
+  ])('cubre el tema de operaciones "%s"', (termino) => {
+    expect(readme).toContain(termino);
+  });
+
   it('explica las carpetas que no siguen el patron de capa (datasource, enum, types)', () => {
     for (const carpeta of ['datasource/', 'enum/', 'types/']) expect(readme).toContain(carpeta);
   });

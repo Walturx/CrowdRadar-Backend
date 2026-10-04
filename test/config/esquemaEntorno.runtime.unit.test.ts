@@ -21,15 +21,15 @@ describe('valores por defecto de runtime', () => {
       reintentos: 5,
       reintentoEsperaMs: 500,
     });
-    expect(cfg.servidor.timeouts).toEqual({ requestMs: 30000, headersMs: 15000, keepAliveMs: 5000, apagadoMs: 10000 });
+    expect(cfg.servidor.timeouts).toEqual({ requestMs: 30000, headersMs: 66000, keepAliveMs: 65000, apagadoMs: 35000 });
   });
 
   it('se pueden sobrescribir desde el entorno', () => {
-    const cfg = configPrueba({ DB_POOL_MAX: 3, DB_STATEMENT_TIMEOUT_MS: 2000, DB_REINTENTOS: 2, APAGADO_TIMEOUT_MS: 500 });
+    const cfg = configPrueba({ DB_POOL_MAX: 3, DB_STATEMENT_TIMEOUT_MS: 2000, DB_REINTENTOS: 2, APAGADO_TIMEOUT_MS: 40000 });
     expect(cfg.bd.pool.max).toBe(3);
     expect(cfg.bd.statementTimeoutMs).toBe(2000);
     expect(cfg.bd.reintentos).toBe(2);
-    expect(cfg.servidor.timeouts.apagadoMs).toBe(500);
+    expect(cfg.servidor.timeouts.apagadoMs).toBe(40000);
   });
 });
 
@@ -39,10 +39,21 @@ describe('coherencia entre claves', () => {
     expect(claves({ DB_POOL_MIN: '2', DB_POOL_MAX: '2' })).toEqual([]);
   });
 
-  it('headersTimeout no puede superar requestTimeout (Node lo rechaza)', () => {
-    expect(claves({ SERVIDOR_HEADERS_TIMEOUT_MS: '40000', SERVIDOR_REQUEST_TIMEOUT_MS: '30000' })).toContain(
+  it('headersTimeout debe superar keepAliveTimeout (R4-416: evita cortar conexiones keep-alive ociosas)', () => {
+    expect(claves({ SERVIDOR_HEADERS_TIMEOUT_MS: '60000', SERVIDOR_KEEPALIVE_TIMEOUT_MS: '65000' })).toContain(
       'SERVIDOR_HEADERS_TIMEOUT_MS',
     );
+    expect(claves({ SERVIDOR_HEADERS_TIMEOUT_MS: '65000', SERVIDOR_KEEPALIVE_TIMEOUT_MS: '65000' })).toContain(
+      'SERVIDOR_HEADERS_TIMEOUT_MS',
+    );
+    expect(claves({ SERVIDOR_HEADERS_TIMEOUT_MS: '66000', SERVIDOR_KEEPALIVE_TIMEOUT_MS: '65000' })).toEqual([]);
+  });
+
+  it('APAGADO_TIMEOUT_MS debe superar SERVIDOR_REQUEST_TIMEOUT_MS para no cortar peticiones en vuelo (R4-410)', () => {
+    expect(claves({ APAGADO_TIMEOUT_MS: '30000', SERVIDOR_REQUEST_TIMEOUT_MS: '30000' })).toContain('APAGADO_TIMEOUT_MS');
+    expect(claves({ APAGADO_TIMEOUT_MS: '10000' })).toContain('APAGADO_TIMEOUT_MS');
+    expect(claves({ APAGADO_TIMEOUT_MS: '30001', SERVIDOR_REQUEST_TIMEOUT_MS: '30000' })).toEqual([]);
+    expect(claves({})).toEqual([]);
   });
 
   it('DB_REINTENTOS exige al menos 1 intento', () => {

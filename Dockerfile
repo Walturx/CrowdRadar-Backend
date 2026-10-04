@@ -11,7 +11,8 @@ FROM node:22-alpine
 ENV NODE_ENV=production
 WORKDIR /app
 COPY package.json package-lock.json .sequelizerc ./
-# sequelize-cli is a production dependency: the container runs the migrations at start-up (`npm run db:migrate`).
+# sequelize-cli stays in the production dependencies on purpose: the one-shot `migrate` service of docker-compose
+# runs `npm run db:migrate` from this same image. The default CMD below only starts the server and never migrates.
 RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=build /app/dist ./dist
 COPY database ./database
