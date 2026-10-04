@@ -17,7 +17,7 @@ import {
 const UNIQUE = '23505';
 const CHECK = '23514';
 const FK = '23503';
-const RESTRICT = '23001';
+const RESTRICT_CODES = ['23503', '23001'];
 const NOT_NULL = '23502';
 const TOO_LONG = '22001';
 
@@ -290,8 +290,9 @@ describe.skipIf(!URL_BD_TEST)('migraciones (PostgreSQL real)', () => {
       expect(fila).toMatchObject({ estado: 'ACTIVO', puntos_otorgados: 0, nivel_confiabilidad: null });
       expect(fila?.fecha_hora).toBeInstanceOf(Date);
 
-      expect(await codigo('DELETE FROM usuario WHERE id = $1', [u1])).toBe(RESTRICT);
-      expect(await codigo('DELETE FROM lugar WHERE id = $1', [lugar1])).toBe(RESTRICT);
+      // ON DELETE RESTRICT reports 23503 on Postgres <= 16 (CI) and 23001 on Postgres 18.
+      expect(RESTRICT_CODES).toContain(await codigo('DELETE FROM usuario WHERE id = $1', [u1]));
+      expect(RESTRICT_CODES).toContain(await codigo('DELETE FROM lugar WHERE id = $1', [lugar1]));
     });
 
     it('validacion_reporte: una validacion por usuario y reporte, tipo valido, karma obligatorio, cascade', async () => {
