@@ -212,6 +212,11 @@ M4 notes (delivered in the BE-01..03 slices):
   `lugarDAO` in `crearContenedor` the line is the same one: keep a single instance.
 - Contract touch (M4-BE-04): `ReporteService.listarMios(usuarioId, paginacion)` now returns
   `Pagina<{ reporte, lugarNombre }>` (the interim first page of 50 is gone); `ReporteServiceImpl` takes a `LugarDAO`.
+- Contract touch (M4-BE-05): `AnaliticaService` was reshaped from the frozen sketch (`PuntoHistorial[]` / `{ a, b }`) to the
+  results the app parses (`ResultadoHistorial`, `ResultadoComparacion`, `ResultadoMejorHorario`; `hayDatos`/`suficiente`,
+  `sintetico`); `ReporteDAO` gained `hayReportesSinteticos(consulta)` (implemented in the Sequelize class and in
+  `ReporteDAOMemoria`; the shared `Sembrador` gained `usuarioSintetico()`). `DependenciasInfraestructura` gained an optional
+  `reloj` (the system clock when omitted). The demo-user marker is the email domain in `util/sintetico.ts`.
 - Test file names: rubric kinds end in `.unit.test.ts` (e.g. `SaturacionPonderadaStrategy.whitebox.unit.test.ts`), since
   `convenciones.unit.test.ts` only accepts `.unit`, `.api` and `.contract`.
 

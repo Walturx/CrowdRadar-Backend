@@ -43,6 +43,14 @@ function enZona(fecha: Date, zona: string): { dia: string; hora: number; finDeSe
   };
 }
 
+/** True when the instant falls on a day the query's `dias` filter keeps (query zone). */
+function cuentaDia(fecha: Date, consulta: ConsultaAgregada): boolean {
+  const { finDeSemana } = enZona(fecha, consulta.zonaHoraria);
+  if (consulta.dias === FiltroDias.LABORABLES) return !finDeSemana;
+  if (consulta.dias === FiltroDias.FIN_DE_SEMANA) return finDeSemana;
+  return true;
+}
+
 /** In-memory ReporteDAO for tests; behaves like the Sequelize one (shared contract test). */
 export class ReporteDAOMemoria implements ReporteDAO {
   private readonly filas = new Map<number, ReporteSaturacion>();
@@ -145,6 +153,19 @@ export class ReporteDAOMemoria implements ReporteDAO {
     return [...acumulado.values()]
       .sort((a, b) => a.dia.localeCompare(b.dia) || a.hora - b.hora)
       .map(({ dia, hora, suma, muestras }) => ({ dia, hora, promedio: suma / muestras, muestras }));
+  }
+
+  async hayReportesSinteticos(consulta: ConsultaAgregada): Promise<boolean> {
+    if (!this.sembrador) return false;
+    return this.todos().some(
+      (r) =>
+        r.lugarId === consulta.lugarId &&
+        r.estado === EstadoReporte.ACTIVO &&
+        r.fechaHora >= consulta.desde &&
+        r.fechaHora < consulta.hasta &&
+        cuentaDia(r.fechaHora, consulta) &&
+        this.sembrador!.esSintetico(r.usuarioId),
+    );
   }
 
   async listarPendientesDeValidar(filtro: FiltroPendientes, paginacion: Paginacion): Promise<Pagina<ReporteSaturacion>> {

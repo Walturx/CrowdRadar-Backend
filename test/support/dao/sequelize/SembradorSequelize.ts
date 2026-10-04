@@ -1,5 +1,6 @@
 import { QueryTypes, type Sequelize } from 'sequelize';
 import type { Sembrador } from '../../../dao/Sembrador.js';
+import { DOMINIO_EMAIL_SINTETICO } from '../../../../src/util/sintetico.js';
 
 /** Sembrador for the Sequelize contract suites: inserts real rows so every foreign key holds. */
 export function crearSembradorSequelize(sequelize: Sequelize): Sembrador {
@@ -16,6 +17,12 @@ export function crearSembradorSequelize(sequelize: Sequelize): Sembrador {
       contador += 1;
       return insertar(`INSERT INTO usuario (nombre, apellido, email) VALUES ('Test', 'Sembrado', :email)`, {
         email: `sembrado${contador}-${Date.now()}@test.local`,
+      });
+    },
+    usuarioSintetico: () => {
+      contador += 1;
+      return insertar(`INSERT INTO usuario (nombre, apellido, email) VALUES ('Demo', 'Sintetico', :email)`, {
+        email: `demo${contador}-${Date.now()}${DOMINIO_EMAIL_SINTETICO}`,
       });
     },
     lugar: () => {

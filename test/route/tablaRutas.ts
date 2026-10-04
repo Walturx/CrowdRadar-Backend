@@ -32,8 +32,8 @@ export const TABLA_RUTAS: readonly FilaRuta[] = [
   auth('get', '/api/lugares/categorias', 'exploracion.listarCategorias'),
   auth('get', '/api/lugares/12', 'lugar.obtenerDetalle'),
   // analitica (M4)
-  auth('get', '/api/lugares/12/historial', 'analitica.obtenerHistorial'),
-  auth('get', '/api/lugares/12/comparar', 'analitica.compararPeriodos'),
+  implementada(auth('get', '/api/lugares/12/historial', 'analitica.obtenerHistorial')),
+  implementada(auth('get', '/api/lugares/12/comparar', 'analitica.compararPeriodos')),
   auth('get', '/api/lugares/12/mejor-horario', 'analitica.obtenerMejorHorario'),
   // favoritos y alertas (M3)
   auth('get', '/api/favoritos', 'favorito.listar'),

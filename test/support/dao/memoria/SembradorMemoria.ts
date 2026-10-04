@@ -8,6 +8,8 @@ export interface SembradorMemoria extends Sembrador {
   autorDe(reporteId: number): number | undefined;
   /** True when a row of that kind was seeded (or registered) and not forgotten since. */
   existe(tipo: TipoFilaReferenciada, id: number): boolean;
+  /** True when the user was created with `usuarioSintetico` (the memory stand-in of the email domain). */
+  esSintetico(usuarioId: number): boolean;
   /** Registers a row created outside the sembrador, e.g. a favourite created through FavoritoDAOMemoria. */
   registrar(tipo: TipoFilaReferenciada, id: number): void;
   /** Forgets a deleted row so later references to it violate the FK. */
@@ -21,6 +23,7 @@ export interface SembradorMemoria extends Sembrador {
 export function crearSembradorMemoria(): SembradorMemoria {
   let ultimo = 1000;
   const autores = new Map<number, number>();
+  const sinteticos = new Set<number>();
   const filas: Record<TipoFilaReferenciada, Set<number>> = { usuario: new Set(), lugar: new Set(), favorito: new Set() };
   const siguiente = async (tipo?: TipoFilaReferenciada) => {
     const id = ++ultimo;
@@ -29,6 +32,12 @@ export function crearSembradorMemoria(): SembradorMemoria {
   };
   return {
     usuario: () => siguiente('usuario'),
+    async usuarioSintetico() {
+      const id = await siguiente('usuario');
+      sinteticos.add(id);
+      return id;
+    },
+    esSintetico: (usuarioId) => sinteticos.has(usuarioId),
     lugar: () => siguiente('lugar'),
     favorito: () => siguiente('favorito'),
     async reporte(usuarioId) {

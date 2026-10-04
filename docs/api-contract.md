@@ -24,6 +24,7 @@ handler answers `501 NO_IMPLEMENTADO` until the owning stream delivers it.
 - Authentication: `Authorization: Bearer <jwt>` (strict: exact scheme, one space). JWT HS256, 2 h, no refresh.
   Authorization decisions are made from the database row, never from token claims.
 - Request bodies are validated with zod, are `strict` (unknown keys are rejected) and limited to `SERVIDOR_LIMITE_CUERPO` (100 kb by default).
+- `sintetico: true` in an analytics response means some of its data comes from the demo users (email `@sintetico.crowdradar.local`); the app shows "Datos de demostración".
 - Request id: `X-Request-Id` is echoed (if it matches `[A-Za-z0-9_-]{1,64}`) or generated.
 
 ### Access chains
@@ -96,8 +97,8 @@ still reveals that an email exists (`409`).
 | GET | /api/lugares/explorar | auth | stub | M3: `categoria`, `saturacion`, `lat`, `lng`, `radioKm` |
 | GET | /api/lugares/categorias | auth | stub | M3 |
 | GET | /api/lugares/:id | auth | stub | M2: detail with `abiertoAhora`, `saturacion`, `esFavorito` |
-| GET | /api/lugares/:id/historial | auth | stub | M4 |
-| GET | /api/lugares/:id/comparar | auth | stub | M4 |
+| GET | /api/lugares/:id/historial | auth | real | M4: `desde`, `hasta` (YYYY-MM-DD, Lima), `agrupacion` = `HORA` (default; 24-hour slots `HH:00` over the range, today by default) or `DIA` (one point per day, last 7 days by default); `200 { message, data: { puntos: [{ etiqueta, valor, muestras }], hayDatos, mensaje, sintetico } }` (`valor` is the average level 1-3; with no data `hayDatos` is false and `mensaje` explains it); `400 RANGO_FECHAS_INVALIDO` when both dates are given and `desde` is not before `hasta` or they are more than 31 days apart; `404 LUGAR_NO_ENCONTRADO` |
+| GET | /api/lugares/:id/comparar | auth | real | M4: `desdeA`, `hastaA`, `desdeB`, `hastaB` required, `diasA`, `diasB` = `TODOS` (default) \| `LABORABLES` \| `FIN_DE_SEMANA`; `200 { message, data: { periodoA, periodoB: [24 x { hora, valor, muestras }], diferencias: [{ hora, diferencia }] (B minus A, hours with data in both), resumen, suficiente, mensaje, sintetico } }`; `suficiente` is false (and `diferencias` empty) when either period has fewer than `ANALITICA_MIN_MUESTRAS` samples; same `400`/`404` as the history |
 | GET | /api/lugares/:id/mejor-horario | auth | stub | M4 |
 
 ### Favourites and alerts (M3)
