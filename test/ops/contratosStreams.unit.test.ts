@@ -39,7 +39,7 @@ describe('docs/contratos-streams.md', () => {
 
   const puertos = [
     ...archivos('src/service', /^[A-Z]\w+(?<!Impl)\.ts$/).filter((f) => !f.includes('/impl/')),
-    ...archivos('src/facade', /\.ts$/),
+    ...archivos('src/facade', /\.ts$/).filter((f) => !f.includes('/impl/')),
     ...archivos('src/pattern/strategy', /^Estrategia\w+\.ts$/),
     ...archivos('src/pattern/observer', /^Saturacion(Observer|Subject|CambiadaEvento)\.ts$/),
     ...archivos('src/adapter', /^[A-Z]\w+\.ts$/).filter((f) => !f.includes('/impl/')),
