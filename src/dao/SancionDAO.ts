@@ -1,11 +1,10 @@
 import type { ContextoTx } from '../datasource/ConexionBD.js';
-import type { SancionUsuario } from '../entity/SancionUsuario.js';
+import type { DiasSuspension, SancionUsuario } from '../entity/SancionUsuario.js';
 
 export interface NuevaSancion {
   usuarioId: number;
   administradorId: number;
-  /** One of DIAS_SUSPENSION. */
-  dias: number;
+  dias: DiasSuspension;
   motivo: string;
   fechaInicio: Date;
   /** Must be after `fechaInicio` (ck_sancion_fechas). */

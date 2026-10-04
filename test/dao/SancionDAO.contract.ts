@@ -2,6 +2,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { ForeignKeyConstraintError } from 'sequelize';
 import type { SancionDAO } from '../../src/dao/SancionDAO.js';
+import type { DiasSuspension } from '../../src/entity/SancionUsuario.js';
 import { ID_INEXISTENTE, type Sembrador } from './Sembrador.js';
 
 export interface EntornoSancionDAO {
@@ -24,7 +25,7 @@ export function contratoSancionDAO(nombre: string, crearEntorno: () => Promise<E
       adminId = await entorno.sembrador.usuario();
     });
 
-    const sancionar = (cantidadDias: number, extra: { usuarioId?: number } = {}) =>
+    const sancionar = (cantidadDias: DiasSuspension, extra: { usuarioId?: number } = {}) =>
       dao.crear({
         usuarioId: extra.usuarioId ?? usuarioId,
         administradorId: adminId,

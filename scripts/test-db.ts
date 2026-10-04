@@ -4,6 +4,9 @@
  * Those tests are opt-in (`describe.skipIf(!DATABASE_URL_TEST)`), which is convenient locally but
  * would let CI go green with every one of them skipped. This command refuses to run without the
  * variable, so a CI job that must exercise the database cannot silently skip it.
+ *
+ * It reruns the whole suite instead of only the database-gated files on purpose: those cases share files with
+ * database-free ones (`describe.skipIf`), so a file list would need maintaining and could drop a new contract.
  */
 import { spawn } from 'node:child_process';
 

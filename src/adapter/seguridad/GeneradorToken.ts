@@ -1,5 +1,5 @@
 /**
- * Pattern: Adapter (port). Opaque single-use tokens (password recovery, M1): only the hash is stored.
+ * Pattern: Adapter (port). Owner: M1 (password recovery). Opaque single-use tokens (password recovery, M1): only the hash is stored.
  * Implementations: CryptoGeneradorTokenAdapter.
  */
 export interface GeneradorToken {
