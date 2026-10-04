@@ -14,11 +14,17 @@ const REDACCION = [
   'headers.authorization',
 ];
 
-/** Creates the application logger (pino) with the configured level and secret redaction. */
-export function crearLogger(nivel: string): Logger {
-  return pino({
-    level: nivel,
-    redact: { paths: REDACCION, censor: '[REDACTADO]' },
-    timestamp: pino.stdTimeFunctions.isoTime,
-  });
+/**
+ * Creates the application logger (pino) with the configured level and secret redaction.
+ * `destino` lets tests capture the lines; production writes to stdout.
+ */
+export function crearLogger(nivel: string, destino?: pino.DestinationStream): Logger {
+  return pino(
+    {
+      level: nivel,
+      redact: { paths: REDACCION, censor: '[REDACTADO]' },
+      timestamp: pino.stdTimeFunctions.isoTime,
+    },
+    destino,
+  );
 }
