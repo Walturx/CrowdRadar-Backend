@@ -14,6 +14,11 @@ export interface TokenRecuperacionDAO {
   buscarPorHash(tokenHash: string, tx?: ContextoTx): Promise<TokenRecuperacion | null>;
   /** Single use: records when the token was spent; false when it does not exist. */
   marcarUsado(id: number, usadoEn: Date, tx?: ContextoTx): Promise<boolean>;
+  /**
+   * Keeps the `maximo` most recently created live tokens (unused, not expired at `ahora`) of the user and spends the
+   * older ones; returns how many it spent. Bounds the live tokens a flood of requests can leave behind.
+   */
+  limitarVigentes(usuarioId: number, maximo: number, ahora: Date, tx?: ContextoTx): Promise<number>;
   /** Spends every unused token of the user (a new request replaces older ones); returns how many. */
   invalidarVigentesDeUsuario(usuarioId: number, ahora: Date, tx?: ContextoTx): Promise<number>;
 }

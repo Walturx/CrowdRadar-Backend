@@ -221,4 +221,26 @@ describe('validarEntorno', () => {
     expect(resultado.ok).toBe(false);
     if (!resultado.ok) expect(resultado.claves).toEqual(['FCM_CREDENCIALES_RUTA']);
   });
+
+  it.each(['localhost:3000', 'no es una url', 'ftp://crowdradar.pe', 'javascript:alert(1)'])('rechaza URL_PUBLICA=%s (R4-1301)', (valor) => {
+    const resultado = validarEntorno(entornoMinimo({ URL_PUBLICA: valor }));
+    expect(resultado.ok).toBe(false);
+    if (!resultado.ok) expect(resultado.claves).toEqual(['URL_PUBLICA']);
+  });
+
+  it('acepta URL_PUBLICA http y https, con o sin barra final (R4-1301)', () => {
+    for (const valor of ['https://crowdradar.pe', 'http://localhost:3000/', 'https://api.crowdradar.pe/base']) {
+      expect(validarEntorno(entornoMinimo({ URL_PUBLICA: valor })).ok).toBe(true);
+    }
+  });
+
+  it('CORREO_MOSTRAR_ENLACE_DEV is off by default and refused with NODE_ENV=production (R1-1301)', () => {
+    const porDefecto = validarEntorno(entornoMinimo({}));
+    expect(porDefecto.ok && porDefecto.valor.CORREO_MOSTRAR_ENLACE_DEV).toBe(false);
+    const dev = validarEntorno(entornoMinimo({ CORREO_MOSTRAR_ENLACE_DEV: 'true', NODE_ENV: 'development' }));
+    expect(dev.ok && dev.valor.CORREO_MOSTRAR_ENLACE_DEV).toBe(true);
+    const produccion = validarEntorno(entornoMinimo({ CORREO_MOSTRAR_ENLACE_DEV: 'true', NODE_ENV: 'production' }));
+    expect(produccion.ok).toBe(false);
+    if (!produccion.ok) expect(produccion.claves).toEqual(['CORREO_MOSTRAR_ENLACE_DEV']);
+  });
 });

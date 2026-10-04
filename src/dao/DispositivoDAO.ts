@@ -25,6 +25,8 @@ export interface DispositivoDAO {
    * deletes the rest; returns how many were deleted. Other users are never touched.
    */
   conservarMasRecientes(usuarioId: number, maximo: number, tx?: ContextoTx): Promise<number>;
+  /** Deletes every device of the user (session ended by a password change or reset); returns how many. */
+  eliminarDeUsuario(usuarioId: number, tx?: ContextoTx): Promise<number>;
   /** Deletes tokens the push provider rejected, whoever owns them; returns how many. */
   eliminarTokens(tokens: readonly string[], tx?: ContextoTx): Promise<number>;
 }

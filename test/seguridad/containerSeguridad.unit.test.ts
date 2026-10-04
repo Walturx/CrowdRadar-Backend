@@ -5,6 +5,7 @@ import { construirInfraestructura } from '../../src/container/infraestructura.js
 import { crearEnviadorCorreo, crearRecuperacionFacade, type DependenciasSeguridad } from '../../src/container/seguridad.js';
 import { ConexionFalsa } from '../support/ConexionFalsa.js';
 import { configPrueba, type SobrescritosEntorno } from '../support/configPrueba.js';
+import { crearLoggerEspia } from '../support/LoggerEspia.js';
 import { crearLoggerSilencioso } from '../support/LoggerSilencioso.js';
 import { CorreoEspia } from '../support/adapter/CorreoEspia.js';
 import { EmisorTokenFalso } from '../support/adapter/EmisorTokenFalso.js';
@@ -56,12 +57,26 @@ describe('crearRecuperacionFacade', () => {
 describe('crearEnviadorCorreo', () => {
   const logger = crearLoggerSilencioso();
 
-  it('CORREO_PROVEEDOR=consola builds the console adapter', () => {
-    expect(crearEnviadorCorreo(configPrueba({ CORREO_PROVEEDOR: 'consola' }).correo, logger)).toBeInstanceOf(ConsolaCorreoAdapter);
+  it('CORREO_PROVEEDOR=consola builds the console adapter outside production', () => {
+    expect(crearEnviadorCorreo(configPrueba({ CORREO_PROVEEDOR: 'consola', NODE_ENV: 'development' }), logger)).toBeInstanceOf(ConsolaCorreoAdapter);
+    expect(crearEnviadorCorreo(configPrueba({ CORREO_PROVEEDOR: 'consola', NODE_ENV: 'test' }), logger)).toBeInstanceOf(ConsolaCorreoAdapter);
+  });
+
+  it('NODE_ENV=production rejects the console provider at assembly (R1-1301): a live token must never reach the logs', () => {
+    const cfg = configPrueba({ CORREO_PROVEEDOR: 'consola', NODE_ENV: 'production' });
+    expect(() => crearEnviadorCorreo(cfg, logger)).toThrow(/production/i);
+    expect(() => crearEnviadorCorreo(cfg, logger)).toThrow(/CORREO_PROVEEDOR=smtp/);
+  });
+
+  it('CORREO_MOSTRAR_ENLACE_DEV reaches the adapter: the full link is logged', async () => {
+    const { logger: espia, lineas } = crearLoggerEspia();
+    const enviador = crearEnviadorCorreo(configPrueba({ CORREO_MOSTRAR_ENLACE_DEV: true }), espia);
+    await enviador.enviar({ para: 'a@b.pe', asunto: 'x', html: '', texto: 'http://h.test/r?token=COMPLETO1234' });
+    expect(lineas.map((l) => l.enlace)).toEqual(['http://h.test/r?token=••••1234', 'http://h.test/r?token=COMPLETO1234']);
   });
 
   it('CORREO_PROVEEDOR=smtp fails fast until the Nodemailer adapter exists (never falls back to the console silently)', () => {
     const cfg = configPrueba({ CORREO_PROVEEDOR: 'smtp', SMTP_HOST: 'smtp.test', SMTP_PUERTO: 587, SMTP_USUARIO: 'u', SMTP_PASSWORD: 'p' });
-    expect(() => crearEnviadorCorreo(cfg.correo, logger)).toThrow(/smtp/i);
+    expect(() => crearEnviadorCorreo(cfg, logger)).toThrow(/smtp/i);
   });
 });

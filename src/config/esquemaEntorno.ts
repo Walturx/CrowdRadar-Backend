@@ -75,7 +75,8 @@ export const esquemaEntorno = z
     // server
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     PUERTO: entero(3000, 1, 65535),
-    URL_PUBLICA: z.string().default('http://localhost:3000'),
+    // Base of the links in the recovery mail: an http(s) URL, or a mistyped value would mail broken links.
+    URL_PUBLICA: z.url({ protocol: /^https?$/ }).default('http://localhost:3000'),
     CORS_ORIGENES: lista('http://localhost:3000'),
     LOG_NIVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
     ZONA_HORARIA: z.string().default('America/Lima').refine(esZonaIana, 'debe ser una zona horaria IANA (ej. America/Lima)'),
@@ -167,6 +168,8 @@ export const esquemaEntorno = z
     // mail and push providers
     CORREO_PROVEEDOR: z.enum(['consola', 'smtp']).default('consola'),
     CORREO_REMITENTE: z.string().default('CrowdRadar <no-responder@crowdradar.local>'),
+    // Development only: also log the full recovery link (the console adapter masks the token by default).
+    CORREO_MOSTRAR_ENLACE_DEV: z.stringbool().default(false),
     SMTP_HOST: z.string().optional(),
     SMTP_PUERTO: entero(587, 1, 65535),
     SMTP_USUARIO: z.string().optional(),
@@ -211,6 +214,9 @@ export const esquemaEntorno = z
     // Demo users and reports must never be switched on in production by a stray variable.
     if (entorno.SEED_SINTETICO === true && entorno.NODE_ENV === 'production') {
       ctx.addIssue({ code: 'custom', path: ['SEED_SINTETICO'], message: 'no se admite con NODE_ENV=production (datos de demostración)' });
+    }
+    if (entorno.CORREO_MOSTRAR_ENLACE_DEV && entorno.NODE_ENV === 'production') {
+      ctx.addIssue({ code: 'custom', path: ['CORREO_MOSTRAR_ENLACE_DEV'], message: 'no se admite con NODE_ENV=production (expondría tokens de recuperación en los logs)' });
     }
     if (entorno.CORREO_PROVEEDOR === 'smtp') {
       for (const clave of ['SMTP_HOST', 'SMTP_USUARIO', 'SMTP_PASSWORD'] as const) {

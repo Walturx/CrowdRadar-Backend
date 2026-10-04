@@ -68,3 +68,17 @@ describe('crearLogger: redaccion de campos de validacion y secretos anidados (R1
     expect(escribir({ body: { nombre: 'visible-ok' } })).toContain('visible-ok');
   });
 });
+
+describe('crearLogger: redaccion del cuerpo de los correos (R1-1301)', () => {
+  it.each([
+    ['texto', { mensaje: { para: 'a@b.pe', texto: 'abre http://h.test/r?token=VIVO-1234' } }],
+    ['html', { correo: { html: '<a href="http://h.test/r?token=VIVO-1234">x</a>' } }],
+    ['texto en la raiz', { texto: 'http://h.test/r?token=VIVO-1234' }],
+  ])('redacta %s', (_caso, objeto) => {
+    expect(escribir(objeto)).not.toContain('VIVO-1234');
+  });
+
+  it('conserva los campos que no son secretos del mismo objeto', () => {
+    expect(escribir({ mensaje: { asunto: 'asunto-visible', texto: 'secreto' } })).toContain('asunto-visible');
+  });
+});

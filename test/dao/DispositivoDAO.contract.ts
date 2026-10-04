@@ -57,6 +57,17 @@ export function contratoDispositivoDAO(nombre: string, crearEntorno: () => Promi
       expect(await dao.eliminarTokens([])).toBe(0);
     });
 
+    it('eliminarDeUsuario borra todos los dispositivos del usuario y ninguno ajeno (R1-1304)', async () => {
+      const otro = await sembrador.usuario();
+      await dao.registrar(usuarioId, 'a', PlataformaPush.ANDROID);
+      await dao.registrar(usuarioId, 'b', PlataformaPush.IOS);
+      await dao.registrar(otro, 'c', PlataformaPush.IOS);
+      expect(await dao.eliminarDeUsuario(usuarioId)).toBe(2);
+      expect(await dao.listarTokensPorUsuario(usuarioId)).toEqual([]);
+      expect(await dao.listarTokensPorUsuario(otro)).toEqual(['c']);
+      expect(await dao.eliminarDeUsuario(usuarioId)).toBe(0);
+    });
+
     describe('conservarMasRecientes', () => {
       it('borra los mas antiguos del usuario por encima del maximo y devuelve cuantos borro', async () => {
         for (const token of ['a', 'b', 'c']) await dao.registrar(usuarioId, token, PlataformaPush.ANDROID);

@@ -43,6 +43,18 @@ export class TokenRecuperacionDAOSequelize implements TokenRecuperacionDAO {
     return filas > 0;
   }
 
+  async limitarVigentes(usuarioId: number, maximo: number, ahora: Date, tx?: ContextoTx): Promise<number> {
+    const [, filas] = await TokenRecuperacionModel.sequelize!.query(
+      `UPDATE token_recuperacion SET usado_en = :ahora, updated_at = :ahora
+        WHERE usuario_id = :usuarioId AND usado_en IS NULL AND expira_en > :ahora
+          AND id NOT IN (SELECT id FROM token_recuperacion
+                          WHERE usuario_id = :usuarioId AND usado_en IS NULL AND expira_en > :ahora
+                          ORDER BY id DESC LIMIT :maximo)`,
+      { replacements: { usuarioId, maximo, ahora }, transaction: aTransaccion(tx) },
+    );
+    return (filas as { rowCount?: number }).rowCount ?? 0;
+  }
+
   async invalidarVigentesDeUsuario(usuarioId: number, ahora: Date, tx?: ContextoTx): Promise<number> {
     const [filas] = await TokenRecuperacionModel.update(
       { usadoEn: ahora },

@@ -12,6 +12,9 @@ const CLAVES_SECRETAS = [
   'tokenRecuperacion',
   'tokenFcm',
   'authorization',
+  // Mail bodies carry the live recovery link.
+  'texto',
+  'html',
 ];
 
 /** fast-redact has no recursive wildcard, so every depth is expanded: `k`, `*.k`, `*.*.k`, ... */

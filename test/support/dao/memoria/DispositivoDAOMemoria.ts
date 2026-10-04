@@ -59,6 +59,10 @@ export class DispositivoDAOMemoria implements DispositivoDAO {
     return this.borrar((d) => sobrantes.has(d.id));
   }
 
+  async eliminarDeUsuario(usuarioId: number): Promise<number> {
+    return this.borrar((d) => d.usuarioId === usuarioId);
+  }
+
   async eliminarTokens(tokens: readonly string[]): Promise<number> {
     const lista = new Set(tokens);
     return this.borrar((d) => lista.has(d.tokenFcm));

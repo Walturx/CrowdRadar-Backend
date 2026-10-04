@@ -5,21 +5,42 @@ import { ConsolaNotificadorAdapter } from '../../src/adapter/push/impl/ConsolaNo
 import { crearLoggerEspia } from '../support/LoggerEspia.js';
 
 describe('ConsolaCorreoAdapter', () => {
-  it('registra destinatario, asunto y texto (para seguir el enlace en desarrollo) y resuelve', async () => {
+  const mensaje = {
+    para: 'walter@kamailab.com',
+    asunto: 'Restablece tu contrasena',
+    html: '<p><a href="http://localhost:3000/recuperar/restablecer?token=abcdef123456">enlace</a></p>',
+    texto: 'Abre http://localhost:3000/recuperar/restablecer?token=abcdef123456 y listo',
+  };
+
+  it('logs the recipient masked, the subject and the link with the token masked, never the token (R1-1301)', async () => {
     const { logger, lineas } = crearLoggerEspia();
-    await new ConsolaCorreoAdapter(logger).enviar({
-      para: 'ana@crowdradar.pe',
-      asunto: 'Restablece tu contrasena',
-      html: '<p>Hola</p>',
-      texto: 'Abre http://localhost:3000/recuperar/restablecer?token=abc',
-    });
+    await new ConsolaCorreoAdapter(logger).enviar(mensaje);
     expect(lineas).toHaveLength(1);
     expect(lineas[0]).toMatchObject({
-      para: 'ana@crowdradar.pe',
+      para: 'w*****@kamailab.com',
       asunto: 'Restablece tu contrasena',
-      texto: 'Abre http://localhost:3000/recuperar/restablecer?token=abc',
+      enlace: 'http://localhost:3000/recuperar/restablecer?token=••••3456',
     });
+    const salida = JSON.stringify(lineas);
+    expect(salida).not.toContain('abcdef123456');
+    expect(salida).not.toContain('walter@');
+    expect(lineas[0]).not.toHaveProperty('texto');
     expect(lineas[0]).not.toHaveProperty('html');
+  });
+
+  it('masks a different token the same way (triangulation)', async () => {
+    const { logger, lineas } = crearLoggerEspia();
+    await new ConsolaCorreoAdapter(logger).enviar({ ...mensaje, texto: 'http://h.test/x?token=ZZZZ-9876' });
+    expect(lineas[0]).toMatchObject({ enlace: 'http://h.test/x?token=••••9876' });
+  });
+
+  it('CORREO_MOSTRAR_ENLACE_DEV: one extra line carries the full link (development only)', async () => {
+    const { logger, lineas } = crearLoggerEspia();
+    await new ConsolaCorreoAdapter(logger, { mostrarEnlace: true }).enviar(mensaje);
+    expect(lineas).toHaveLength(2);
+    expect(lineas[1]).toMatchObject({ enlace: 'http://localhost:3000/recuperar/restablecer?token=abcdef123456' });
+    expect(lineas[0]).not.toHaveProperty('texto');
+    expect(JSON.stringify(lineas[0])).not.toContain('abcdef123456');
   });
 });
 

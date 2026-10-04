@@ -6,7 +6,9 @@ import { crearLoggerEspia, type LineaLog } from '../support/LoggerEspia.js';
 import { RelojFijo } from '../support/RelojFijo.js';
 import { CorreoEspia } from '../support/adapter/CorreoEspia.js';
 import { GeneradorTokenFijo } from '../support/adapter/GeneradorTokenFijo.js';
+import { PlataformaPush } from '../../src/enum/PlataformaPush.js';
 import { HasherFalso } from '../support/adapter/HasherFalso.js';
+import { DispositivoDAOMemoria } from '../support/dao/memoria/DispositivoDAOMemoria.js';
 import { TokenRecuperacionDAOMemoria } from '../support/dao/memoria/TokenRecuperacionDAOMemoria.js';
 import { UsuarioDAOMemoria } from '../support/dao/memoria/UsuarioDAOMemoria.js';
 import { aUsuario } from '../support/fabrica/datos.js';
@@ -48,6 +50,7 @@ export function crearEntornoRecuperacion(
   const reloj = new RelojFijo(AHORA);
   const usuarioDAO = new UsuarioDAOMemoria({ reloj });
   const tokenDAO = new TokenRecuperacionDAOMemoria({ reloj });
+  const dispositivoDAO = new DispositivoDAOMemoria({ reloj });
   const hasher = new HasherFalso();
   const generador = new GeneradorTokenFijo(opciones.tokens ?? ['tok-1', 'tok-2', 'tok-3', 'tok-4']);
   const conexion = new ConexionRegistradora();
@@ -57,6 +60,7 @@ export function crearEntornoRecuperacion(
   const deps: DependenciasRecuperacionFacade = {
     usuarioDAO,
     tokenDAO,
+    dispositivoDAO,
     hasher,
     generador,
     correo,
@@ -73,12 +77,15 @@ export function crearEntornoRecuperacion(
     reloj,
     usuarioDAO,
     tokenDAO,
+    dispositivoDAO,
     hasher,
     generador,
     conexion,
     correo,
     lineas,
     usuario,
+    /** A registered push device of the user. */
+    registrarDispositivo: (token = 'fcm-1') => dispositivoDAO.registrar(usuario.id, token, PlataformaPush.ANDROID),
     /** Hash the generator derives from a plain token (what the DAO stores). */
     hashDe: (token: string) => generador.hashear(token),
   };

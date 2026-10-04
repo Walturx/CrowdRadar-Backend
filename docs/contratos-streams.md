@@ -69,6 +69,9 @@ Interfaces to implement: none. Available to every stream:
 
 ## M1 Security: password recovery
 
+Status: DELIVERED (change `m1-seguridad`, backend slices 01-05). `RecuperacionFacade` is owned by M1; the mail port stays
+M1's (`EnviadorCorreo`), `ConsolaCorreoAdapter` is development-only and refused with `NODE_ENV=production`.
+
 Interfaces to implement:
 
 - `facade/RecuperacionFacade.ts` (Pattern: Facade) with `controller/RecuperacionController.ts` and the 4 recovery
@@ -87,6 +90,7 @@ the delivered migrations, and the ports of other streams (`dao/UsuarioDAO.ts` ch
 
 Shared ports (contract PR required):
 
+- `dao/DispositivoDAO.ts`: owner M3. Reviewer: M3, M1. Writes: `eliminarDeUsuario` (M1: a reset or password change ends the push sessions).
 - `adapter/seguridad/GeneradorToken.ts`: owner M1. Reviewer: lead. Reads: `generar`, `hashear` (pure helpers).
 - `adapter/correo/EnviadorCorreo.ts`: owner M1. Reviewer: M6 (it also sends mail). Writes: `enviar`.
 - `dao/UsuarioDAO.ts`: owner C0. Reviewer: lead, M4, M6. Reads: `buscarPorId`, `buscarPorEmail`. Writes:

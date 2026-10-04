@@ -42,6 +42,13 @@ export class TokenRecuperacionDAOMemoria implements TokenRecuperacionDAO {
     return true;
   }
 
+  async limitarVigentes(usuarioId: number, maximo: number, ahora: Date): Promise<number> {
+    const vigentes = this.filas.filter((t) => t.usuarioId === usuarioId && t.usadoEn === null && t.expiraEn.getTime() > ahora.getTime());
+    const sobrantes = vigentes.sort((a, b) => b.id - a.id).slice(maximo);
+    for (const t of sobrantes) Object.assign(t, { usadoEn: new Date(ahora), updatedAt: this.reloj.ahora() });
+    return sobrantes.length;
+  }
+
   async invalidarVigentesDeUsuario(usuarioId: number, ahora: Date): Promise<number> {
     const vigentes = this.filas.filter((t) => t.usuarioId === usuarioId && t.usadoEn === null);
     for (const t of vigentes) Object.assign(t, { usadoEn: new Date(ahora), updatedAt: this.reloj.ahora() });

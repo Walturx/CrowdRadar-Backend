@@ -1,20 +1,24 @@
 /** Unit tests of UsuarioServiceImpl: profile read/update and password change (design 4.1; spec R-B3). */
 import { beforeEach, describe, expect, it } from 'vitest';
+import { PlataformaPush } from '../../src/enum/PlataformaPush.js';
 import { PasswordActualIncorrectaException } from '../../src/exception/usuario/PasswordActualIncorrectaException.js';
 import { PasswordRepetidaException } from '../../src/exception/usuario/PasswordRepetidaException.js';
 import { UsuarioNoEncontradoException } from '../../src/exception/usuario/UsuarioNoEncontradoException.js';
 import { UsuarioServiceImpl } from '../../src/service/impl/UsuarioServiceImpl.js';
 import { HasherFalso } from '../support/adapter/HasherFalso.js';
+import { DispositivoDAOMemoria } from '../support/dao/memoria/DispositivoDAOMemoria.js';
 import { UsuarioDAOMemoria } from '../support/dao/memoria/UsuarioDAOMemoria.js';
 
 describe('UsuarioServiceImpl', () => {
   let dao: UsuarioDAOMemoria;
   let servicio: UsuarioServiceImpl;
   let id: number;
+  let dispositivoDAO: DispositivoDAOMemoria;
 
   beforeEach(async () => {
     dao = new UsuarioDAOMemoria();
-    servicio = new UsuarioServiceImpl({ usuarioDAO: dao, hasher: new HasherFalso() });
+    dispositivoDAO = new DispositivoDAOMemoria();
+    servicio = new UsuarioServiceImpl({ usuarioDAO: dao, hasher: new HasherFalso(), dispositivoDAO });
     const ana = await dao.crear({
       nombre: 'Ana',
       apellido: 'Perez',
@@ -55,6 +59,18 @@ describe('UsuarioServiceImpl', () => {
     it('guarda el hash de la nueva password', async () => {
       await servicio.cambiarPassword(id, dto);
       expect((await dao.buscarPorId(id))?.passwordHash).toBe('hash:Nueva12345');
+    });
+
+    it('borra los dispositivos push del usuario tras cambiar la password (R1-1304)', async () => {
+      await dispositivoDAO.registrar(id, 'fcm-1', PlataformaPush.ANDROID);
+      await servicio.cambiarPassword(id, dto);
+      expect(await dispositivoDAO.listarTokensPorUsuario(id)).toEqual([]);
+    });
+
+    it('si la password no cambia (actual incorrecta) los dispositivos se conservan', async () => {
+      await dispositivoDAO.registrar(id, 'fcm-1', PlataformaPush.ANDROID);
+      await servicio.cambiarPassword(id, { ...dto, passwordActual: 'Equivocada1' }).catch(() => undefined);
+      expect(await dispositivoDAO.listarTokensPorUsuario(id)).toEqual(['fcm-1']);
     });
 
     it('password actual incorrecta lanza 422 PasswordActualIncorrecta y no cambia nada', async () => {
