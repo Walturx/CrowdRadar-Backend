@@ -155,6 +155,18 @@ describe('manejarErrores: reintento sugerido (R4-414, R1-401)', () => {
     expect(Number(res.headers['retry-after'])).toBeGreaterThan(0);
   });
 
+  it.each([
+    ['40P01', 'deadlock detected'],
+    ['40001', 'could not serialize access due to concurrent update'],
+    ['55P03', 'canceling statement due to lock timeout'],
+  ])('transaccion abortada por la base (%s: %s) -> 503 con Retry-After, el cliente puede reintentar', async (code, mensaje) => {
+    const error = new DatabaseError(Object.assign(new Error(mensaje), { code, sql: '' }));
+    const res = await request(appQueLanza(error)).get('/falla');
+    expect(res.status).toBe(503);
+    expect(res.body.code).toBe('SERVICIO_NO_DISPONIBLE');
+    expect(Number(res.headers['retry-after'])).toBeGreaterThan(0);
+  });
+
   it('otro error de base de datos sigue siendo 500 y no lleva Retry-After', async () => {
     const otro = new DatabaseError(Object.assign(new Error('syntax error at or near'), { code: '42601', sql: '' }));
     const res = await request(appQueLanza(otro)).get('/falla');

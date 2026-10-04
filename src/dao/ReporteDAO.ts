@@ -60,7 +60,10 @@ export interface ReporteDAO {
   listarRecientesPorLugar(lugarId: number, desde: Date, tx?: ContextoTx): Promise<ReporteSaturacion[]>;
   /** ACTIVO reports of the place with fechaHora >= desde. */
   contarPorLugarDesde(lugarId: number, desde: Date, tx?: ContextoTx): Promise<number>;
-  /** Reports of the user with puntosOtorgados > 0 and fechaHora >= desde (daily karma cap). */
+  /**
+   * Reports of the user with puntosOtorgados > 0 and fechaHora >= desde (daily karma cap). The Sequelize impl takes
+   * pg_advisory_xact_lock(usuarioId, 0) here, so cap checks of one user serialize across places.
+   */
   contarPremiadosDeUsuarioDesde(usuarioId: number, desde: Date, tx?: ContextoTx): Promise<number>;
   /** Stores the points a report earned and why it earned none; null when the report does not exist. */
   registrarPuntos(

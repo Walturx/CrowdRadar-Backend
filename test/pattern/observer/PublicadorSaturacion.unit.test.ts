@@ -1,6 +1,6 @@
 /**
- * Observer contract (design 6, ADR 13): subscribers run in subscription order, after the
- * commit, and one subscriber failing never breaks the publish or the other subscribers.
+ * Observer contract (design 6, ADR 13): subscribers start in subscription order and run concurrently, after the
+ * commit; one subscriber failing or being slow never breaks the publish or the other subscribers.
  */
 import { describe, expect, it } from 'vitest';
 import { PublicadorSaturacion } from '../../../src/pattern/observer/PublicadorSaturacion.js';
@@ -44,7 +44,7 @@ describe('SaturacionCambiadaEvento', () => {
 });
 
 describe('PublicadorSaturacion', () => {
-  it('entrega el mismo evento a cada suscriptor, en el orden de suscripcion', async () => {
+  it('entrega el mismo evento a cada suscriptor, empezando en el orden de suscripcion', async () => {
     const orden: string[] = [];
     const publicador = new PublicadorSaturacion(crearLoggerEspia().logger);
     const primero = observador('primero', () => void orden.push('primero'));
@@ -113,7 +113,7 @@ describe('PublicadorSaturacion', () => {
     expect(tardio.recibidos).toEqual([evento]);
   });
 
-  it('espera a cada suscriptor antes de llamar al siguiente (un suscriptor lento retiene a los demas)', async () => {
+  it('un suscriptor lento no retiene a los demas: todos arrancan a la vez y notificar resuelve cuando terminan todos', async () => {
     const orden: string[] = [];
     const publicador = new PublicadorSaturacion(crearLoggerEspia().logger);
     publicador.suscribir(
@@ -125,6 +125,6 @@ describe('PublicadorSaturacion', () => {
     );
     publicador.suscribir(observador('rapido', () => void orden.push('rapido')));
     await publicador.notificar(evento);
-    expect(orden).toEqual(['lento:inicio', 'lento:fin', 'rapido']);
+    expect(orden).toEqual(['lento:inicio', 'rapido', 'lento:fin']);
   });
 });

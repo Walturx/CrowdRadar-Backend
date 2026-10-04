@@ -116,7 +116,9 @@ export class ReporteDAOMemoria implements ReporteDAO {
       .length;
   }
 
-  async contarPremiadosDeUsuarioDesde(usuarioId: number, desde: Date): Promise<number> {
+  /** Like the Sequelize one, takes the per-user lock (key `usuario:<id>`) until the transaction ends. */
+  async contarPremiadosDeUsuarioDesde(usuarioId: number, desde: Date, tx?: ContextoTx): Promise<number> {
+    await this.cerrojos.adquirir(`usuario:${usuarioId}`, tx);
     return this.todos().filter((r) => r.usuarioId === usuarioId && r.fechaHora >= desde && r.puntosOtorgados > 0).length;
   }
 

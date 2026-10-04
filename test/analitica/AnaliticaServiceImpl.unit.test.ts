@@ -127,12 +127,24 @@ describe('AnaliticaServiceImpl', () => {
 
     it.each([
       ['32 dias de diferencia', '2026-09-05', '2026-10-07'],
-      ['desde igual a hasta', '2026-10-07', '2026-10-07'],
       ['desde posterior a hasta', '2026-10-07', '2026-10-01'],
     ])('rechaza el rango con RANGO_FECHAS_INVALIDO: %s (S17)', async (_caso, desde, hasta) => {
       await expect(
         servicio.obtenerHistorial(lugarId, { agrupacion: AgrupacionHistorial.DIA, desde, hasta }),
       ).rejects.toMatchObject({ status: 400, code: CodigoError.RANGO_FECHAS_INVALIDO });
+    });
+
+    it('desde igual a hasta es un solo dia valido: por HORA y por DIA lee solo ese dia', async () => {
+      reportar('2026-10-07', 9, VALOR.MODERADO);
+      reportar('2026-10-07', 9, VALOR.SATURADO);
+      reportar('2026-10-06', 15, VALOR.TRANQUILO);
+      const rango = { desde: '2026-10-07', hasta: '2026-10-07' };
+      expect((await servicio.obtenerHistorial(lugarId, { agrupacion: AgrupacionHistorial.HORA, ...rango })).puntos).toEqual([
+        { etiqueta: '09:00', valor: 2.5, muestras: 2 },
+      ]);
+      expect((await servicio.obtenerHistorial(lugarId, { agrupacion: AgrupacionHistorial.DIA, ...rango })).puntos).toEqual([
+        { etiqueta: '2026-10-07', valor: 2.5, muestras: 2 },
+      ]);
     });
 
     it('31 dias de diferencia es el maximo permitido', async () => {

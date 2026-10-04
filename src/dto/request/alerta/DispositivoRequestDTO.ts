@@ -3,7 +3,9 @@ import { PlataformaPush } from '../../../enum/PlataformaPush.js';
 
 /** `dispositivo_push.token_fcm` is VARCHAR(255) (migration 10). */
 const MAX_TOKEN = 255;
-const tokenSchema = z.string().min(1).max(MAX_TOKEN);
+/** FCM tokens (letters, digits, `-`, `_`, `:`, `.`) and APNs hex tokens; anything else is not a device token. */
+const CARACTERES_TOKEN = /^[A-Za-z0-9:_.-]+$/;
+const tokenSchema = z.string().min(1).max(MAX_TOKEN).regex(CARACTERES_TOKEN, 'Debe contener solo letras, dígitos y los símbolos : _ . -');
 
 /** POST /api/dispositivos body. */
 export const registrarDispositivoSchema = z.strictObject({

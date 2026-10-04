@@ -20,6 +20,11 @@ export interface DispositivoDAO {
   listarTokensPorUsuario(usuarioId: number, tx?: ContextoTx): Promise<string[]>;
   /** Deletes the token only if it belongs to the user; true when a row was deleted. */
   eliminarPorToken(usuarioId: number, tokenFcm: string, tx?: ContextoTx): Promise<boolean>;
+  /**
+   * Keeps the `maximo` most recently registered devices of the user (re-registering a token makes it recent) and
+   * deletes the rest; returns how many were deleted. Other users are never touched.
+   */
+  conservarMasRecientes(usuarioId: number, maximo: number, tx?: ContextoTx): Promise<number>;
   /** Deletes tokens the push provider rejected, whoever owns them; returns how many. */
   eliminarTokens(tokens: readonly string[], tx?: ContextoTx): Promise<number>;
 }

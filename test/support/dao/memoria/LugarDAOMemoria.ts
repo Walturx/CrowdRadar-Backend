@@ -1,3 +1,4 @@
+import type { ContextoTx } from '../../../../src/datasource/ConexionBD.js';
 import type { ConteoCategoria, FiltroExploracion, FiltroLugares, LugarDAO } from '../../../../src/dao/LugarDAO.js';
 import type { Bbox } from '../../../../src/entity/Bbox.js';
 import type { Lugar } from '../../../../src/entity/Lugar.js';
@@ -7,6 +8,7 @@ import { NivelEfectivo, type NivelSaturacion } from '../../../../src/enum/NivelS
 import { compararNombres, normalizarNombre } from '../../../../src/util/nombreLugar.js';
 import { relojSistema, type Reloj } from '../../../../src/util/Reloj.js';
 import { aLugar } from '../../fabrica/datos.js';
+import { CerrojosMemoria } from './cerrojosMemoria.js';
 import { copia, type OpcionesMemoria } from './comun.js';
 
 /** Same order as the Sequelize DAO: normalised name, exact name (both by code point), then id. */
@@ -21,6 +23,7 @@ const coincide = (l: Lugar, filtro: Pick<FiltroExploracion, 'bbox' | 'categoria'
 /** In-memory LugarDAO for tests; behaves like the Sequelize one (shared contract test). */
 export class LugarDAOMemoria implements LugarDAO {
   private readonly filas = new Map<number, Lugar>();
+  private readonly cerrojos = new CerrojosMemoria();
   private readonly reloj: Reloj;
   private readonly limiteMax: number;
 
@@ -40,6 +43,12 @@ export class LugarDAOMemoria implements LugarDAO {
   async buscarPorId(id: number): Promise<Lugar | null> {
     const lugar = this.filas.get(id);
     return lugar ? copia(lugar) : null;
+  }
+
+  /** Like `SELECT ... FOR UPDATE`: the row lock is held until the in-memory transaction ends. */
+  async buscarPorIdParaActualizar(id: number, tx: ContextoTx): Promise<Lugar | null> {
+    await this.cerrojos.adquirir(`lugar:${id}`, tx);
+    return this.buscarPorId(id);
   }
 
   async buscarPorIds(ids: readonly number[]): Promise<Lugar[]> {

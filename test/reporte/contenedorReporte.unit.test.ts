@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { construirServiciosReporte, elegirEstrategiaSaturacion } from '../../src/container/reporte.js';
 import { NivelSaturacion } from '../../src/enum/NivelSaturacion.js';
+import type { SaturacionSubject } from '../../src/pattern/observer/SaturacionSubject.js';
 import { SaturacionPonderadaStrategy } from '../../src/pattern/strategy/saturacion/impl/SaturacionPonderadaStrategy.js';
 import { SaturacionUltimoReporteStrategy } from '../../src/pattern/strategy/saturacion/impl/SaturacionUltimoReporteStrategy.js';
 import { ConexionFalsa } from '../support/ConexionFalsa.js';
@@ -37,7 +38,10 @@ describe('elegirEstrategiaSaturacion', () => {
 });
 
 describe('construirServiciosReporte', () => {
-  const armar = async (cfg: SobrescritosEntorno = {}) => {
+  const armar = async (
+    cfg: SobrescritosEntorno = {},
+    subject: SaturacionSubject = { suscribir: () => {}, notificar: async () => {} },
+  ) => {
     const usuarioDAO = new UsuarioDAOMemoria();
     const lugarDAO = new LugarDAOMemoria();
     const reloj = new RelojFijo(AHORA);
@@ -49,7 +53,7 @@ describe('construirServiciosReporte', () => {
       usuarioDAO,
       lugarDAO,
       reporteDAO: new ReporteDAOMemoria(),
-      subject: { suscribir: () => {}, notificar: async () => {} },
+      subject,
     });
     const usuario = await usuarioDAO.crear({ nombre: 'Ana', apellido: 'Perez', email: 'ana@crowdradar.pe', passwordHash: 'h', telefono: null, distrito: null });
     return { servicios, reloj, usuarioId: usuario.id, lugarId: lugarDAO.agregar().id };
@@ -67,6 +71,14 @@ describe('construirServiciosReporte', () => {
     reloj.avanzarMinutos(1);
     const segundo = await servicios.reporteFacade.registrar(usuarioId, lugarId, NivelSaturacion.MODERADO);
     expect(segundo.karma.total).toBe(14);
+  });
+
+  it('EVENTOS_PRESUPUESTO_MS de la configuracion acota la espera de los suscriptores', async () => {
+    const lento = { suscribir: () => {}, notificar: () => new Promise<void>((resolver) => setTimeout(resolver, 200)) };
+    const { servicios, usuarioId, lugarId } = await armar({ EVENTOS_PRESUPUESTO_MS: 20, SATURACION_ESTRATEGIA: 'ULTIMO_REPORTE' }, lento);
+    const inicio = Date.now();
+    await servicios.reporteFacade.registrar(usuarioId, lugarId, NivelSaturacion.SATURADO);
+    expect(Date.now() - inicio).toBeLessThan(150);
   });
 
   it('expone el karma y la saturacion que otros streams (M5, M6) reutilizan', async () => {

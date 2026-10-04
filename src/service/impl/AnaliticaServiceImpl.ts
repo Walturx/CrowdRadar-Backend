@@ -97,8 +97,8 @@ export class AnaliticaServiceImpl implements AnaliticaService {
     const diario = consulta.agrupacion === AgrupacionHistorial.DIA;
     const hasta = consulta.hasta ?? diaDe(this.deps.reloj.ahora(), this.deps.zonaHoraria);
     const desde = consulta.desde ?? (diario ? sumarDias(hasta, -DIAS_ANTES_HISTORIAL_DIARIO) : hasta);
-    // Both dates given by the caller must span at least a day; the defaults may be a single day (today).
-    this.validarRango(desde, hasta, consulta.desde !== undefined && consulta.hasta !== undefined);
+    // The history accepts a single day (desde == hasta); `comparar` keeps its stricter rule of at least one day.
+    this.validarRango(desde, hasta, false);
 
     const ventana = this.ventana(lugarId, desde, hasta, FiltroDias.TODOS);
     const [agregados, sintetico] = await Promise.all([

@@ -57,6 +57,7 @@ export class ConfiguracionApp {
       ssl: env.DB_SSL,
       pool: { max: env.DB_POOL_MAX, min: env.DB_POOL_MIN, acquireMs: env.DB_POOL_ACQUIRE_MS, idleMs: env.DB_POOL_IDLE_MS },
       statementTimeoutMs: env.DB_STATEMENT_TIMEOUT_MS,
+      lockTimeoutMs: env.DB_LOCK_TIMEOUT_MS,
       reintentos: env.DB_REINTENTOS,
       reintentoEsperaMs: env.DB_REINTENTO_ESPERA_MS,
     });
@@ -96,6 +97,9 @@ export class ConfiguracionApp {
       ventanaPendientesHoras: env.VENTANA_PENDIENTES_HORAS,
       analiticaMinMuestras: env.ANALITICA_MIN_MUESTRAS,
       suspensionDiasPermitidos: env.SUSPENSION_DIAS_PERMITIDOS,
+      eventosPresupuestoMs: env.EVENTOS_PRESUPUESTO_MS,
+      alertasConcurrencia: env.ALERTAS_CONCURRENCIA,
+      dispositivosMaxPorUsuario: env.DISPOSITIVOS_MAX_POR_USUARIO,
     });
     this.lugares = congelar({
       qMin: env.LUGARES_Q_MIN,
@@ -108,7 +112,11 @@ export class ConfiguracionApp {
       remitente: env.CORREO_REMITENTE,
       smtp: { host: env.SMTP_HOST, puerto: env.SMTP_PUERTO, usuario: env.SMTP_USUARIO, password: env.SMTP_PASSWORD },
     });
-    this.push = congelar({ proveedor: env.PUSH_PROVEEDOR, fcmCredencialesRuta: env.FCM_CREDENCIALES_RUTA });
+    this.push = congelar({
+      proveedor: env.PUSH_PROVEEDOR,
+      fcmCredencialesRuta: env.FCM_CREDENCIALES_RUTA,
+      timeoutMs: env.PUSH_TIMEOUT_MS,
+    });
     this.semillas = congelar({ adminEmail: env.ADMIN_EMAIL, adminPassword: env.ADMIN_PASSWORD, sinteticos: env.SEED_SINTETICO ?? env.NODE_ENV !== 'production' });
   }
 

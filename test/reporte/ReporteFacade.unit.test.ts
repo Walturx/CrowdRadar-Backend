@@ -235,15 +235,19 @@ describe('ReporteFacadeImpl.registrar', () => {
       expect(conexion.confirmadas).toBe(0);
     });
 
-    it('orden: lugar, luego una sola transaccion con cooldown, crear, y al final la notificacion', async () => {
+    it('orden: lugar, una sola transaccion con cooldown, bloqueo del lugar, crear, y al final la notificacion', async () => {
       const lugares: LugarDAO = lugarDAO;
       const buscarLugar = lugarDAO.buscarPorId.bind(lugarDAO);
       lugares.buscarPorId = async (id, tx) => {
         llamadas.push(tx ? 'lugar-en-tx' : 'lugar');
         return buscarLugar(id);
       };
+      lugares.buscarPorIdParaActualizar = async (id) => {
+        llamadas.push('bloqueo-lugar');
+        return buscarLugar(id);
+      };
       await facade.registrar(usuarioId, lugarId, SATURADO);
-      expect(llamadas).toEqual(['lugar', 'cooldown', 'crear', 'lugar-en-tx']);
+      expect(llamadas).toEqual(['lugar', 'cooldown', 'bloqueo-lugar', 'crear', 'lugar-en-tx']);
       expect(conexion.transacciones).toBe(1);
     });
 

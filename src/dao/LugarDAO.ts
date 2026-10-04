@@ -45,6 +45,11 @@ export interface ConteoCategoria {
  */
 export interface LugarDAO {
   buscarPorId(id: number, tx?: ContextoTx): Promise<Lugar | null>;
+  /**
+   * Reads the place and holds its row lock (`SELECT ... FOR UPDATE`) until `tx` ends, so transactions that
+   * recompute the saturation of the same place run one after the other. Owner of the use: M4's report facade.
+   */
+  buscarPorIdParaActualizar(id: number, tx: ContextoTx): Promise<Lugar | null>;
   /** Existing places among `ids`, without duplicates, in no guaranteed order. */
   buscarPorIds(ids: readonly number[], tx?: ContextoTx): Promise<Lugar[]>;
   buscar(filtro: FiltroLugares, tx?: ContextoTx): Promise<Lugar[]>;

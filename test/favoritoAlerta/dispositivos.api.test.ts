@@ -62,6 +62,36 @@ describe('dispositivos (contenedor de prueba)', () => {
       expect(await ctx.dispositivoDAO.listarTokensPorUsuario(beto.id)).toEqual(['tok-compartido']);
     });
 
+    it('con DISPOSITIVOS_MAX_POR_USUARIO=2 el tercer dispositivo desaloja al mas antiguo', async () => {
+      const limitado = crearContenedorPrueba({ cfg: { DISPOSITIVOS_MAX_POR_USUARIO: 2 } });
+      const appLimitada = createApp(limitado.contenedor);
+      const usuario = limitado.usuarioDAO.agregar(aUsuario());
+      const auth = { Authorization: `Bearer ${limitado.emisorToken.emitir(usuario).token}` };
+      for (const token of ['uno', 'dos', 'tres']) {
+        expect((await request(appLimitada).post('/api/dispositivos').set(auth).send({ token, plataforma: 'ANDROID' })).status).toBe(201);
+      }
+      expect(await limitado.dispositivoDAO.listarTokensPorUsuario(usuario.id)).toEqual(['dos', 'tres']);
+    });
+
+    it.each([
+      ['letras, digitos y los separadores de FCM', 'abc:APA91b-xyz_123.45'],
+      ['hexadecimal de APNs', 'a'.repeat(64)],
+    ])('acepta un token con %s', async (_caso, token) => {
+      expect((await registrar(ana.auth, { token, plataforma: 'ANDROID' })).status).toBe(201);
+    });
+
+    it.each([
+      ['espacios', 'tok con espacio'],
+      ['etiqueta HTML', '<script>x</script>'],
+      ['salto de linea', 'tok\nlinea'],
+      ['comillas', "tok'--"],
+    ])('400 VALIDACION_FALLIDA con un token con %s (juego de caracteres)', async (_caso, token) => {
+      const res = await registrar(ana.auth, { token, plataforma: 'ANDROID' });
+      expect(res.status).toBe(400);
+      expect(res.body.errors.map((e: { campo: string }) => e.campo)).toContain('token');
+      expect(await ctx.dispositivoDAO.listarTokensPorUsuario(ana.id)).toEqual([]);
+    });
+
     it.each([
       ['1 caracter', 't'],
       ['255 caracteres', 't'.repeat(255)],

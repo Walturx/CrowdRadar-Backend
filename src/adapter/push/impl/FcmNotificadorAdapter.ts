@@ -57,7 +57,9 @@ export class FcmNotificadorAdapter implements NotificadorPush {
     }
     if (tokens.length === 0) return { enviados: 0, tokensInvalidos: [] };
     const respuestas = await this.cliente.enviar(tokens, notificacion);
-    const tokensInvalidos = tokens.filter((_, i) => CODIGOS_TOKEN_INVALIDO.has(respuestas[i]?.codigoError ?? ''));
-    return { enviados: respuestas.filter((r) => r.exito).length, tokensInvalidos };
+    // One response per token, by position: a missing one counts as a failure (the token is kept), an extra one is ignored.
+    const porToken = tokens.map((_, i) => respuestas[i]);
+    const tokensInvalidos = tokens.filter((_, i) => CODIGOS_TOKEN_INVALIDO.has(porToken[i]?.codigoError ?? ''));
+    return { enviados: porToken.filter((r) => r?.exito === true).length, tokensInvalidos };
   }
 }

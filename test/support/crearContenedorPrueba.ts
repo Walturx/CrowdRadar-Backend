@@ -7,6 +7,7 @@ import type { Contenedor } from '../../src/container/Contenedor.js';
 import type { DaosFavoritoAlerta } from '../../src/container/favoritoAlerta.js';
 import { ensamblar } from '../../src/container/index.js';
 import { resolverNombresDesde } from '../../src/dao/ResolverNombresLugar.js';
+import type { SaturacionSubject } from '../../src/pattern/observer/SaturacionSubject.js';
 import type { EstadoServicio } from '../../src/util/EstadoServicio.js';
 import type { Logger } from '../../src/util/logger.js';
 import type { Reloj } from '../../src/util/Reloj.js';
@@ -35,6 +36,8 @@ export interface OpcionesContenedorPrueba {
   conexion?: ConexionFalsa;
   logger?: Logger;
   estado?: EstadoServicio;
+  /** Subject shared by publishers and subscribers; a fresh publisher when omitted. Tests subscribe extra observers to it. */
+  subject?: SaturacionSubject;
 }
 
 export interface ContenedorPrueba {
@@ -83,6 +86,7 @@ export function crearContenedorPrueba(opciones: OpcionesContenedorPrueba = {}): 
       logger: opciones.logger ?? crearLoggerSilencioso(),
       conexion,
       estado: opciones.estado,
+      subject: opciones.subject,
       reloj: opciones.reloj,
       usuarioDAO,
       lugarDAO,

@@ -97,10 +97,20 @@ export class ReporteDAOSequelize implements ReporteDAO {
     });
   }
 
-  contarPremiadosDeUsuarioDesde(usuarioId: number, desde: Date, tx?: ContextoTx): Promise<number> {
+  /**
+   * Takes `pg_advisory_xact_lock(usuarioId, 0)` (second key 0: a place id is never 0) before counting, so the daily
+   * karma cap is checked one transaction at a time per user, whatever the places they report on.
+   */
+  async contarPremiadosDeUsuarioDesde(usuarioId: number, desde: Date, tx?: ContextoTx): Promise<number> {
+    const transaction = aTransaccion(tx);
+    await ReporteModel.sequelize!.query('SELECT pg_advisory_xact_lock(:usuarioId, 0)', {
+      replacements: { usuarioId },
+      type: QueryTypes.SELECT,
+      transaction,
+    });
     return ReporteModel.count({
       where: { usuarioId, puntosOtorgados: { [Op.gt]: 0 }, fechaHora: { [Op.gte]: desde } },
-      transaction: aTransaccion(tx),
+      transaction,
     });
   }
 

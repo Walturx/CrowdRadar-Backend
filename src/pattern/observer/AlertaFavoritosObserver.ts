@@ -5,6 +5,7 @@ import type { FavoritoDAO } from '../../dao/FavoritoDAO.js';
 import type { ResolverNombresLugar } from '../../dao/ResolverNombresLugar.js';
 import type { LugarFavorito } from '../../entity/LugarFavorito.js';
 import type { NivelSaturacion } from '../../enum/NivelSaturacion.js';
+import { conTiempoLimite, mapearConLimite } from '../../util/concurrencia.js';
 import type { Logger } from '../../util/logger.js';
 import type { SaturacionCambiadaEvento } from './SaturacionCambiadaEvento.js';
 import type { SaturacionObserver } from './SaturacionObserver.js';
@@ -26,7 +27,14 @@ export interface DependenciasAlertaFavoritosObserver {
   notificador: NotificadorPush;
   nombresLugar: ResolverNombresLugar;
   logger: Logger;
+  /** Followers served at the same time (ALERTAS_CONCURRENCIA). */
+  concurrencia?: number;
+  /** Longest one push may take before it is given up (PUSH_TIMEOUT_MS). */
+  pushTimeoutMs?: number;
 }
+
+const CONCURRENCIA_POR_DEFECTO = 5;
+const PUSH_TIMEOUT_POR_DEFECTO_MS = 3000;
 
 /**
  * Pattern: Observer (subscriber). Owner: M3. Turns a saturation change into an in-app alert (the guaranteed
@@ -34,6 +42,8 @@ export interface DependenciasAlertaFavoritosObserver {
  *
  * Every failure is isolated and logged, never thrown: a push provider that is down keeps the alert, one
  * recipient failing does not block the others, and the publisher (so the report request) never sees an error.
+ * Recipients are served with bounded concurrency and each push has a time limit, so a popular place or a stuck
+ * provider cannot hold the work (or the connection pool) for long.
  */
 export class AlertaFavoritosObserver implements SaturacionObserver {
   readonly nombre = 'alerta-favoritos';
@@ -52,7 +62,9 @@ export class AlertaFavoritosObserver implements SaturacionObserver {
       const destinatarios = seguidores.filter((favorito) => favorito.usuarioId !== autorId);
       if (destinatarios.length === 0) return;
       const lugar = await this.nombreDelLugar(lugarId);
-      for (const favorito of destinatarios) await this.avisar(favorito, lugar, evento, nivelNuevo);
+      await mapearConLimite(destinatarios, this.deps.concurrencia ?? CONCURRENCIA_POR_DEFECTO, (favorito) =>
+        this.avisar(favorito, lugar, evento, nivelNuevo),
+      );
     } catch (err) {
       this.deps.logger.error({ err, lugarId }, 'No se pudieron generar las alertas del cambio de saturacion');
     }
@@ -93,15 +105,24 @@ export class AlertaFavoritosObserver implements SaturacionObserver {
     }
   }
 
-  /** The alert is already stored: a push failure is only logged. */
+  /** The alert is already stored: a push failure (or timeout) is only logged, and so is a failed token cleanup. */
   private async enviarPush(usuarioId: number, mensaje: { titulo: string; cuerpo: string }, lugarId: number): Promise<void> {
-    const tokens = await this.deps.dispositivoDAO.listarTokensPorUsuario(usuarioId);
+    const { dispositivoDAO, notificador, logger, pushTimeoutMs = PUSH_TIMEOUT_POR_DEFECTO_MS } = this.deps;
+    const tokens = await dispositivoDAO.listarTokensPorUsuario(usuarioId);
     if (tokens.length === 0) return;
+    let tokensInvalidos: readonly string[];
     try {
-      const { tokensInvalidos } = await this.deps.notificador.enviar(tokens, { ...mensaje, data: { lugarId: String(lugarId) } });
-      if (tokensInvalidos.length > 0) await this.deps.dispositivoDAO.eliminarTokens(tokensInvalidos);
+      const envio = notificador.enviar(tokens, { ...mensaje, data: { lugarId: String(lugarId) } });
+      ({ tokensInvalidos } = await conTiempoLimite(envio, pushTimeoutMs));
     } catch (err) {
-      this.deps.logger.error({ err, usuarioId, lugarId }, 'El proveedor de push fallo; la alerta queda guardada');
+      logger.error({ err, usuarioId, lugarId }, 'El proveedor de push fallo o agoto el tiempo; la alerta queda guardada');
+      return;
+    }
+    if (tokensInvalidos.length === 0) return;
+    try {
+      await dispositivoDAO.eliminarTokens(tokensInvalidos);
+    } catch (err) {
+      logger.error({ err, usuarioId, lugarId }, 'No se pudieron borrar los tokens invalidos de push');
     }
   }
 }

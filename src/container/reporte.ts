@@ -89,6 +89,7 @@ export function construirServiciosReporte(deps: DependenciasServiciosReporte): S
     subject,
     conexion,
     logger,
+    presupuestoEventosMs: reglas.eventosPresupuestoMs,
   });
   return { reporteFacade, reporteService, karmaService, saturacionService };
 }
