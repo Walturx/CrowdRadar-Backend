@@ -287,6 +287,27 @@ Shared ports (contract PR required):
 - `dao/DenunciaDAO.ts`: owner M5 (creates what M6 resolves). Reviewer: M6. Reads: `existe`, `contarRecibidasPorAutor`.
   Writes: `crear`.
 
+Delivered (M5-BE-01..03):
+
+- Contract touch (M5-BE-01): new config key `CONFIABILIDAD_MIN_VOTOS_ESTADO` (10; votes before a report is VALIDADO or RECHAZADO).
+  `ValidacionDAO` gained `listarVotosDeReportes(reporteIds)` and `listarReporteIdsVotadosPor(usuarioId)`; `FiltroPendientes`
+  (`ReporteDAO.listarPendientesDeValidar`) gained `excluirIds`, which M5 fills with the reports the caller already voted on.
+  Sequelize models `ValidacionModel` and `DenunciaModel` (registered in `initModels`) and both DAOs are in; both Sequelize DAOs map a
+  unique-constraint violation to `ConflictoException`.
+- Contract touch (M5-BE-02): `ValidacionService` was reshaped from the frozen sketch to what the controllers need
+  (`listarPendientes`, `obtenerReporte`, `consultarConfiabilidad`, `validar` returning `ResultadoValidacion`, paginated
+  `consultarEstadoMisReportes`); `ConfiabilidadReporte` adds raw counts and the derived `EstadoValidacion` to `ResultadoConfiabilidad`
+  (`derivarEstadoValidacion`). New exceptions `ReporteNoEncontradoException`, `AutovalidacionException`,
+  `ValidacionDuplicadaException`, `AutodenunciaException`, `DenunciaDuplicadaException` (codes were already frozen).
+  `container/validacion.ts` exports `elegirEstrategiaConfiabilidad`, `construirServiciosValidacion` and `DaosValidacion`; the karma
+  service is the one `construirServiciosReporte` builds.
+- Contract touch (M5-BE-03): `ensamblar` takes `opciones.validacion` (`DaosValidacion`, in memory in `crearContenedorPrueba`); the
+  mount order is unchanged. `GET /reportes/mios/validacion` moved from `reporte.routes.ts` to `validacion.routes.ts` (declared before
+  `/reportes/:id`; the report router is still mounted first). `crearValidacionRouter` takes both controllers and the pendientes defaults.
+- The `tipoAccion` body key is kept from the design (not `veredicto`). `listarPendientes` loads the newest 500 candidates of the nearby places
+  and orders them by distance in the service (the distance lives on the place); no `LugarDAO` change.
+- Tests: `test/validacion/` (strategies white box, services unit, `pendientes.blackbox`, `validaciones.api`, container wiring).
+
 How to run tests: `npm test` (strategies and services with `ValidacionDAOMemoria`, `DenunciaDAOMemoria`);
 `npm run test:db` with `DATABASE_URL_TEST` runs both Sequelize DAOs through `ejecutarContratoDAO`; the denuncia
 environment needs a Sembrador that inserts real reports, so `contarRecibidasPorAutor` can join them.

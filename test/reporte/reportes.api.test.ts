@@ -185,9 +185,9 @@ describe('API de reportes (contenedor de prueba)', () => {
       expect((await request(app).get('/api/reportes/mios')).status).toBe(401);
     });
 
-    it('/reportes/mios/validacion sigue siendo del flujo M5 (501)', async () => {
+    it('/reportes/mios/validacion es del flujo M5 y no lo captura /reportes/:id', async () => {
       const res = await request(app).get('/api/reportes/mios/validacion').set(nuevoUsuario().cabecera);
-      expect(res.status).toBe(501);
+      expect(res.status).toBe(200);
     });
   });
 

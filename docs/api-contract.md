@@ -181,12 +181,20 @@ anything else `No hay lugares cercanos que cumplan con los filtros seleccionados
 |---|---|---|---|---|
 | POST | /api/reportes | auth | real | M4: body `{ lugarId, nivel }` (`nivel`: `TRANQUILO` \| `MODERADO` \| `SATURADO`); `201 { message, data: { reporte: { id, lugarId, nivel, fechaHora }, karma: { puntosGanados, total, motivoSinPuntos }, saturacionLugar: { nivel, actualizadoEn } } }` (`motivoSinPuntos`: `TOPE_DIARIO` or null; `saturacionLugar.nivel` null while there is not enough information); `400 VALIDACION_FALLIDA`; `404 LUGAR_NO_ENCONTRADO`; `422 REPORTE_EN_ESPERA` ("Ya reportaste este lugar. Vuelve a intentarlo en N minutos.") |
 | GET | /api/reportes/mios | auth | real | M4: `page`, `size`; `200 { message, data: { items: [{ id, lugar: { id, nombre }, nivel, fechaHora, estado, puntosOtorgados, motivoSinPuntos }], page, size, total, totalPaginas } }`, newest first, own reports only; with no reports `message` is "Aún no tienes reportes" and `items` is `[]`; `400` when `page` < 1 or `size` outside 1-50 |
-| GET | /api/reportes/mios/validacion | auth | stub | M5 |
-| GET | /api/validaciones/pendientes | auth | stub | M5: `lat`, `lng`, `radioKm`, `horas`, `page`, `size` |
-| GET | /api/reportes/:id | auth | stub | M5 |
-| GET | /api/reportes/:id/confiabilidad | auth | stub | M5 |
-| POST | /api/reportes/:id/validaciones | auth | stub | M5: body `{ tipoAccion }`; `422 AUTOVALIDACION_NO_PERMITIDA`; `409 VALIDACION_DUPLICADA` |
-| POST | /api/reportes/:id/denuncias | auth | stub | M5: body `{ motivo, detalle }`; `422 AUTODENUNCIA_NO_PERMITIDA`; `409 DENUNCIA_DUPLICADA` |
+| GET | /api/reportes/mios/validacion | auth | real | M5: `page`, `size` (1-50, default 20); `200 { message, data: { items: [{ reporteId, lugar: { id, nombre }, nivel, fechaHora, confiabilidad, estadoValidacion }], page, size, total, totalPaginas } }`, own reports newest first; none: message "Aún no tienes reportes"; reports nobody voted on: "Todavía no existen validaciones registradas." and `estadoValidacion` `SIN_VALIDACIONES`; `400` bad `page`/`size` |
+| GET | /api/validaciones/pendientes | auth | real | M5: query `lat` (-90..90) and `lng` (-180..180) required, `radioKm` 0.1-20 (default `RADIO_PENDIENTES_KM` 5), `horas` 1-24 (default `VENTANA_PENDIENTES_HORAS` 3), `page` >= 1, `size` 1-50 (20); `200 { message, data: { items: [{ id, lugar: { id, nombre, categoria }, nivel, fechaHora, distanciaMetros, confiabilidad }], page, size, total, totalPaginas } }`: ACTIVO reports of other users whose place is within `radioKm` (inclusive) of the point, written in the last `horas` (inclusive), not yet voted by the caller; nearest place first, then newest; empty: `200` with `items: []`; `400 VALIDACION_FALLIDA` otherwise |
+| GET | /api/reportes/:id | auth | real | M5: `200 { message, data: { id, lugar: { id, nombre, categoria }, nivel, fechaHora, confiabilidad, estadoValidacion, miValidacion, yaDenunciado, esPropio } }` (`miValidacion`: `CONFIRMAR` | `RECHAZAR` | null; the author is never exposed); `404 REPORTE_NO_ENCONTRADO` (missing or removed); `400` when `id` is not a positive integer |
+| GET | /api/reportes/:id/confiabilidad | auth | real | M5: `200 { message, data: confiabilidad }`; `404 REPORTE_NO_ENCONTRADO` |
+| POST | /api/reportes/:id/validaciones | auth | real | M5: body `{ tipoAccion: CONFIRMAR | RECHAZAR }`, strict; `201 { message: "¡Gracias por validar! +2 karma", data: { validacion: { id, reporteId, tipoAccion, fechaHora }, karma: { puntosGanados, total }, confiabilidad, estadoValidacion } }`; checks in order `404 REPORTE_NO_ENCONTRADO`, `422 AUTOVALIDACION_NO_PERMITIDA`, `409 VALIDACION_DUPLICADA` (also under concurrency); `400` bad body or `id` |
+| POST | /api/reportes/:id/denuncias | auth | real | M5: body `{ motivo: INFORMACION_FALSA | SPAM | CONTENIDO_INAPROPIADO | OTRO, detalle? (<= 280) }`, strict, `detalle` mandatory for `OTRO`; `201 { message: "Denuncia enviada. Gracias por avisar, la revisaremos.", data: { id, reporteId, motivo, detalle, estado: "PENDIENTE", fechaHora } }`; checks in order `404 REPORTE_NO_ENCONTRADO`, `422 AUTODENUNCIA_NO_PERMITIDA`, `400` (`OTRO` without `detalle`), `409 DENUNCIA_DUPLICADA` ("Esta denuncia ya fue registrada."); moderation (M6) decides it later |
+
+`confiabilidad` (M5) is `{ porcentaje, nivel, confirmaciones, rechazos, advertencia }`: `confirmaciones`/`rechazos` are raw vote counts; `porcentaje` is
+100 x weighted confirmations / weighted votes with 2 decimals, each vote weighing `1 + min(karma of the voter at vote time, TOPE_KARMA_PESO) / 100`
+(`CONFIABILIDAD_ESTRATEGIA=SIMPLE` weighs every vote 1). Fewer than `CONFIABILIDAD_MIN_VOTOS` (3) votes: `nivel` `INSUFICIENTE` and `porcentaje` null;
+otherwise `ALTA` from `CONFIABILIDAD_UMBRAL_ALTA` (70), `MEDIA` from `CONFIABILIDAD_UMBRAL_MEDIA` (40), else `BAJA`, with `advertencia`
+"Este reporte tiene pocas confirmaciones. Tómalo con precaución." (null for the other levels). `estadoValidacion` is derived, not stored: `SIN_VALIDACIONES` (no votes),
+`VALIDADO` (at least `CONFIABILIDAD_MIN_VOTOS_ESTADO` (10) votes and `ALTA`), `RECHAZADO` (same votes and `BAJA`), otherwise `EN_VALIDACION`.
+`/api/reportes/mios/validacion` is declared before `/api/reportes/:id`.
 
 ### Moderation (M6, admin)
 

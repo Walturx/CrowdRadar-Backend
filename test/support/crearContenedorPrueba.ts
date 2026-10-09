@@ -17,12 +17,14 @@ import { CorreoEspia } from './adapter/CorreoEspia.js';
 import { GeneradorTokenFijo } from './adapter/GeneradorTokenFijo.js';
 import { NotificadorEspia } from './adapter/NotificadorEspia.js';
 import { AlertaDAOMemoria } from './dao/memoria/AlertaDAOMemoria.js';
+import { DenunciaDAOMemoria } from './dao/memoria/DenunciaDAOMemoria.js';
 import { DispositivoDAOMemoria } from './dao/memoria/DispositivoDAOMemoria.js';
 import { FavoritoDAOMemoria } from './dao/memoria/FavoritoDAOMemoria.js';
 import { LugarDAOMemoria } from './dao/memoria/LugarDAOMemoria.js';
 import { ReporteDAOMemoria } from './dao/memoria/ReporteDAOMemoria.js';
 import { TokenRecuperacionDAOMemoria } from './dao/memoria/TokenRecuperacionDAOMemoria.js';
 import { UsuarioDAOMemoria } from './dao/memoria/UsuarioDAOMemoria.js';
+import { ValidacionDAOMemoria } from './dao/memoria/ValidacionDAOMemoria.js';
 import { configPrueba, type SobrescritosEntorno } from './configPrueba.js';
 
 export interface OpcionesContenedorPrueba {
@@ -34,6 +36,8 @@ export interface OpcionesContenedorPrueba {
   lugarDAO?: LugarDAOMemoria;
   favoritoDAO?: FavoritoDAOMemoria;
   reporteDAO?: ReporteDAOMemoria;
+  validacionDAO?: ValidacionDAOMemoria;
+  denunciaDAO?: DenunciaDAOMemoria;
   hasher?: Hasher;
   emisorToken?: EmisorToken;
   conexion?: ConexionFalsa;
@@ -53,6 +57,9 @@ export interface ContenedorPrueba {
   lugarDAO: LugarDAOMemoria;
   favoritoDAO: FavoritoDAOMemoria;
   reporteDAO: ReporteDAOMemoria;
+  /** M5 stream: the in-memory vote and complaint DAOs the container was built with. */
+  validacionDAO: ValidacionDAOMemoria;
+  denunciaDAO: DenunciaDAOMemoria;
   hasher: Hasher;
   emisorToken: EmisorToken;
   conexion: ConexionFalsa;
@@ -75,6 +82,8 @@ export function crearContenedorPrueba(opciones: OpcionesContenedorPrueba = {}): 
   const usuarioDAO = opciones.usuarioDAO ?? new UsuarioDAOMemoria();
   const lugarDAO = opciones.lugarDAO ?? new LugarDAOMemoria();
   const reporteDAO = opciones.reporteDAO ?? new ReporteDAOMemoria();
+  const validacionDAO = opciones.validacionDAO ?? new ValidacionDAOMemoria();
+  const denunciaDAO = opciones.denunciaDAO ?? new DenunciaDAOMemoria();
   const hasher = opciones.hasher ?? new BcryptHasherAdapter(cfg.seguridad.bcryptCosto);
   const emisorToken = opciones.emisorToken ?? new JwtEmisorTokenAdapter(cfg.seguridad);
   const conexion = opciones.conexion ?? new ConexionFalsa();
@@ -106,7 +115,7 @@ export function crearContenedorPrueba(opciones: OpcionesContenedorPrueba = {}): 
       emisorToken,
       seguridad: { tokenDAO, dispositivoDAO, correo, generador: new GeneradorTokenFijo(opciones.tokensRecuperacion ?? Array.from({ length: 50 }, (_, i) => `token-recuperacion-${i + 1}`)) },
     },
-    { favoritoAlerta },
+    { favoritoAlerta, validacion: { validacionDAO, denunciaDAO } },
   );
   return {
     contenedor,
@@ -115,6 +124,8 @@ export function crearContenedorPrueba(opciones: OpcionesContenedorPrueba = {}): 
     lugarDAO,
     favoritoDAO,
     reporteDAO,
+    validacionDAO,
+    denunciaDAO,
     hasher,
     emisorToken,
     conexion,
