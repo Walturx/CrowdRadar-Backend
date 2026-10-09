@@ -35,4 +35,17 @@ export class ValidacionDAOMemoria implements ValidacionDAO {
         .sort((a, b) => a.fechaHora.getTime() - b.fechaHora.getTime() || a.id - b.id),
     );
   }
+
+  async listarVotosDeReportes(reporteIds: readonly number[]): Promise<ValidacionReporte[]> {
+    const ids = new Set(reporteIds);
+    return copia(
+      this.filas
+        .filter((v) => ids.has(v.reporteId))
+        .sort((a, b) => a.fechaHora.getTime() - b.fechaHora.getTime() || a.id - b.id),
+    );
+  }
+
+  async listarReporteIdsVotadosPor(usuarioId: number): Promise<number[]> {
+    return this.filas.filter((v) => v.usuarioId === usuarioId).map((v) => v.reporteId).sort((a, b) => a - b);
+  }
 }

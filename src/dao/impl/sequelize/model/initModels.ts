@@ -6,6 +6,8 @@ import { initDispositivoModel } from './DispositivoModel.js';
 import { initFavoritoModel } from './FavoritoModel.js';
 import { initTokenRecuperacionModel } from './TokenRecuperacionModel.js';
 import { initUsuarioModel } from './UsuarioModel.js';
+import { initValidacionModel } from './ValidacionModel.js';
+import { initDenunciaModel } from './DenunciaModel.js';
 
 /** Registers every Sequelize model on the instance. Models are added slice by slice. */
 export function initModels(sequelize: Sequelize): void {
@@ -16,4 +18,6 @@ export function initModels(sequelize: Sequelize): void {
   initAlertaModel(sequelize);
   initDispositivoModel(sequelize);
   initTokenRecuperacionModel(sequelize);
+  initValidacionModel(sequelize);
+  initDenunciaModel(sequelize);
 }

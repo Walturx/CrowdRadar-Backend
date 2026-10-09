@@ -234,6 +234,18 @@ export function contratoReporteDAO(nombre: string, crearEntorno: () => Promise<E
       });
     });
 
+    it('listarPendientesDeValidar omite los reportes de excluirIds (los que ya voto)', async () => {
+      const otro = await sembrador.usuario();
+      const votado = await crear(NivelSaturacion.MODERADO, desplazar(T0, -30), { usuarioId: otro });
+      const pendiente = await crear(NivelSaturacion.MODERADO, desplazar(T0, -20), { usuarioId: otro });
+      const pagina = await dao.listarPendientesDeValidar(
+        { usuarioId, desde: desplazar(T0, -180), lugarIds: [lugarId], excluirIds: [votado.id] },
+        { page: 1, size: 20 },
+      );
+      expect(pagina.items.map((r) => r.id)).toEqual([pendiente.id]);
+      expect(pagina.total).toBe(1);
+    });
+
     it('crear con usuario o lugar inexistente lanza ForeignKeyConstraintError', async () => {
       await expect(crear(NivelSaturacion.MODERADO, T0, { usuarioId: ID_INEXISTENTE })).rejects.toBeInstanceOf(
         ForeignKeyConstraintError,
