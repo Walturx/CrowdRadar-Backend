@@ -33,7 +33,7 @@ services:
     environment:
       DB_HOST: postgres
       DB_PUERTO: "5432"
-      NODE_ENV: production
+      NODE_ENV: ${NODE_ENV:-production}
     command: ["npm", "run", "db:migrate"]
 
   api:
@@ -52,7 +52,7 @@ services:
       # Inside the compose network the database is the postgres service on its container port.
       DB_HOST: postgres
       DB_PUERTO: "5432"
-      NODE_ENV: production
+      NODE_ENV: ${NODE_ENV:-production}
     ports:
       - "${PUERTO:-3000}:3000"
 

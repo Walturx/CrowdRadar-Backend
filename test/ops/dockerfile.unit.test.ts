@@ -21,4 +21,11 @@ describe('Dockerfile', () => {
   it('corre como usuario no root', () => {
     expect(dockerfile).toMatch(/^USER node/m);
   });
+
+  it('la etapa build copia scripts/ antes de npm run build (copiar-vistas.mjs)', () => {
+    const copia = dockerfile.search(/^COPY scripts \.\/scripts$/m);
+    const build = dockerfile.search(/^RUN npm run build$/m);
+    expect(copia).toBeGreaterThanOrEqual(0);
+    expect(build).toBeGreaterThan(copia);
+  });
 });

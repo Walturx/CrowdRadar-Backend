@@ -62,4 +62,10 @@ describe('docker-compose.yml', () => {
     expect(existsSync(resolve(RAIZ, 'Dockerfile'))).toBe(true);
     expect(existsSync(resolve(RAIZ, '.dockerignore'))).toBe(true);
   });
+
+  it('NODE_ENV viene de .env con produccion por defecto en api y migrate (el demo sintetico exige development)', () => {
+    for (const nombre of ['api', 'migrate']) {
+      expect(servicio(nombre)).toMatch(/NODE_ENV:\s*\$\{NODE_ENV:-production\}/);
+    }
+  });
 });
