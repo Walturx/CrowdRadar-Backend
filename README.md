@@ -38,6 +38,13 @@ forces an immediate exit with 1. `APAGADO_TIMEOUT_MS` (35 s) must exceed `SERVID
 compose `stop_grace_period` (40 s) must exceed `APAGADO_TIMEOUT_MS`, or the orchestrator kills in-flight requests.
 `GET /api/salud` probes the database with its own 2 s limit, so a saturated pool answers 503 instead of hanging.
 
+### Running with Docker (demo with synthetic data)
+
+1. Copy `.env.example` to `.env`, set `DB_PASSWORD`, and set `NODE_ENV=development` (compose defaults to `production`, which rejects `SEED_SINTETICO=true`) plus `SEED_SINTETICO=true`.
+2. `docker compose up --build -d`
+3. Seed the demo data (not automatic): `docker compose run --rm migrate npm run db:seed`
+4. If host port 5432 is busy, publish PostgreSQL on another one with `DB_PUERTO` in `.env` (e.g. `DB_PUERTO=55432`); inside the compose network the API still uses 5432.
+
 ### Migrations in containers
 
 Migrations are never run by the API container. `docker compose` has a **one-shot** `migrate` service
