@@ -316,6 +316,9 @@ environment needs a Sembrador that inserts real reports, so `contarRecibidasPorA
 
 ## M6 Moderation
 
+Status: delivered. The 7 admin routes answer through `ModeracionController` over `ModeracionFacadeImpl`; `construirModeracion` receives the
+M5 `DenunciaDAO` instance. The resolution body is `{ decision, comentario? }`.
+
 Interfaces to implement:
 
 - `facade/ModeracionFacade.ts` (Pattern: Facade) with `controller/ModeracionController.ts` (7 admin routes in

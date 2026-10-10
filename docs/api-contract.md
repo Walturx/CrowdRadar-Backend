@@ -200,13 +200,13 @@ otherwise `ALTA` from `CONFIABILIDAD_UMBRAL_ALTA` (70), `MEDIA` from `CONFIABILI
 
 | Method | Path | Access | Status | Notes |
 |---|---|---|---|---|
-| GET | /api/admin/reportes-denunciados | admin | stub | |
-| GET | /api/admin/reportes-denunciados/:reporteId | admin | stub | |
-| POST | /api/admin/reportes-denunciados/:reporteId/resolucion | admin | stub | `409 SIN_DENUNCIAS_PENDIENTES` |
-| GET | /api/admin/usuarios | admin | stub | `q`, `status`, `orden`, `page`, `size` |
-| GET | /api/admin/usuarios/:id | admin | stub | |
-| POST | /api/admin/usuarios/:id/suspension | admin | stub | body `{ dias, motivo }` with `dias` one of 3, 7 or 30 |
-| POST | /api/admin/usuarios/:id/reactivacion | admin | stub | `409 USUARIO_NO_SUSPENDIDO` |
+| GET | /api/admin/reportes-denunciados | admin | delivered | |
+| GET | /api/admin/reportes-denunciados/:reporteId | admin | delivered | |
+| POST | /api/admin/reportes-denunciados/:reporteId/resolucion | admin | delivered | body `{ decision: MANTENER\|ELIMINAR, comentario? }`; `409 SIN_DENUNCIAS_PENDIENTES`, `404 REPORTE_NO_ENCONTRADO` |
+| GET | /api/admin/usuarios | admin | delivered | `q` (2-80), `status` (ACTIVO\|SUSPENDIDO), `orden` (RECIENTES\|NOMBRE\|KARMA), `page`, `size` (1-50); each item has `sancionVigente` (with `fechaFin`) while suspended |
+| GET | /api/admin/usuarios/:id | admin | delivered | |
+| POST | /api/admin/usuarios/:id/suspension | admin | delivered | body `{ dias, motivo }` with `dias` one of 3, 7 or 30 and `motivo` 10-280; `201` with the sanction, `409 USUARIO_YA_SUSPENDIDO`, `422 OPERACION_NO_PERMITIDA` (self or another ADMIN) |
+| POST | /api/admin/usuarios/:id/reactivacion | admin | delivered | `409 USUARIO_NO_SUSPENDIDO` |
 
 ## Rate limits
 

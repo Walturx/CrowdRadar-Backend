@@ -42,7 +42,7 @@ describe('builders por stream', () => {
     ['favoritoAlerta (M3)', (i) => construirFavoritoAlerta(i, crearContenedorPrueba().favoritoAlerta), ['favorito', 'alerta']],
     ['reporte (M4)', construirReporte, ['reporte', 'analitica']],
     ['validacion (M5)', (i) => construirValidacion(i, { validacionDAO: new ValidacionDAOMemoria(), denunciaDAO: new DenunciaDAOMemoria() }), ['validacion']],
-    ['moderacion (M6)', construirModeracion, ['moderacion']],
+    ['moderacion (M6)', (i) => construirModeracion(i, new DenunciaDAOMemoria()), ['moderacion']],
   ] as const satisfies readonly (readonly [string, (i: ReturnType<typeof infra>) => readonly { modulo: string }[], readonly string[]])[])('%s devuelve solo sus routers', (_nombre, construir, esperados) => {
     expect(modulos(construir(infra()))).toEqual(esperados);
   });
