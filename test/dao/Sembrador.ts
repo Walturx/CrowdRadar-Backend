@@ -4,6 +4,8 @@
  */
 export interface Sembrador {
   usuario(): Promise<number>;
+  /** A user of the demo data: the email carries the synthetic domain (spec M4 R10). */
+  usuarioSintetico(): Promise<number>;
   lugar(): Promise<number>;
   reporte(usuarioId: number, lugarId: number): Promise<number>;
   favorito(usuarioId: number, lugarId: number): Promise<number>;

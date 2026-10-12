@@ -9,9 +9,11 @@ import type { SaturacionSubject } from '../pattern/observer/SaturacionSubject.js
 import type { EstrategiaSaturacion } from '../pattern/strategy/saturacion/EstrategiaSaturacion.js';
 import { SaturacionPonderadaStrategy } from '../pattern/strategy/saturacion/impl/SaturacionPonderadaStrategy.js';
 import { SaturacionUltimoReporteStrategy } from '../pattern/strategy/saturacion/impl/SaturacionUltimoReporteStrategy.js';
+import { AnaliticaController } from '../controller/AnaliticaController.js';
 import { ReporteController } from '../controller/ReporteController.js';
 import { crearAnaliticaRouter } from '../route/analitica.routes.js';
 import { crearReporteRouter } from '../route/reporte.routes.js';
+import { AnaliticaServiceImpl } from '../service/impl/AnaliticaServiceImpl.js';
 import { KarmaServiceImpl } from '../service/impl/KarmaServiceImpl.js';
 import { ReporteServiceImpl } from '../service/impl/ReporteServiceImpl.js';
 import { SaturacionServiceImpl } from '../service/impl/SaturacionServiceImpl.js';
@@ -116,8 +118,16 @@ export function construirReporte({
     reporteDAO,
     subject,
   });
+  const { reglas } = cfg;
+  const analiticaService = new AnaliticaServiceImpl({
+    lugarDAO,
+    reporteDAO,
+    reloj,
+    zonaHoraria: cfg.servidor.zonaHoraria,
+    minMuestras: reglas.analiticaMinMuestras,
+  });
   return [
     { modulo: 'reporte', ruta: '/api', router: crearReporteRouter(new ReporteController(reporteFacade, reporteService), guardas) },
-    { modulo: 'analitica', ruta: '/api', router: crearAnaliticaRouter(guardas) },
+    { modulo: 'analitica', ruta: '/api', router: crearAnaliticaRouter(new AnaliticaController(analiticaService), guardas) },
   ];
 }

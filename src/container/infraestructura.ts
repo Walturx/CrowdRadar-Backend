@@ -33,9 +33,11 @@ export interface DependenciasInfraestructura {
   emisorToken: EmisorToken;
   /** Readiness flag shared with the shutdown; a fresh one when omitted (tests). */
   estado?: EstadoServicio;
+  /** The system clock when omitted; tests pin it. */
+  reloj?: Reloj;
 }
 
-export interface Infraestructura extends Omit<DependenciasInfraestructura, 'estado'> {
+export interface Infraestructura extends Omit<DependenciasInfraestructura, 'estado' | 'reloj'> {
   estado: EstadoServicio;
   reloj: Reloj;
   /** The one subject of level changes: M4 and M6 publish through it, M3 subscribes. */
@@ -57,7 +59,7 @@ export function construirInfraestructura(dependencias: DependenciasInfraestructu
   return {
     ...dependencias,
     estado: dependencias.estado ?? new EstadoServicio(),
-    reloj: relojSistema,
+    reloj: dependencias.reloj ?? relojSistema,
     subject: new PublicadorSaturacion(dependencias.logger),
     verificador,
     autenticar,

@@ -7,6 +7,7 @@ import type { MotivoSinPuntos } from '../../../enum/MotivoSinPuntos.js';
 import type { NivelSaturacion } from '../../../enum/NivelSaturacion.js';
 import { armarPagina, desplazamiento, type Pagina, type Paginacion } from '../../Paginacion.js';
 import type { AgregadoHora, ConsultaAgregada, FiltroPendientes, NuevoReporte, ReporteDAO } from '../../ReporteDAO.js';
+import { DOMINIO_EMAIL_SINTETICO } from '../../../util/sintetico.js';
 import { ReporteModel } from './model/ReporteModel.js';
 
 const aTransaccion = (tx?: ContextoTx) => tx as unknown as Transaction | undefined;
@@ -137,6 +138,28 @@ export class ReporteDAOSequelize implements ReporteDAO {
       },
     );
     return filas.map(({ dia, hora, promedio, muestras }) => ({ dia, hora, promedio, muestras }));
+  }
+
+  async hayReportesSinteticos(consulta: ConsultaAgregada, tx?: ContextoTx): Promise<boolean> {
+    const [fila] = await ReporteModel.sequelize!.query<{ hay: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1 FROM reporte_saturacion r JOIN usuario u ON u.id = r.usuario_id
+          WHERE r.lugar_id = :lugarId AND r.estado = 'ACTIVO' AND r.fecha_hora >= :desde AND r.fecha_hora < :hasta
+                AND u.email LIKE :patron ${FILTRO_SQL_DIAS[consulta.dias].replaceAll('fecha_hora', 'r.fecha_hora')}
+       ) AS hay`,
+      {
+        replacements: {
+          lugarId: consulta.lugarId,
+          desde: consulta.desde,
+          hasta: consulta.hasta,
+          zona: consulta.zonaHoraria,
+          patron: `%${DOMINIO_EMAIL_SINTETICO}`,
+        },
+        type: QueryTypes.SELECT,
+        transaction: aTransaccion(tx),
+      },
+    );
+    return fila?.hay === true;
   }
 
   listarPendientesDeValidar(

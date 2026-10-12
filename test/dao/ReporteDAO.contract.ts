@@ -173,6 +173,38 @@ export function contratoReporteDAO(nombre: string, crearEntorno: () => Promise<E
       });
     });
 
+    describe('hayReportesSinteticos', () => {
+      const ventana = (extra: Record<string, unknown> = {}) => ({
+        lugarId,
+        desde: new Date('2026-10-01T05:00:00Z'),
+        hasta: new Date('2026-10-08T05:00:00Z'),
+        dias: FiltroDias.TODOS,
+        zonaHoraria: LIMA,
+        ...extra,
+      });
+
+      it('es falso con reportes de usuarios reales y verdadero en cuanto uno es sintetico', async () => {
+        await crear(NivelSaturacion.MODERADO, T0);
+        expect(await dao.hayReportesSinteticos(ventana())).toBe(false);
+        await crear(NivelSaturacion.SATURADO, desplazar(T0, 5), { usuarioId: await sembrador.usuarioSintetico() });
+        expect(await dao.hayReportesSinteticos(ventana())).toBe(true);
+      });
+
+      it('solo cuenta el lugar, el rango [desde, hasta), los ACTIVO y el filtro de dias de la consulta', async () => {
+        const sintetico = await sembrador.usuarioSintetico();
+        const otroLugar = await sembrador.lugar();
+        await crear(NivelSaturacion.MODERADO, T0, { usuarioId: sintetico, lugarId: otroLugar });
+        expect(await dao.hayReportesSinteticos(ventana())).toBe(false);
+        const eliminado = await crear(NivelSaturacion.MODERADO, T0, { usuarioId: sintetico });
+        await dao.actualizarEstado(eliminado.id, EstadoReporte.ELIMINADO);
+        expect(await dao.hayReportesSinteticos(ventana())).toBe(false);
+        await crear(NivelSaturacion.MODERADO, T0, { usuarioId: sintetico }); // Monday
+        expect(await dao.hayReportesSinteticos(ventana({ hasta: T0 }))).toBe(false);
+        expect(await dao.hayReportesSinteticos(ventana({ dias: FiltroDias.FIN_DE_SEMANA }))).toBe(false);
+        expect(await dao.hayReportesSinteticos(ventana({ dias: FiltroDias.LABORABLES }))).toBe(true);
+      });
+    });
+
     describe('listarPendientesDeValidar', () => {
       it('excluye propios, eliminados, anteriores a desde y lugares fuera de lugarIds', async () => {
         const otro = await sembrador.usuario();
