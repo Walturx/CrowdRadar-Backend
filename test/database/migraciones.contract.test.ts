@@ -552,5 +552,71 @@ describe.skipIf(!URL_BD_TEST)('migraciones (PostgreSQL real)', () => {
       expect(fila?.nombre).not.toBe('Nombre alterado');
       expect(fila?.saturacion_actual).toBe('SATURADO');
     });
+
+    describe('historial sintetico (SEED_SINTETICO)', () => {
+      const SEEDER = '20261005100003-historial-sintetico.cjs';
+      const DOMINIO = '%@sintetico.crowdradar.local';
+      const contar = async (sql: string, parametros: unknown[] = []) => Number((await q<{ n: string }>(sql, parametros))[0]?.n);
+      const sinteticos = () => contar('SELECT count(*) AS n FROM usuario WHERE email LIKE $1', [DOMINIO]);
+      const reportesSinteticos = () =>
+        contar(
+          'SELECT count(*) AS n FROM reporte_saturacion WHERE usuario_id IN (SELECT id FROM usuario WHERE email LIKE $1)',
+          [DOMINIO],
+        );
+      const sembrar = (sintetico: string) => ejecutarCli(['db:seed:all'], bd.url, { ...admin, SEED_SINTETICO: sintetico });
+      const deshacer = () => ejecutarCli(['db:seed:undo', '--seed', SEEDER], bd.url, admin);
+
+      it('con SEED_SINTETICO=false no crea usuarios ni reportes sinteticos', async () => {
+        expect((await deshacer()).codigo).toBe(0);
+        const resultado = await sembrar('false');
+        expect(resultado.codigo, resultado.salida).toBe(0);
+        expect(await sinteticos()).toBe(0);
+        expect(await reportesSinteticos()).toBe(0);
+      });
+
+      it('con SEED_SINTETICO=true crea 3 usuarios sin password y reportes ACTIVO pasados en los 45 lugares', async () => {
+        const resultado = await sembrar('true');
+        expect(resultado.codigo, resultado.salida).toBe(0);
+        expect(resultado.salida).toMatch(/sint[eé]tic/i);
+        expect(await sinteticos()).toBe(3);
+        expect(await contar('SELECT count(*) AS n FROM usuario WHERE email LIKE $1 AND password_hash IS NOT NULL', [DOMINIO])).toBe(0);
+        expect(await reportesSinteticos()).toBeGreaterThan(5000);
+        const lugares = await contar('SELECT count(*) AS n FROM lugar');
+        expect(
+          await contar(
+            `SELECT count(DISTINCT lugar_id) AS n FROM reporte_saturacion
+              WHERE usuario_id IN (SELECT id FROM usuario WHERE email LIKE $1)`,
+            [DOMINIO],
+          ),
+        ).toBe(lugares);
+        expect(await contar("SELECT count(*) AS n FROM reporte_saturacion WHERE fecha_hora > now() OR estado <> 'ACTIVO'")).toBe(0);
+      });
+
+      it('es idempotente: sembrar otra vez no agrega usuarios ni reportes', async () => {
+        const usuariosAntes = await sinteticos();
+        const reportesAntes = await reportesSinteticos();
+        const resultado = await sembrar('true');
+        expect(resultado.codigo, resultado.salida).toBe(0);
+        expect(await sinteticos()).toBe(usuariosAntes);
+        expect(await reportesSinteticos()).toBe(reportesAntes);
+      });
+
+      it('db:seed:undo del seeder borra solo lo sintetico y deja admin, lugares y reportes reales', async () => {
+        const [lugar] = await q<{ id: number }>('SELECT id FROM lugar ORDER BY id LIMIT 1');
+        const [real] = await q<{ id: number }>('SELECT id FROM usuario WHERE email = $1', [admin.ADMIN_EMAIL]);
+        await q("INSERT INTO reporte_saturacion (usuario_id, lugar_id, nivel_saturacion) VALUES ($1, $2, 'MODERADO')", [
+          real?.id,
+          lugar?.id,
+        ]);
+        const lugaresAntes = await contar('SELECT count(*) AS n FROM lugar');
+        const resultado = await deshacer();
+        expect(resultado.codigo, resultado.salida).toBe(0);
+        expect(await sinteticos()).toBe(0);
+        expect(await reportesSinteticos()).toBe(0);
+        expect(await contar('SELECT count(*) AS n FROM reporte_saturacion WHERE usuario_id = $1', [real?.id])).toBe(1);
+        expect(await contar('SELECT count(*) AS n FROM lugar')).toBe(lugaresAntes);
+        expect(await contar('SELECT count(*) AS n FROM usuario WHERE email = $1', [admin.ADMIN_EMAIL])).toBe(1);
+      });
+    });
   });
 });

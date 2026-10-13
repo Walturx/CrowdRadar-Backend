@@ -73,7 +73,7 @@ describe('ConfiguracionApp', () => {
       expect(cfg.bd).toMatchObject({ host: 'localhost', puerto: 5432, password: 'clave-bd' });
       expect(cfg.correo.proveedor).toBe('consola');
       expect(cfg.push.proveedor).toBe('consola');
-      expect(cfg.semillas.demo).toBe(false);
+      expect(cfg.semillas.sinteticos).toBe(true); // NODE_ENV is not production here
     });
 
     it('lee las claves del entorno: lista de CORS, dias de suspension y numeros', () => {
@@ -82,14 +82,27 @@ describe('ConfiguracionApp', () => {
           CORS_ORIGENES: 'http://a.pe, http://b.pe',
           SUSPENSION_DIAS_PERMITIDOS: '7,3',
           COOLDOWN_REPORTE_MIN: '45',
-          SEED_DEMO: 'true',
+          SEED_SINTETICO: 'false',
         }),
       );
       const cfg = ConfiguracionApp.getInstance();
       expect(cfg.servidor.corsOrigenes).toEqual(['http://a.pe', 'http://b.pe']);
       expect(cfg.reglas.suspensionDiasPermitidos).toEqual([7, 3]);
       expect(cfg.reglas.cooldownReporteMin).toBe(45);
-      expect(cfg.semillas.demo).toBe(true);
+      expect(cfg.semillas.sinteticos).toBe(false);
+    });
+
+    it('SEED_SINTETICO: por defecto sigue a NODE_ENV (activo fuera de produccion, apagado en produccion) y el valor explicito manda', () => {
+      const leer = (extra: Record<string, string>) => {
+        ConfiguracionApp.reiniciar();
+        vi.stubEnv('SEED_SINTETICO', undefined);
+        aplicarEntorno(entornoMinimo(extra));
+        return ConfiguracionApp.getInstance().semillas.sinteticos;
+      };
+      expect(leer({ NODE_ENV: 'development' })).toBe(true);
+      expect(leer({ NODE_ENV: 'production' })).toBe(false);
+      expect(leer({ NODE_ENV: 'production', SEED_SINTETICO: 'true' })).toBe(true);
+      expect(leer({ NODE_ENV: 'development', SEED_SINTETICO: 'false' })).toBe(false);
     });
 
     it('los grupos son inmutables', () => {
