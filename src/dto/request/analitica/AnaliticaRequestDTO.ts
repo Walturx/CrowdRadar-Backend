@@ -17,6 +17,10 @@ const diaSchema = z
 const filtroDiasSchema = z.enum(Object.values(FiltroDias) as [FiltroDias, ...FiltroDias[]]);
 const agrupacionSchema = z.enum(Object.values(AgrupacionHistorial) as [AgrupacionHistorial, ...AgrupacionHistorial[]]);
 
+export const MIN_SEMANAS = 1;
+export const MAX_SEMANAS = 12;
+export const SEMANAS_POR_DEFECTO = 4;
+
 /** `:id` of every analytics route. */
 export const lugarIdSchema = z.object({ id: z.coerce.number().int().positive() });
 
@@ -37,5 +41,12 @@ export const compararSchema = z.strictObject({
   diasB: filtroDiasSchema.default(FiltroDias.TODOS),
 });
 
+/** GET /api/lugares/:id/mejor-horario query. */
+export const mejorHorarioSchema = z.strictObject({
+  dias: filtroDiasSchema.default(FiltroDias.TODOS),
+  semanas: z.coerce.number().int().min(MIN_SEMANAS).max(MAX_SEMANAS).default(SEMANAS_POR_DEFECTO),
+});
+
 export type HistorialQueryDTO = z.infer<typeof historialSchema>;
 export type CompararQueryDTO = z.infer<typeof compararSchema>;
+export type MejorHorarioQueryDTO = z.infer<typeof mejorHorarioSchema>;

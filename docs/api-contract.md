@@ -99,7 +99,7 @@ still reveals that an email exists (`409`).
 | GET | /api/lugares/:id | auth | stub | M2: detail with `abiertoAhora`, `saturacion`, `esFavorito` |
 | GET | /api/lugares/:id/historial | auth | real | M4: `desde`, `hasta` (YYYY-MM-DD, Lima), `agrupacion` = `HORA` (default; 24-hour slots `HH:00` over the range, today by default) or `DIA` (one point per day, last 7 days by default); `200 { message, data: { puntos: [{ etiqueta, valor, muestras }], hayDatos, mensaje, sintetico } }` (`valor` is the average level 1-3; with no data `hayDatos` is false and `mensaje` explains it); `400 RANGO_FECHAS_INVALIDO` when both dates are given and `desde` is not before `hasta` or they are more than 31 days apart; `404 LUGAR_NO_ENCONTRADO` |
 | GET | /api/lugares/:id/comparar | auth | real | M4: `desdeA`, `hastaA`, `desdeB`, `hastaB` required, `diasA`, `diasB` = `TODOS` (default) \| `LABORABLES` \| `FIN_DE_SEMANA`; `200 { message, data: { periodoA, periodoB: [24 x { hora, valor, muestras }], diferencias: [{ hora, diferencia }] (B minus A, hours with data in both), resumen, suficiente, mensaje, sintetico } }`; `suficiente` is false (and `diferencias` empty) when either period has fewer than `ANALITICA_MIN_MUESTRAS` samples; same `400`/`404` as the history |
-| GET | /api/lugares/:id/mejor-horario | auth | stub | M4 |
+| GET | /api/lugares/:id/mejor-horario | auth | real | M4: `dias` (default `TODOS`), `semanas` 1-12 (default 4, counted back from today); `200 { message, data: { recomendaciones: [{ horaInicio, horaFin, nivel, promedio, muestras }] (up to 3, calmest first, inside the opening hours), suficiente, mensaje, sintetico } }`; `400 VALIDACION_FALLIDA`; `404 LUGAR_NO_ENCONTRADO` |
 
 ### Favourites and alerts (M3)
 

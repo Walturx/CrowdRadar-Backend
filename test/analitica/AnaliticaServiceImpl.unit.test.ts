@@ -1,6 +1,6 @@
 /**
- * Unit tests of AnaliticaServiceImpl over the in-memory DAOs: history and period comparison
- * (spec M4 R11, R12, S15-S17). Times are Lima (UTC-5); "now" is Wednesday 2026-10-07 10:00 Lima.
+ * Unit tests of AnaliticaServiceImpl over the in-memory DAOs: history, period comparison and best hour
+ * (spec M4 R11-R13, S15-S17). Times are Lima (UTC-5); "now" is Wednesday 2026-10-07 10:00 Lima.
  */
 import { beforeEach, describe, expect, it } from 'vitest';
 import { EstadoReporte } from '../../src/enum/EstadoReporte.js';
@@ -57,6 +57,8 @@ describe('AnaliticaServiceImpl', () => {
       reloj: new RelojFijo(AHORA),
       zonaHoraria: 'America/Lima',
       minMuestras: MIN,
+      umbralModerado: 1.67,
+      umbralSaturado: 2.34,
     });
   });
 
@@ -226,6 +228,78 @@ describe('AnaliticaServiceImpl', () => {
       sembrarContraste();
       reportar('2026-10-10', 15, VALOR.MODERADO, { usuarioId: await sembrador.usuarioSintetico() });
       expect((await servicio.compararPeriodos(lugarId, laborables, finDeSemana)).sintetico).toBe(true);
+    });
+  });
+
+  describe('obtenerMejorHorario', () => {
+    it('recomienda las 3 horas mas tranquilas dentro del horario de apertura, con su nivel', async () => {
+      muchos(MIN, '2026-10-06', 9, VALOR.TRANQUILO); // 1.0
+      muchos(MIN, '2026-10-06', 11, VALOR.MODERADO); // 2.0
+      muchos(MIN, '2026-10-06', 13, VALOR.SATURADO); // 3.0
+      muchos(MIN, '2026-10-06', 15, VALOR.TRANQUILO);
+      reportar('2026-10-06', 15, VALOR.MODERADO); // 1.17, 6 samples
+      muchos(MIN, '2026-10-06', 3, VALOR.TRANQUILO); // outside opening hours
+      const r = await servicio.obtenerMejorHorario(lugarId, FiltroDias.TODOS, 4);
+      expect(r.recomendaciones).toEqual([
+        { horaInicio: 9, horaFin: 10, nivel: 'TRANQUILO', promedio: 1, muestras: MIN },
+        { horaInicio: 15, horaFin: 16, nivel: 'TRANQUILO', promedio: 1.17, muestras: MIN + 1 },
+        { horaInicio: 11, horaFin: 12, nivel: 'MODERADO', promedio: 2, muestras: MIN },
+      ]);
+      expect(r.hayDatos).toBe(true);
+    });
+
+    it('desempata por mas muestras y luego por hora; excluye horas con menos muestras que el minimo', async () => {
+      muchos(MIN + 2, '2026-10-06', 14, VALOR.TRANQUILO);
+      muchos(MIN, '2026-10-06', 10, VALOR.TRANQUILO);
+      muchos(MIN, '2026-10-06', 9, VALOR.TRANQUILO);
+      muchos(MIN - 1, '2026-10-06', 12, VALOR.TRANQUILO);
+      const r = await servicio.obtenerMejorHorario(lugarId, FiltroDias.TODOS, 4);
+      expect(r.recomendaciones.map((f) => f.horaInicio)).toEqual([14, 9, 10]);
+    });
+
+    it('un horario que cruza la medianoche (20 a 02) incluye las horas de madrugada y excluye las de la manana', async () => {
+      const noche = lugarDAO.agregar({ horaApertura: 20, horaCierre: 2 }).id;
+      for (const hora of [22, 1, 10]) {
+        for (let i = 0; i < MIN; i += 1) reportar('2026-10-06', hora, VALOR.TRANQUILO, { lugarId: noche });
+      }
+      const r = await servicio.obtenerMejorHorario(noche, FiltroDias.TODOS, 4);
+      expect(r.recomendaciones.map((f) => f.horaInicio)).toEqual([1, 22]);
+    });
+
+    it('un lugar sin horario conocido usa 08:00 a 22:00', async () => {
+      const sinHorario = lugarDAO.agregar({ horaApertura: null, horaCierre: null }).id;
+      for (const hora of [7, 9, 22]) {
+        for (let i = 0; i < MIN; i += 1) reportar('2026-10-06', hora, VALOR.TRANQUILO, { lugarId: sinHorario });
+      }
+      const r = await servicio.obtenerMejorHorario(sinHorario, FiltroDias.TODOS, 4);
+      expect(r.recomendaciones.map((f) => f.horaInicio)).toEqual([9]);
+    });
+
+    it('semanas acota la ventana hacia atras desde hoy y dias filtra laborables o fin de semana', async () => {
+      muchos(MIN, '2026-10-06', 9, VALOR.TRANQUILO); // Tuesday, 1 day ago
+      muchos(MIN, '2026-09-20', 10, VALOR.TRANQUILO); // Sunday, 17 days ago
+      const una = await servicio.obtenerMejorHorario(lugarId, FiltroDias.TODOS, 1);
+      expect(una.recomendaciones.map((f) => f.horaInicio)).toEqual([9]);
+      const tres = await servicio.obtenerMejorHorario(lugarId, FiltroDias.TODOS, 3);
+      expect(tres.recomendaciones.map((f) => f.horaInicio)).toEqual([9, 10]);
+      const finde = await servicio.obtenerMejorHorario(lugarId, FiltroDias.FIN_DE_SEMANA, 3);
+      expect(finde.recomendaciones.map((f) => f.horaInicio)).toEqual([10]);
+    });
+
+    it('sin horas con muestras suficientes no hay recomendacion', async () => {
+      muchos(MIN - 1, '2026-10-06', 9, VALOR.TRANQUILO);
+      expect(await servicio.obtenerMejorHorario(lugarId, FiltroDias.TODOS, 4)).toEqual({
+        hayDatos: false,
+        sintetico: false,
+        recomendaciones: [],
+      });
+    });
+
+    it('marca sintetico y devuelve 404 para un lugar inexistente', async () => {
+      const demo = await sembrador.usuarioSintetico();
+      for (let i = 0; i < MIN; i += 1) reportar('2026-10-06', 9, VALOR.TRANQUILO, { usuarioId: demo });
+      expect((await servicio.obtenerMejorHorario(lugarId, FiltroDias.TODOS, 4)).sintetico).toBe(true);
+      await expect(servicio.obtenerMejorHorario(lugarId + 99, FiltroDias.TODOS, 4)).rejects.toMatchObject({ status: 404 });
     });
   });
 });

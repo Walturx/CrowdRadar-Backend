@@ -125,6 +125,8 @@ export function construirReporte({
     reloj,
     zonaHoraria: cfg.servidor.zonaHoraria,
     minMuestras: reglas.analiticaMinMuestras,
+    umbralModerado: reglas.saturacionUmbralModerado,
+    umbralSaturado: reglas.saturacionUmbralSaturado,
   });
   return [
     { modulo: 'reporte', ruta: '/api', router: crearReporteRouter(new ReporteController(reporteFacade, reporteService), guardas) },

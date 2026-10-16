@@ -1,12 +1,14 @@
 import type {
   CompararResponseDTO,
   HistorialResponseDTO,
+  MejorHorarioResponseDTO,
 } from '../dto/response/analitica/AnaliticaResponseDTO.js';
 import { FiltroDias } from '../enum/FiltroDias.js';
-import type { ResultadoComparacion, ResultadoHistorial } from '../service/AnaliticaService.js';
+import type { ResultadoComparacion, ResultadoHistorial, ResultadoMejorHorario } from '../service/AnaliticaService.js';
 
 export const MENSAJE_SIN_HISTORIAL = 'No existe información histórica disponible para este lugar.';
 export const MENSAJE_SIN_COMPARACION = 'No existen datos suficientes para realizar la comparación.';
+export const MENSAJE_SIN_RECOMENDACION = 'No existen datos suficientes para generar la recomendación.';
 const MENSAJE_SIN_DIFERENCIAS = 'No hay diferencias notables entre ambos periodos.';
 
 const SUJETO_DE_B: Record<FiltroDias, string> = {
@@ -41,5 +43,9 @@ export const AnaliticaMapper = {
       mensaje: suficiente ? null : MENSAJE_SIN_COMPARACION,
       sintetico,
     };
+  },
+
+  aMejorHorario({ hayDatos, sintetico, recomendaciones }: ResultadoMejorHorario): MejorHorarioResponseDTO {
+    return { recomendaciones, suficiente: hayDatos, mensaje: hayDatos ? null : MENSAJE_SIN_RECOMENDACION, sintetico };
   },
 };

@@ -1,6 +1,6 @@
 /**
- * API tests of GET /api/lugares/:id/historial against the fake container (no database):
- * parameters, shapes the app parses, synthetic-data marker. Spec M4 R11, R14, S15-S17.
+ * API tests of GET /api/lugares/:id/historial and /mejor-horario against the fake container (no database):
+ * parameters, shapes the app parses, synthetic-data marker. Spec M4 R11, R13, R14, S15-S17.
  * "Ahora" es miercoles 2026-10-07 10:00 hora de Lima.
  */
 import request from 'supertest';
@@ -115,6 +115,69 @@ describe('API de analitica (contenedor de prueba)', () => {
       expect(res.status).toBe(404);
       expect(res.body.code).toBe('LUGAR_NO_ENCONTRADO');
       expect((await request(app).get(`/api/lugares/${lugarId}/historial`)).status).toBe(401);
+    });
+  });
+
+  describe('GET mejor-horario', () => {
+    it('devuelve el top 3 con horaInicio, horaFin, nivel, promedio y muestras', async () => {
+      sembrar(5, '2026-10-06', 9, NivelSaturacion.TRANQUILO);
+      sembrar(5, '2026-10-06', 11, NivelSaturacion.MODERADO);
+      sembrar(5, '2026-10-06', 13, NivelSaturacion.SATURADO);
+      sembrar(5, '2026-10-06', 16, NivelSaturacion.MODERADO);
+      const res = await get('mejor-horario');
+      expect(res.status).toBe(200);
+      expect(res.body.data).toEqual({
+        recomendaciones: [
+          { horaInicio: 9, horaFin: 10, nivel: 'TRANQUILO', promedio: 1, muestras: 5 },
+          { horaInicio: 11, horaFin: 12, nivel: 'MODERADO', promedio: 2, muestras: 5 },
+          { horaInicio: 16, horaFin: 17, nivel: 'MODERADO', promedio: 2, muestras: 5 },
+        ],
+        suficiente: true,
+        mensaje: null,
+        sintetico: false,
+      });
+    });
+
+    it('semanas acota la ventana y dias filtra: valores validos 1 y 12', async () => {
+      sembrar(5, '2026-09-20', 10, NivelSaturacion.TRANQUILO); // Sunday, 17 days ago
+      const una = await get('mejor-horario', { semanas: '1' });
+      expect(una.body.data.suficiente).toBe(false);
+      const doce = await get('mejor-horario', { semanas: '12', dias: 'FIN_DE_SEMANA' });
+      expect(doce.body.data.recomendaciones.map((f: { horaInicio: number }) => f.horaInicio)).toEqual([10]);
+      const laborables = await get('mejor-horario', { semanas: '12', dias: 'LABORABLES' });
+      expect(laborables.body.data.suficiente).toBe(false);
+    });
+
+    it('sin datos suficientes: suficiente=false y el mensaje', async () => {
+      const res = await get('mejor-horario');
+      expect(res.status).toBe(200);
+      expect(res.body.data).toMatchObject({
+        recomendaciones: [],
+        suficiente: false,
+        mensaje: 'No existen datos suficientes para generar la recomendación.',
+      });
+    });
+
+    it('los datos de usuarios de demostracion salen con sintetico=true', async () => {
+      sembrar(5, '2026-10-06', 9, NivelSaturacion.TRANQUILO, await sembrador.usuarioSintetico());
+      expect((await get('mejor-horario')).body.data.sintetico).toBe(true);
+    });
+
+    it.each([
+      ['semanas=0', { semanas: '0' }, 'semanas'],
+      ['semanas=13', { semanas: '13' }, 'semanas'],
+      ['semanas decimal', { semanas: '1.5' }, 'semanas'],
+      ['dias desconocido', { dias: 'LUNES' }, 'dias'],
+    ])('400 VALIDACION_FALLIDA con %s', async (_caso, consulta, campo) => {
+      const res = await get('mejor-horario', consulta);
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe('VALIDACION_FALLIDA');
+      expect(res.body.errors.map((e: { campo: string }) => e.campo)).toContain(campo);
+    });
+
+    it('404 para un lugar inexistente y 401 sin token', async () => {
+      expect((await request(app).get(`/api/lugares/${lugarId + 999}/mejor-horario`).set(cabecera)).status).toBe(404);
+      expect((await request(app).get(`/api/lugares/${lugarId}/mejor-horario`)).status).toBe(401);
     });
   });
 });

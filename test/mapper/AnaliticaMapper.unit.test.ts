@@ -76,4 +76,25 @@ describe('AnaliticaMapper', () => {
       });
     });
   });
+
+  describe('aMejorHorario', () => {
+    it('con recomendaciones: las franjas tal cual, suficiente y sin mensaje', () => {
+      const recomendaciones = [{ horaInicio: 9, horaFin: 10, nivel: 'TRANQUILO' as const, promedio: 1, muestras: 5 }];
+      expect(AnaliticaMapper.aMejorHorario({ hayDatos: true, sintetico: true, recomendaciones })).toEqual({
+        recomendaciones,
+        suficiente: true,
+        mensaje: null,
+        sintetico: true,
+      });
+    });
+
+    it('sin recomendaciones: suficiente=false y el mensaje', () => {
+      expect(AnaliticaMapper.aMejorHorario({ hayDatos: false, sintetico: false, recomendaciones: [] })).toEqual({
+        recomendaciones: [],
+        suficiente: false,
+        mensaje: 'No existen datos suficientes para generar la recomendación.',
+        sintetico: false,
+      });
+    });
+  });
 });
