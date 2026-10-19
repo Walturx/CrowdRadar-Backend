@@ -4,5 +4,10 @@ import { contratoDenunciaDAO } from './DenunciaDAO.contract.js';
 
 contratoDenunciaDAO('memoria', async () => {
   const sembrador = crearSembradorMemoria();
-  return { dao: new DenunciaDAOMemoria({ sembrador }), sembrador };
+  const eliminados = new Set<number>();
+  return {
+    dao: new DenunciaDAOMemoria({ sembrador, reporteEliminado: (reporteId) => eliminados.has(reporteId) }),
+    sembrador,
+    eliminarReporte: async (reporteId) => void eliminados.add(reporteId),
+  };
 });

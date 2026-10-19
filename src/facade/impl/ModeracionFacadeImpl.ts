@@ -151,7 +151,9 @@ export class ModeracionFacadeImpl implements ModeracionFacade {
 
   /**
    * Two reads whatever the page size: the page of reports with pending complaints and, in one batch, their report,
-   * place and author. As with the detail, a listed report that was removed (or lost its place or author) is a 404.
+   * place and author. The page query already leaves ELIMINADO reports out (of the items and of `total`). A report that
+   * is removed between the two reads is omitted from this page with a warning instead of failing the whole queue;
+   * `total` stays the page query's count, so only that page comes out one row short, and the next request is exact.
    */
   async listarReportesDenunciados(paginacion: Paginacion): Promise<Pagina<ReporteDenunciadoItem>> {
     const pagina = await this.deps.denunciaDAO.listarReportesConPendientes(paginacion);
@@ -159,10 +161,13 @@ export class ModeracionFacadeImpl implements ModeracionFacade {
     const contextos = new Map(
       (await this.contextos.buscarPorReportes(pagina.items.map((i) => i.reporteId))).map((c) => [c.reporte.id, c]),
     );
-    const items = pagina.items.map((resumen) => {
+    const items = pagina.items.flatMap((resumen) => {
       const contexto = contextos.get(resumen.reporteId);
-      if (!contexto || contexto.reporte.estado === EstadoReporte.ELIMINADO) throw new ReporteNoEncontradoException();
-      return { ...resumen, ...contexto };
+      if (!contexto || contexto.reporte.estado === EstadoReporte.ELIMINADO) {
+        this.deps.logger.warn({ reporteId: resumen.reporteId }, 'Reporte denunciado sin contexto vigente; se omite de la cola');
+        return [];
+      }
+      return [{ ...resumen, ...contexto }];
     });
     return { ...pagina, items };
   }

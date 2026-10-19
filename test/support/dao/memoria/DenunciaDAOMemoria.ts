@@ -9,6 +9,8 @@ import { copia, sellosNuevos, type OpcionesMemoria } from './comun.js';
 export interface OpcionesDenunciaMemoria extends OpcionesMemoria {
   /** Resolves the author of a report, which the real DAO obtains with a join (defaults to `sembrador.autorDe`). */
   autorDe?: (reporteId: number) => number | undefined;
+  /** True when the report is ELIMINADO (the real DAO joins `reporte_saturacion`); defaults to never. */
+  reporteEliminado?: (reporteId: number) => boolean;
 }
 
 /** In-memory DenunciaDAO for tests; behaves like the Sequelize one (shared contract test). */
@@ -17,10 +19,12 @@ export class DenunciaDAOMemoria implements DenunciaDAO {
   private siguienteId = 1;
   private readonly reloj: Reloj;
   private readonly autorDe: (reporteId: number) => number | undefined;
+  private readonly reporteEliminado: (reporteId: number) => boolean;
 
   constructor(opciones: OpcionesDenunciaMemoria = {}) {
     this.reloj = opciones.reloj ?? relojSistema;
     this.autorDe = opciones.autorDe ?? ((reporteId) => opciones.sembrador?.autorDe(reporteId));
+    this.reporteEliminado = opciones.reporteEliminado ?? (() => false);
   }
 
   async crear(datos: NuevaDenuncia): Promise<Denuncia> {
@@ -43,7 +47,7 @@ export class DenunciaDAOMemoria implements DenunciaDAO {
 
   async listarReportesConPendientes(paginacion: Paginacion): Promise<Pagina<ReporteDenunciado>> {
     const porReporte = new Map<number, ReporteDenunciado>();
-    for (const d of this.pendientes()) {
+    for (const d of this.pendientes().filter((x) => !this.reporteEliminado(x.reporteId))) {
       const actual = porReporte.get(d.reporteId);
       porReporte.set(d.reporteId, {
         reporteId: d.reporteId,

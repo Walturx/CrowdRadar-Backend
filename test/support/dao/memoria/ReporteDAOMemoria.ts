@@ -77,6 +77,11 @@ export class ReporteDAOMemoria implements ReporteDAO {
     return copia(reporte);
   }
 
+  /** Synchronous peek at the state of a report, for in-memory DAOs that stand in for a SQL join (complaints queue). */
+  estadoDe(id: number): ReporteSaturacion['estado'] | undefined {
+    return this.filas.get(id)?.estado;
+  }
+
   async crear(datos: NuevoReporte): Promise<ReporteSaturacion> {
     exigirReferencia(this.sembrador, 'usuario', 'usuario_id', datos.usuarioId, 'reporte_saturacion');
     exigirReferencia(this.sembrador, 'lugar', 'lugar_id', datos.lugarId, 'reporte_saturacion');

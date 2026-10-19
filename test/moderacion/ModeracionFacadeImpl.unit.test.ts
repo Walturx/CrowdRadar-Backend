@@ -108,9 +108,33 @@ describe('ModeracionFacadeImpl', () => {
       ]);
     });
 
-    it('un reporte listado que ya fue eliminado: 404 como en el detalle', async () => {
-      await m.reporteDenunciado(1, { estado: EstadoReporte.ELIMINADO });
-      await expect(m.facade.listarReportesDenunciados(pagina)).rejects.toBeInstanceOf(ReporteNoEncontradoException);
+    it('una pagina con un reporte ELIMINADO con pendientes: no sale en la cola, el total no lo cuenta y no hay 404', async () => {
+      const vigente = await m.reporteDenunciado(1);
+      await m.reporteDenunciado(2, { estado: EstadoReporte.ELIMINADO });
+      const lista = await m.facade.listarReportesDenunciados(pagina);
+      expect(lista.total).toBe(1);
+      expect(lista.items.map((i) => i.reporteId)).toEqual([vigente.reporte.id]);
+    });
+
+    it('si un reporte de la pagina se elimina o desaparece entre las dos lecturas, se omite con un warn y el resto se lista', async () => {
+      const sano = await m.reporteDenunciado(3);
+      const eliminadoLuego = await m.reporteDenunciado(2);
+      const desaparecido = await m.reporteDenunciado(1);
+      const lectura = contextoReporteDesde(m);
+      // Between the page query and the batch read: one report gets ELIMINADO, another is no longer found.
+      const contextoReporteDAO = {
+        buscarPorReportes: async (ids: readonly number[]) =>
+          (await lectura.buscarPorReportes(ids.filter((id) => id !== desaparecido.reporte.id))).map((c) =>
+            c.reporte.id === eliminadoLuego.reporte.id ? { ...c, reporte: { ...c.reporte, estado: EstadoReporte.ELIMINADO } } : c,
+          ),
+      };
+      const facade = new ModeracionFacadeImpl({ ...m.deps, contextoReporteDAO });
+      const lista = await facade.listarReportesDenunciados(pagina);
+      expect(lista.items.map((i) => i.reporteId)).toEqual([sano.reporte.id]);
+      // The total is the page query's count: the race is not re-counted.
+      expect(lista.total).toBe(3);
+      const avisos = m.lineas.filter((l) => l.level === 40 && l.msg === 'Reporte denunciado sin contexto vigente; se omite de la cola');
+      expect(avisos.map((l) => l.reporteId).sort()).toEqual([eliminadoLuego.reporte.id, desaparecido.reporte.id].sort());
     });
 
     it('detalle con el desglose de motivos (S2) y 404 si no existe', async () => {

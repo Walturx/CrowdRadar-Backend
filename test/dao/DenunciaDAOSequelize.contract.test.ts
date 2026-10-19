@@ -7,5 +7,11 @@ import { ejecutarContratoDAO } from './ejecutarContratoDAO.js';
 ejecutarContratoDAO({
   titulo: 'DenunciaDAOSequelize (PostgreSQL)',
   contrato: contratoDenunciaDAO,
-  crearEntorno: (sequelize) => ({ dao: new DenunciaDAOSequelize(), sembrador: crearSembradorSequelize(sequelize) }),
+  crearEntorno: (sequelize) => ({
+    dao: new DenunciaDAOSequelize(),
+    sembrador: crearSembradorSequelize(sequelize),
+    async eliminarReporte(reporteId) {
+      await sequelize.query(`UPDATE reporte_saturacion SET estado = 'ELIMINADO' WHERE id = :reporteId`, { replacements: { reporteId } });
+    },
+  }),
 });
