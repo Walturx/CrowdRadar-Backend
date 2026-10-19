@@ -14,6 +14,7 @@ import { ReporteDAOMemoria } from '../support/dao/memoria/ReporteDAOMemoria.js';
 import { UsuarioDAOMemoria } from '../support/dao/memoria/UsuarioDAOMemoria.js';
 import { ConexionFalsa } from '../support/ConexionFalsa.js';
 import { crearFacadePrueba, INSTANTE_PRUEBA } from '../support/reporte/armarFacade.js';
+import { relojVirtual } from '../support/relojVirtual.js';
 
 const pausa = (ms: number) => new Promise<void>((resolver) => setTimeout(resolver, ms));
 
@@ -54,15 +55,20 @@ describe('ReporteFacadeImpl.registrar: publicacion de eventos', () => {
       },
     };
     const { facade, usuarioId, lugarId, lineas } = await armar(lento, 20);
-    const inicio = Date.now();
-    const resultado = await facade.registrar(usuarioId, lugarId, NivelSaturacion.SATURADO);
-    expect(Date.now() - inicio).toBeLessThan(100);
-    expect(resultado.lugar.saturacionActual).toBe('SATURADO');
-    expect(entregado).toBe(false);
-    const aviso = lineas.find((l) => l.level === 40);
-    expect(aviso).toMatchObject({ lugarId, presupuestoMs: 20 });
-    await pausa(200);
-    expect(entregado).toBe(true);
+    // Virtual clock: the answer comes exactly at the 20 ms budget, long before the 150 ms subscriber (no CPU noise).
+    const reloj = relojVirtual();
+    try {
+      const { resultado, ms } = await reloj.medir(() => facade.registrar(usuarioId, lugarId, NivelSaturacion.SATURADO), 1000);
+      expect(ms).toBe(20);
+      expect(resultado.lugar.saturacionActual).toBe('SATURADO');
+      expect(entregado).toBe(false);
+      const aviso = lineas.find((l) => l.level === 40);
+      expect(aviso).toMatchObject({ lugarId, presupuestoMs: 20 });
+      await reloj.avanzar(150);
+      expect(entregado).toBe(true);
+    } finally {
+      reloj.restaurar();
+    }
   });
 
   it('un suscriptor rapido se espera: el evento ya esta entregado al responder y no hay aviso', async () => {

@@ -13,6 +13,7 @@ import { ReporteDAOMemoria } from '../support/dao/memoria/ReporteDAOMemoria.js';
 import { UsuarioDAOMemoria } from '../support/dao/memoria/UsuarioDAOMemoria.js';
 import { configPrueba, type SobrescritosEntorno } from '../support/configPrueba.js';
 import { aReporte } from '../support/fabrica/datos.js';
+import { relojVirtual } from '../support/relojVirtual.js';
 
 const AHORA = new Date('2026-10-05T15:00:00Z');
 
@@ -76,9 +77,14 @@ describe('construirServiciosReporte', () => {
   it('EVENTOS_PRESUPUESTO_MS de la configuracion acota la espera de los suscriptores', async () => {
     const lento = { suscribir: () => {}, notificar: () => new Promise<void>((resolver) => setTimeout(resolver, 200)) };
     const { servicios, usuarioId, lugarId } = await armar({ EVENTOS_PRESUPUESTO_MS: 20, SATURACION_ESTRATEGIA: 'ULTIMO_REPORTE' }, lento);
-    const inicio = Date.now();
-    await servicios.reporteFacade.registrar(usuarioId, lugarId, NivelSaturacion.SATURADO);
-    expect(Date.now() - inicio).toBeLessThan(150);
+    const reloj = relojVirtual();
+    try {
+      // Answers at the configured 20 ms, not at the subscriber's 200 ms (virtual clock).
+      const { ms } = await reloj.medir(() => servicios.reporteFacade.registrar(usuarioId, lugarId, NivelSaturacion.SATURADO), 1000);
+      expect(ms).toBe(20);
+    } finally {
+      reloj.restaurar();
+    }
   });
 
   it('expone el karma y la saturacion que otros streams (M5, M6) reutilizan', async () => {
