@@ -1,4 +1,4 @@
-import { literal, Op, QueryTypes, type Transaction, type WhereOptions } from 'sequelize';
+import { literal, Op, QueryTypes, type InferAttributes, type Transaction, type WhereOptions } from 'sequelize';
 import type { ContextoTx } from '../../../datasource/ConexionBD.js';
 import type { ReporteSaturacion } from '../../../entity/ReporteSaturacion.js';
 import { EstadoReporte } from '../../../enum/EstadoReporte.js';
@@ -31,7 +31,8 @@ export const SQL_VALOR_NIVEL = `CASE nivel_saturacion ${Object.entries(VALOR_NIV
   .map(([nivel, valor]) => `WHEN '${nivel}' THEN ${valor}`)
   .join(' ')} END`;
 
-export function aEntidadReporte(modelo: ReporteModel): ReporteSaturacion {
+/** Accepts a model instance or a `raw: true` row (same attribute names). */
+export function aEntidadReporte(modelo: InferAttributes<ReporteModel>): ReporteSaturacion {
   return {
     id: modelo.id,
     usuarioId: modelo.usuarioId,
@@ -68,8 +69,8 @@ export class ReporteDAOSequelize implements ReporteDAO {
   }
 
   async buscarPorId(id: number, tx?: ContextoTx): Promise<ReporteSaturacion | null> {
-    const modelo = await ReporteModel.findByPk(id, { transaction: aTransaccion(tx) });
-    return modelo ? aEntidadReporte(modelo) : null;
+    const fila = await ReporteModel.findByPk(id, { transaction: aTransaccion(tx), raw: true });
+    return fila ? aEntidadReporte(fila) : null;
   }
 
   async buscarPorIdParaActualizar(id: number, tx?: ContextoTx): Promise<ReporteSaturacion | null> {
@@ -89,8 +90,8 @@ export class ReporteDAOSequelize implements ReporteDAO {
       type: QueryTypes.SELECT,
       transaction,
     });
-    const modelo = await ReporteModel.findOne({ where: { usuarioId, lugarId }, order: MAS_NUEVO_PRIMERO, transaction });
-    return modelo ? aEntidadReporte(modelo) : null;
+    const fila = await ReporteModel.findOne({ where: { usuarioId, lugarId }, order: MAS_NUEVO_PRIMERO, transaction, raw: true });
+    return fila ? aEntidadReporte(fila) : null;
   }
 
   async listarRecientesPorLugar(lugarId: number, desde: Date, tx?: ContextoTx): Promise<ReporteSaturacion[]> {
@@ -98,6 +99,7 @@ export class ReporteDAOSequelize implements ReporteDAO {
       where: { lugarId, fechaHora: { [Op.gte]: desde } },
       order: MAS_NUEVO_PRIMERO,
       transaction: aTransaccion(tx),
+      raw: true,
     });
     return filas.map(aEntidadReporte);
   }
@@ -202,9 +204,9 @@ export class ReporteDAOSequelize implements ReporteDAO {
     return armarPagina(rows.map(aEntidadReporte), count, paginacion);
   }
 
-  /** Updates the given columns and reads the row back; null when the report does not exist. */
+  /** Updates the given columns and returns the row (UPDATE ... RETURNING, one statement); null when it does not exist. */
   private async modificar(id: number, cambios: Partial<ReporteModel>, tx?: ContextoTx): Promise<ReporteSaturacion | null> {
-    const [filas] = await ReporteModel.update(cambios, { where: { id }, transaction: aTransaccion(tx) });
-    return filas === 0 ? null : this.buscarPorId(id, tx);
+    const [, filas] = await ReporteModel.update(cambios, { where: { id }, transaction: aTransaccion(tx), returning: true });
+    return filas[0] ? aEntidadReporte(filas[0]) : null;
   }
 }

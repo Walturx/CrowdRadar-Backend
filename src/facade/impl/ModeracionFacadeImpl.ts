@@ -189,7 +189,7 @@ export class ModeracionFacadeImpl implements ModeracionFacade {
     const ahora = reloj.ahora();
 
     const { resueltas, cambio } = await conexion.transaccion(async (tx) => {
-      if (eliminar) await lugarDAO.buscarPorIdParaActualizar(reporte.lugarId, tx);
+      const bloqueado = eliminar ? await lugarDAO.buscarPorIdParaActualizar(reporte.lugarId, tx) : null;
       const total = await denunciaDAO.resolverPendientes(
         reporteId,
         eliminar ? EstadoDenuncia.PROCEDENTE : EstadoDenuncia.DESESTIMADA,
@@ -201,7 +201,7 @@ export class ModeracionFacadeImpl implements ModeracionFacade {
       if (!eliminar) return { resueltas: total, cambio: null };
       await reporteDAO.actualizarEstado(reporteId, EstadoReporte.ELIMINADO, tx);
       await karmaService.revocarPorReporteEliminado(reporteId, tx);
-      return { resueltas: total, cambio: await saturacionService.recalcular(reporte.lugarId, tx) };
+      return { resueltas: total, cambio: await saturacionService.recalcular(reporte.lugarId, tx, bloqueado ?? undefined) };
     });
 
     logger.info({ reporteId, adminId, decision, denunciasResueltas: resueltas, comentario }, 'Denuncias resueltas');

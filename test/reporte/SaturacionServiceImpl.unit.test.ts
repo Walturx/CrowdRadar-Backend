@@ -1,5 +1,5 @@
 /** Unit tests of SaturacionServiceImpl: recompute and store the level of a place (spec M4 R5). */
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ContextoTx } from '../../src/datasource/ConexionBD.js';
 import { NivelSaturacion } from '../../src/enum/NivelSaturacion.js';
 import { CodigoError } from '../../src/exception/CodigoError.js';
@@ -66,6 +66,14 @@ describe('SaturacionServiceImpl.recalcular', () => {
     const estrategia = new EstrategiaEspia(NivelSaturacion.MODERADO);
     await servicio(estrategia).recalcular(lugarId, TX);
     expect(estrategia.recibidos).toEqual([{ ids: [dentro.id], ahora: AHORA }]);
+  });
+
+  it('con el lugar que el llamador ya bloqueo toma de ahi el nivel anterior y no lo vuelve a leer', async () => {
+    const bloqueado = (await lugarDAO.buscarPorId(lugarId))!;
+    const buscar = vi.spyOn(lugarDAO, 'buscarPorId');
+    const cambio = await servicio(new EstrategiaEspia(NivelSaturacion.SATURADO)).recalcular(lugarId, TX, bloqueado);
+    expect(buscar).not.toHaveBeenCalled();
+    expect(cambio).toMatchObject({ lugarId, anterior: NivelSaturacion.TRANQUILO, nuevo: NivelSaturacion.SATURADO });
   });
 
   it('un lugar sin nivel previo devuelve anterior null', async () => {
