@@ -252,6 +252,25 @@ describe('ReporteFacadeImpl.registrar', () => {
       expect(conexion.transacciones).toBe(1);
     });
 
+    it('el karma (cerrojo por usuario hasta el COMMIT) es el ultimo paso, despues del recalculo de saturacion', async () => {
+      const pasos: string[] = [];
+      const reportes: ReporteDAO = reporteDAO;
+      const contar = reportes.contarPremiadosDeUsuarioDesde.bind(reporteDAO);
+      reportes.contarPremiadosDeUsuarioDesde = (u, d, tx) => {
+        pasos.push('karma');
+        return contar(u, d, tx);
+      };
+      const lugares: LugarDAO = lugarDAO;
+      const actualizar = lugares.actualizarSaturacion.bind(lugarDAO);
+      lugares.actualizarSaturacion = (id, n, en, tx) => {
+        pasos.push('saturacion');
+        return actualizar(id, n, en, tx);
+      };
+      const { karma } = await facade.registrar(usuarioId, lugarId, SATURADO);
+      expect(pasos).toEqual(['saturacion', 'karma']);
+      expect(karma.puntosGanados).toBe(10);
+    });
+
     it('el cooldown corre dentro de la transaccion: recibe el mismo tx que el insert', async () => {
       const recibidos: { metodo: string; tx?: ContextoTx }[] = [];
       const reportes: ReporteDAO = reporteDAO;

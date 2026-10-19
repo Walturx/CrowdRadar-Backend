@@ -28,8 +28,8 @@ export const PRESUPUESTO_EVENTOS_MS = 500;
 /**
  * Pattern: Facade (it also publishes to the Observer subject; owner: M4). One transaction per report: cooldown check
  * (serialized per user and place by the DAO lock), then the row lock of the place (`FOR UPDATE`, so reports of
- * different users on one place recompute the saturation one at a time), insert, karma (serialized per user by the
- * DAO) and saturation recompute. The level-change event goes out only after the commit and only when the level
+ * different users on one place recompute the saturation one at a time), insert, saturation recompute and karma
+ * (serialized per user by the DAO; last, so that lock is held for as few statements as possible). The level-change event goes out only after the commit and only when the level
  * changed; a failing subscriber never undoes the report, and a slow one never delays the answer beyond
  * `presupuestoEventosMs` (the delivery continues in the background). It adds no business calculation of its own.
  */
@@ -45,9 +45,11 @@ export class ReporteFacadeImpl implements ReporteFacade {
       await reporteService.validarCooldown(usuarioId, lugarId, tx);
       const bloqueado = await lugarDAO.buscarPorIdParaActualizar(lugarId, tx);
       const nuevo = await reporteService.crear(usuarioId, lugarId, nivel, tx);
-      const resultadoKarma = await karmaService.otorgarPorReporte(usuarioId, nuevo.id, tx);
       // The locked row is the current level: the recompute does not read the place again.
       const cambioSaturacion = await saturacionService.recalcular(lugarId, tx, bloqueado ?? undefined);
+      // Karma last: its per-user lock is held until COMMIT, so the fewer statements after it, the less the reports of
+      // one user wait for each other. The lock order (user-place, place row, user) is the same as before.
+      const resultadoKarma = await karmaService.otorgarPorReporte(usuarioId, nuevo.id, tx);
       return { creado: nuevo, karma: resultadoKarma, cambio: cambioSaturacion };
     });
 
