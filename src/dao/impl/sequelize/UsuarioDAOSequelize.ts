@@ -7,6 +7,7 @@ import { EmailYaRegistradoException } from '../../../exception/usuario/EmailYaRe
 import { armarPagina, desplazamiento, type Pagina, type Paginacion } from '../../Paginacion.js';
 import type { DatosPerfil, FiltroUsuarios, NuevoUsuario, OrdenUsuarios, UsuarioDAO } from '../../UsuarioDAO.js';
 import { UsuarioModel } from './model/UsuarioModel.js';
+import { columnasDe } from './sqlCrudo.js';
 
 const ORDENES: Record<OrdenUsuarios, Order> = {
   RECIENTES: [
@@ -54,8 +55,11 @@ export function aEntidadUsuario(modelo: InferAttributes<UsuarioModel>): Usuario 
  */
 export class UsuarioDAOSequelize implements UsuarioDAO {
   async buscarPorId(id: number, tx?: ContextoTx): Promise<Usuario | null> {
-    // raw: every authenticated request reads its user, so skip building a model instance.
-    const fila = await UsuarioModel.findByPk(id, { transaction: aTransaccion(tx), raw: true });
+    // Hand-written SQL (sqlCrudo.ts): every authenticated request reads its user.
+    const [fila] = await UsuarioModel.sequelize!.query<InferAttributes<UsuarioModel>>(
+      `SELECT ${columnasDe(UsuarioModel)} FROM usuario WHERE id = :id`,
+      { replacements: { id }, type: QueryTypes.SELECT, transaction: aTransaccion(tx) },
+    );
     return fila ? aEntidadUsuario(fila) : null;
   }
 

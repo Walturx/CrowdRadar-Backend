@@ -1,4 +1,4 @@
-import { fn, literal, Op, where, type InferAttributes, type Order, type Transaction, type WhereOptions } from 'sequelize';
+import { fn, literal, Op, QueryTypes, where, type InferAttributes, type Order, type Transaction, type WhereOptions } from 'sequelize';
 import type { ContextoTx } from '../../../datasource/ConexionBD.js';
 import type { Lugar, TipoOsm } from '../../../entity/Lugar.js';
 import { CategoriaLugar } from '../../../enum/CategoriaLugar.js';
@@ -6,6 +6,7 @@ import { NivelEfectivo, type NivelSaturacion } from '../../../enum/NivelSaturaci
 import { CON_ACENTO, SIN_ACENTO, normalizarNombre } from '../../../util/nombreLugar.js';
 import type { ConteoCategoria, FiltroExploracion, FiltroLugares, LugarDAO } from '../../LugarDAO.js';
 import { LugarModel } from './model/LugarModel.js';
+import { columnasDe } from './sqlCrudo.js';
 
 const aTransaccion = (tx?: ContextoTx) => tx as unknown as Transaction | undefined;
 
@@ -96,14 +97,22 @@ function condiciones(filtro: Omit<FiltroLugares, 'limite'> | Omit<FiltroExplorac
 export class LugarDAOSequelize implements LugarDAO {
   constructor(private readonly opciones: OpcionesLugarDAOSequelize) {}
 
-  async buscarPorId(id: number, tx?: ContextoTx): Promise<Lugar | null> {
-    const fila = await LugarModel.findByPk(id, { transaction: aTransaccion(tx), raw: true });
+  /** Hand-written SQL for the reads and the write of the report transaction (see sqlCrudo.ts). */
+  private async uno(sql: string, replacements: Record<string, unknown>, tx?: ContextoTx): Promise<Lugar | null> {
+    const [fila] = await LugarModel.sequelize!.query<InferAttributes<LugarModel>>(sql, {
+      replacements,
+      type: QueryTypes.SELECT,
+      transaction: aTransaccion(tx),
+    });
     return fila ? aEntidadLugar(fila) : null;
   }
 
-  async buscarPorIdParaActualizar(id: number, tx: ContextoTx): Promise<Lugar | null> {
-    const modelo = await LugarModel.findByPk(id, { transaction: aTransaccion(tx), lock: true });
-    return modelo ? aEntidadLugar(modelo) : null;
+  buscarPorId(id: number, tx?: ContextoTx): Promise<Lugar | null> {
+    return this.uno(`SELECT ${columnasDe(LugarModel)} FROM lugar WHERE id = :id`, { id }, tx);
+  }
+
+  buscarPorIdParaActualizar(id: number, tx: ContextoTx): Promise<Lugar | null> {
+    return this.uno(`SELECT ${columnasDe(LugarModel)} FROM lugar WHERE id = :id FOR UPDATE`, { id }, tx);
   }
 
   async buscarPorIds(ids: readonly number[], tx?: ContextoTx): Promise<Lugar[]> {
@@ -149,10 +158,11 @@ export class LugarDAOSequelize implements LugarDAO {
     tx?: ContextoTx,
   ): Promise<Lugar | null> {
     // RETURNING: the updated row comes back with the UPDATE, no second SELECT inside the report transaction.
-    const [, filas] = await LugarModel.update(
-      { saturacionActual: nivel, saturacionActualizadaEn: actualizadaEn },
-      { where: { id }, transaction: aTransaccion(tx), returning: true },
+    return this.uno(
+      `UPDATE lugar SET saturacion_actual = :nivel, saturacion_actualizada_en = :actualizadaEn, updated_at = :ahora
+        WHERE id = :id RETURNING ${columnasDe(LugarModel)}`,
+      { id, nivel, actualizadaEn, ahora: new Date() },
+      tx,
     );
-    return filas[0] ? aEntidadLugar(filas[0]) : null;
   }
 }
