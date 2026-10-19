@@ -66,6 +66,21 @@ export function contratoDenunciaDAO(nombre: string, crearEntorno: () => Promise<
       ]);
     });
 
+    it('listarReportesConPendientes desempata por reporteId DESC con igual pendientes e igual ultima denuncia', async () => {
+      const primero = await reporteDelAutor();
+      const segundo = await reporteDelAutor();
+      const tercero = await reporteDelAutor();
+      // Same count (2) and same latest complaint (minute 40) for the three: only the id can order them.
+      for (const reporteId of [segundo, tercero, primero]) {
+        await denunciar(reporteId, MotivoDenuncia.SPAM, minutos(10));
+        await denunciar(reporteId, MotivoDenuncia.INFORMACION_FALSA, minutos(40));
+      }
+      const pagina = await entorno.dao.listarReportesConPendientes({ page: 1, size: 1000 });
+      expect(pagina.items.filter((i) => [primero, segundo, tercero].includes(i.reporteId))).toEqual(
+        [tercero, segundo, primero].map((reporteId) => ({ reporteId, pendientes: 2, ultimaDenunciaEn: minutos(40) })),
+      );
+    });
+
     it('listarReportesConPendientes omite los reportes ELIMINADO con pendientes: total y paginas no los cuentan', async () => {
       const vigente = await reporteDelAutor();
       const eliminado = await reporteDelAutor();
