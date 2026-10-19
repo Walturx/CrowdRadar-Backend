@@ -4,11 +4,12 @@
  * against the fake container (no database).
  */
 import request from 'supertest';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../../src/app.js';
 import { NivelSaturacion } from '../../src/enum/NivelSaturacion.js';
 import { crearContenedorPrueba, type ContenedorPrueba } from '../support/crearContenedorPrueba.js';
 import { aUsuario } from '../support/fabrica/datos.js';
+import { esperar503Reintentable, statementTimeout } from '../support/erroresBD.js';
 
 const haceMin = (min: number) => new Date(Date.now() - min * 60_000);
 
@@ -73,6 +74,12 @@ describe('favoritos (contenedor de prueba)', () => {
       expect(await ctx.favoritoDAO.listarPorUsuario(usuarioId)).toHaveLength(1);
     });
 
+    it('un statement_timeout al guardar es 503 SERVICIO_NO_DISPONIBLE con Retry-After, no 409 ni 500', async () => {
+      vi.spyOn(ctx.favoritoDAO, 'crear').mockRejectedValueOnce(statementTimeout());
+      esperar503Reintentable(await request(app).post('/api/favoritos').set(auth).send({ lugarId }));
+      expect(await ctx.favoritoDAO.buscar(usuarioId, lugarId)).toBeNull();
+    });
+
     it('dos peticiones en paralelo: una 201 y una 409, una sola fila (S5)', async () => {
       const respuestas = await Promise.all([
         request(app).post('/api/favoritos').set(auth).send({ lugarId }),
@@ -109,6 +116,14 @@ describe('favoritos (contenedor de prueba)', () => {
       const res = await request(app).get('/api/favoritos').set(auth);
       expect(res.status).toBe(200);
       expect(res.body).toEqual({ message: 'No tienes lugares favoritos registrados.', data: { items: [] } });
+    });
+
+    it('omite un favorito cuyo lugar ya no existe en vez de fallar', async () => {
+      await request(app).post('/api/favoritos').set(auth).send({ lugarId });
+      await ctx.favoritoDAO.crear(usuarioId, 999_999);
+      const res = await request(app).get('/api/favoritos').set(auth);
+      expect(res.status).toBe(200);
+      expect(res.body.data.items.map((f: { lugarId: number }) => f.lugarId)).toEqual([lugarId]);
     });
 
     it('lista los propios con el nivel efectivo, el mas nuevo primero, sin los de otros (S7, S8)', async () => {

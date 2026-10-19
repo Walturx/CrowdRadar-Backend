@@ -3,12 +3,13 @@
  * reliability and the author's validation overview. Spec M5 R2-R6, S1-S4, S8-S13.
  */
 import request from 'supertest';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../../src/app.js';
 import { EstadoReporte } from '../../src/enum/EstadoReporte.js';
 import { TipoAccionValidacion } from '../../src/enum/TipoAccionValidacion.js';
 import { crearContenedorPrueba, type ContenedorPrueba } from '../support/crearContenedorPrueba.js';
 import { aReporte, aUsuario } from '../support/fabrica/datos.js';
+import { deadlock, esperar503Reintentable } from '../support/erroresBD.js';
 
 const C = TipoAccionValidacion.CONFIRMAR;
 const R = TipoAccionValidacion.RECHAZAR;
@@ -62,6 +63,24 @@ describe('API de validacion y denuncias (contenedor de prueba)', () => {
       expect(res.status).toBe(409);
       expect(res.body.code).toBe('VALIDACION_DUPLICADA');
       expect((await ctx.usuarioDAO.buscarPorId(usuario.id))?.puntosKarma).toBe(2);
+    });
+
+    it('dos votos simultaneos que pasan el chequeo previo: el indice unico gana y el segundo es 409 VALIDACION_DUPLICADA', async () => {
+      const { usuario, cabecera } = nuevoUsuario();
+      await votar(cabecera, reporteId, { tipoAccion: 'CONFIRMAR' });
+      // the second request read "no vote yet" before the first committed
+      vi.spyOn(ctx.validacionDAO, 'buscarPorUsuarioYReporte').mockResolvedValueOnce(null);
+      const res = await votar(cabecera, reporteId, { tipoAccion: 'RECHAZAR' });
+      expect(res.status).toBe(409);
+      expect(res.body).toEqual({ message: expect.any(String), code: 'VALIDACION_DUPLICADA', errors: [] });
+      expect(await ctx.validacionDAO.listarVotos(reporteId)).toEqual([expect.objectContaining({ usuarioId: usuario.id, tipoAccion: C })]);
+    });
+
+    it('un deadlock al guardar el voto es 503 SERVICIO_NO_DISPONIBLE con Retry-After, no un 409 ni un 500', async () => {
+      const { cabecera } = nuevoUsuario();
+      vi.spyOn(ctx.validacionDAO, 'crear').mockRejectedValueOnce(deadlock());
+      esperar503Reintentable(await votar(cabecera, reporteId, { tipoAccion: 'CONFIRMAR' }));
+      expect(await ctx.validacionDAO.listarVotos(reporteId)).toEqual([]);
     });
 
     it('votar el propio reporte es 422 AUTOVALIDACION_NO_PERMITIDA (S4)', async () => {
@@ -139,6 +158,23 @@ describe('API de validacion y denuncias (contenedor de prueba)', () => {
       const res = await denunciar(cabecera, reporteId, { motivo: 'SPAM' });
       expect(res.status).toBe(409);
       expect(res.body.code).toBe('DENUNCIA_DUPLICADA');
+    });
+
+    it('dos denuncias simultaneas que pasan el chequeo previo: la segunda es 409 DENUNCIA_DUPLICADA y queda una sola', async () => {
+      const { usuario, cabecera } = nuevoUsuario();
+      await denunciar(cabecera, reporteId, { motivo: 'SPAM' });
+      vi.spyOn(ctx.denunciaDAO, 'existe').mockResolvedValueOnce(false);
+      const res = await denunciar(cabecera, reporteId, { motivo: 'INFORMACION_FALSA' });
+      expect(res.status).toBe(409);
+      expect(res.body).toEqual({ message: expect.any(String), code: 'DENUNCIA_DUPLICADA', errors: [] });
+      expect(await ctx.denunciaDAO.existe(usuario.id, reporteId)).toBe(true);
+    });
+
+    it('la base inalcanzable al guardar la denuncia es 503 SERVICIO_NO_DISPONIBLE con Retry-After', async () => {
+      const { usuario, cabecera } = nuevoUsuario();
+      vi.spyOn(ctx.denunciaDAO, 'crear').mockRejectedValueOnce(Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:5432'), { code: 'ECONNREFUSED' }));
+      esperar503Reintentable(await denunciar(cabecera, reporteId, { motivo: 'SPAM' }));
+      expect(await ctx.denunciaDAO.existe(usuario.id, reporteId)).toBe(false);
     });
 
     it('el propio reporte es 422 y uno inexistente es 404 (S13)', async () => {
