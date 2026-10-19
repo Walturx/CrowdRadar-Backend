@@ -77,9 +77,18 @@ describe('tabla de rutas congelada', () => {
         expect(res.body.code).toBe('ACCESO_DENEGADO');
       });
 
-      it('con token de ADMIN llega al 501 del handler correcto', async () => {
-        esNoImplementado(await llamar(fila, TOKEN_ADMIN), fila);
-      });
+      if (fila.entregada) {
+        it('con token de ADMIN ya no responde 501 ni RUTA_NO_ENCONTRADA: lo atiende su controlador', async () => {
+          const res = await llamar(fila, TOKEN_ADMIN);
+          expect(res.status).not.toBe(501);
+          expect(res.body.code).not.toBe('NO_IMPLEMENTADO');
+          expect(res.body.code).not.toBe('RUTA_NO_ENCONTRADA');
+        });
+      } else {
+        it('con token de ADMIN llega al 501 del handler correcto', async () => {
+          esNoImplementado(await llamar(fila, TOKEN_ADMIN), fila);
+        });
+      }
     }
   });
 

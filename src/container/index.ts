@@ -31,6 +31,7 @@ export function ensamblar(dependencias: DependenciasInfraestructura, opciones: O
   const infra = construirInfraestructura(dependencias);
   const { cfg, logger, conexion } = infra;
   const daosFavoritoAlerta = opciones.favoritoAlerta ?? crearDaosFavoritoAlertaSequelize(infra.lugarDAO);
+  const daosValidacion = opciones.validacion ?? crearDaosValidacionSequelize();
   return {
     conexion,
     logger,
@@ -44,8 +45,8 @@ export function ensamblar(dependencias: DependenciasInfraestructura, opciones: O
       ...construirLugar({ ...infra, lugar: { favoritoDAO: daosFavoritoAlerta.favoritoDAO, ...infra.lugar } }),
       ...construirFavoritoAlerta(infra, daosFavoritoAlerta),
       ...construirReporte(infra),
-      ...construirValidacion(infra, opciones.validacion ?? crearDaosValidacionSequelize()),
-      ...construirModeracion(infra),
+      ...construirValidacion(infra, daosValidacion),
+      ...construirModeracion(infra, daosValidacion.denunciaDAO),
     ],
   };
 }

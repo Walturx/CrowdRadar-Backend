@@ -29,7 +29,13 @@ const auth = (metodo: Metodo, ruta: string, nombre: string, entregada = false): 
   nombre,
   ...(entregada ? { entregada } : {}),
 });
-const admin = (metodo: Metodo, ruta: string, nombre: string): FilaRuta => ({ metodo, ruta, acceso: 'admin', nombre });
+const admin = (metodo: Metodo, ruta: string, nombre: string, entregada = false): FilaRuta => ({
+  metodo,
+  ruta,
+  acceso: 'admin',
+  nombre,
+  ...(entregada ? { entregada } : {}),
+});
 
 export const TABLA_RUTAS: readonly FilaRuta[] = [
   // recuperacion (M1)
@@ -66,11 +72,11 @@ export const TABLA_RUTAS: readonly FilaRuta[] = [
   auth('post', '/api/reportes/12/validaciones', 'validacion.validar', true),
   auth('post', '/api/reportes/12/denuncias', 'denuncia.denunciar', true),
   // moderacion (M6)
-  admin('get', '/api/admin/reportes-denunciados', 'moderacion.listarReportesDenunciados'),
-  admin('get', '/api/admin/reportes-denunciados/12', 'moderacion.obtenerReporteDenunciado'),
-  admin('post', '/api/admin/reportes-denunciados/12/resolucion', 'moderacion.resolverDenuncias'),
-  admin('get', '/api/admin/usuarios', 'moderacion.listarUsuarios'),
-  admin('get', '/api/admin/usuarios/12', 'moderacion.obtenerUsuario'),
-  admin('post', '/api/admin/usuarios/12/suspension', 'moderacion.suspender'),
-  admin('post', '/api/admin/usuarios/12/reactivacion', 'moderacion.reactivar'),
+  admin('get', '/api/admin/reportes-denunciados', 'moderacion.listarReportesDenunciados', true),
+  admin('get', '/api/admin/reportes-denunciados/12', 'moderacion.obtenerReporteDenunciado', true),
+  admin('post', '/api/admin/reportes-denunciados/12/resolucion', 'moderacion.resolverDenuncias', true),
+  admin('get', '/api/admin/usuarios', 'moderacion.listarUsuarios', true),
+  admin('get', '/api/admin/usuarios/12', 'moderacion.obtenerUsuario', true),
+  admin('post', '/api/admin/usuarios/12/suspension', 'moderacion.suspender', true),
+  admin('post', '/api/admin/usuarios/12/reactivacion', 'moderacion.reactivar', true),
 ];

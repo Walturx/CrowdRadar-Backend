@@ -1,3 +1,4 @@
+import { ModeracionController } from '../controller/ModeracionController.js';
 import type { DenunciaDAO } from '../dao/DenunciaDAO.js';
 import { ModeracionFacadeImpl } from '../facade/impl/ModeracionFacadeImpl.js';
 import type { ModeracionFacade } from '../facade/ModeracionFacade.js';
@@ -32,6 +33,7 @@ export function crearModeracionFacade(infra: Infraestructura, denunciaDAO: Denun
 }
 
 /** Moderation stream (M6), admin chain. */
-export function construirModeracion({ guardas }: Infraestructura): MontajeRuta[] {
-  return [{ modulo: 'moderacion', ruta: '/api/admin', router: crearModeracionRouter(guardas) }];
+export function construirModeracion(infra: Infraestructura, denunciaDAO: DenunciaDAO): MontajeRuta[] {
+  const controller = new ModeracionController(crearModeracionFacade(infra, denunciaDAO));
+  return [{ modulo: 'moderacion', ruta: '/api/admin', router: crearModeracionRouter(infra.guardas, controller) }];
 }
