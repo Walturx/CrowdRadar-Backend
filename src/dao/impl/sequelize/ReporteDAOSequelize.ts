@@ -10,6 +10,7 @@ import type { AgregadoHora, ConsultaAgregada, FiltroPendientes, NuevoReporte, Re
 import { VALOR_NIVEL } from '../../../entity/valorNivel.js';
 import { DOMINIO_EMAIL_SINTETICO } from '../../../util/sintetico.js';
 import { ReporteModel } from './model/ReporteModel.js';
+import { campoDe, columnasDe } from './sqlCrudo.js';
 
 const aTransaccion = (tx?: ContextoTx) => tx as unknown as Transaction | undefined;
 
@@ -55,22 +56,32 @@ export function aEntidadReporte(modelo: InferAttributes<ReporteModel>): ReporteS
  * second one sees the row of the first (a time-based cooldown cannot be a unique index).
  */
 export class ReporteDAOSequelize implements ReporteDAO {
+  /**
+   * Hand-written SELECT/INSERT/UPDATE ... RETURNING (see sqlCrudo.ts): the methods on the report transaction path skip
+   * the query generator. The other columns take the table defaults (ACTIVO, 0 points), as with Model.create.
+   */
+  private async filas(sql: string, replacements: Record<string, unknown>, tx?: ContextoTx): Promise<ReporteSaturacion[]> {
+    const filas = await ReporteModel.sequelize!.query<InferAttributes<ReporteModel>>(sql, {
+      replacements,
+      type: QueryTypes.SELECT,
+      transaction: aTransaccion(tx),
+    });
+    return filas.map(aEntidadReporte);
+  }
+
   async crear(datos: NuevoReporte, tx?: ContextoTx): Promise<ReporteSaturacion> {
-    const modelo = await ReporteModel.create(
-      {
-        usuarioId: datos.usuarioId,
-        lugarId: datos.lugarId,
-        nivelSaturacion: datos.nivelSaturacion,
-        fechaHora: datos.fechaHora,
-      },
-      { transaction: aTransaccion(tx) },
+    const [creado] = await this.filas(
+      `INSERT INTO reporte_saturacion (usuario_id, lugar_id, nivel_saturacion, fecha_hora, created_at, updated_at)
+       VALUES (:usuarioId, :lugarId, :nivel, :fechaHora, :ahora, :ahora) RETURNING ${columnasDe(ReporteModel)}`,
+      { usuarioId: datos.usuarioId, lugarId: datos.lugarId, nivel: datos.nivelSaturacion, fechaHora: datos.fechaHora, ahora: new Date() },
+      tx,
     );
-    return aEntidadReporte(modelo);
+    return creado!;
   }
 
   async buscarPorId(id: number, tx?: ContextoTx): Promise<ReporteSaturacion | null> {
-    const fila = await ReporteModel.findByPk(id, { transaction: aTransaccion(tx), raw: true });
-    return fila ? aEntidadReporte(fila) : null;
+    const [fila] = await this.filas(`SELECT ${columnasDe(ReporteModel)} FROM reporte_saturacion WHERE id = :id`, { id }, tx);
+    return fila ?? null;
   }
 
   async buscarPorIdParaActualizar(id: number, tx?: ContextoTx): Promise<ReporteSaturacion | null> {
@@ -90,18 +101,22 @@ export class ReporteDAOSequelize implements ReporteDAO {
       type: QueryTypes.SELECT,
       transaction,
     });
-    const fila = await ReporteModel.findOne({ where: { usuarioId, lugarId }, order: MAS_NUEVO_PRIMERO, transaction, raw: true });
-    return fila ? aEntidadReporte(fila) : null;
+    const [fila] = await this.filas(
+      `SELECT ${columnasDe(ReporteModel)} FROM reporte_saturacion
+        WHERE usuario_id = :usuarioId AND lugar_id = :lugarId ORDER BY fecha_hora DESC, id DESC LIMIT 1`,
+      { usuarioId, lugarId },
+      tx,
+    );
+    return fila ?? null;
   }
 
   async listarRecientesPorLugar(lugarId: number, desde: Date, tx?: ContextoTx): Promise<ReporteSaturacion[]> {
-    const filas = await ReporteModel.findAll({
-      where: { lugarId, fechaHora: { [Op.gte]: desde } },
-      order: MAS_NUEVO_PRIMERO,
-      transaction: aTransaccion(tx),
-      raw: true,
-    });
-    return filas.map(aEntidadReporte);
+    return this.filas(
+      `SELECT ${columnasDe(ReporteModel)} FROM reporte_saturacion
+        WHERE lugar_id = :lugarId AND fecha_hora >= :desde ORDER BY fecha_hora DESC, id DESC`,
+      { lugarId, desde },
+      tx,
+    );
   }
 
   contarPorLugarDesde(lugarId: number, desde: Date, tx?: ContextoTx): Promise<number> {
@@ -122,10 +137,12 @@ export class ReporteDAOSequelize implements ReporteDAO {
       type: QueryTypes.SELECT,
       transaction,
     });
-    return ReporteModel.count({
-      where: { usuarioId, puntosOtorgados: { [Op.gt]: 0 }, fechaHora: { [Op.gte]: desde } },
-      transaction,
-    });
+    const [fila] = await ReporteModel.sequelize!.query<{ total: number }>(
+      `SELECT COUNT(*)::int AS total FROM reporte_saturacion
+        WHERE usuario_id = :usuarioId AND puntos_otorgados > 0 AND fecha_hora >= :desde`,
+      { replacements: { usuarioId, desde }, type: QueryTypes.SELECT, transaction },
+    );
+    return fila?.total ?? 0;
   }
 
   registrarPuntos(reporteId: number, puntos: number, motivo: MotivoSinPuntos | null, tx?: ContextoTx) {
@@ -205,8 +222,14 @@ export class ReporteDAOSequelize implements ReporteDAO {
   }
 
   /** Updates the given columns and returns the row (UPDATE ... RETURNING, one statement); null when it does not exist. */
-  private async modificar(id: number, cambios: Partial<ReporteModel>, tx?: ContextoTx): Promise<ReporteSaturacion | null> {
-    const [, filas] = await ReporteModel.update(cambios, { where: { id }, transaction: aTransaccion(tx), returning: true });
-    return filas[0] ? aEntidadReporte(filas[0]) : null;
+  private async modificar(id: number, cambios: Partial<InferAttributes<ReporteModel>>, tx?: ContextoTx): Promise<ReporteSaturacion | null> {
+    const asignaciones = Object.keys(cambios).map((atributo) => `"${campoDe(ReporteModel, atributo)}" = :${atributo}`);
+    const [fila] = await this.filas(
+      `UPDATE reporte_saturacion SET ${asignaciones.join(', ')}, updated_at = :ahora__ WHERE id = :id__
+       RETURNING ${columnasDe(ReporteModel)}`,
+      { ...cambios, ahora__: new Date(), id__: id },
+      tx,
+    );
+    return fila ?? null;
   }
 }
