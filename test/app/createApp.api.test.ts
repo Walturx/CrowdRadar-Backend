@@ -12,6 +12,7 @@ import { crearContenedorPrueba, type OpcionesContenedorPrueba } from '../support
 import { EstadoServicio } from '../../src/util/EstadoServicio.js';
 import { crearLoggerEspia } from '../support/LoggerEspia.js';
 import { permitirErrorInterno } from '../support/guardiaErrorInterno.js';
+import { noImplementado } from '../../src/route/stub.js';
 
 function crear(opciones: OpcionesContenedorPrueba = {}, extra?: (router: Router) => void) {
   const ctx = crearContenedorPrueba(opciones);
@@ -163,6 +164,16 @@ describe('errores 500 y request id', () => {
     const res = await request(app).get('/prueba/boom');
     expect(res.body.requestId).toEqual(expect.any(String));
     expect(res.headers['x-request-id']).toBe(res.body.requestId);
+  });
+
+  it('una ruta congelada aun sin entregar (stub noImplementado) responde 501 NO_IMPLEMENTADO con la operacion, sin traza de error del manejador', async () => {
+    const espia = crearLoggerEspia('info');
+    const { app } = crear({ logger: espia.logger }, (router) => router.post('/pendiente', noImplementado('modulo.operacion')));
+    const res = await request(app).post('/prueba/pendiente').send({});
+    expect(res.status).toBe(501);
+    expect(res.body).toEqual({ message: 'Funcionalidad no implementada: modulo.operacion.', code: 'NO_IMPLEMENTADO', errors: [] });
+    // the access log still marks the 5xx; only the error middleware's stack-trace line is skipped for 501
+    expect(espia.lineas.filter((l) => l.msg === 'Error al atender la petición')).toEqual([]);
   });
 
   it('los errores esperados (4xx) no llevan requestId', async () => {
