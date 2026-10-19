@@ -477,6 +477,15 @@ describe.skipIf(!URL_BD_TEST)('migraciones (PostgreSQL real)', () => {
       expect(await indiceSintetico()).toHaveLength(1);
     });
 
+    it('la migracion 14 tolera que ix_usuario_sintetico ya exista (creado a mano antes del deploy)', async () => {
+      const deshacer = await ejecutarCli(['db:migrate:undo'], bd.url);
+      expect(deshacer.codigo, deshacer.salida).toBe(0);
+      await q(`CREATE INDEX ix_usuario_sintetico ON usuario (id) WHERE email LIKE '%${DOMINIO_EMAIL_SINTETICO}'`);
+      const rehacer = await ejecutarCli(['db:migrate'], bd.url);
+      expect(rehacer.codigo, rehacer.salida).toBe(0);
+      expect(await indiceSintetico()).toHaveLength(1);
+    });
+
     it('un segundo db:migrate:undo deshace lugar.osm_tipo y la rehace', async () => {
       await ejecutarCli(['db:migrate:undo'], bd.url);
       const deshacer = await ejecutarCli(['db:migrate:undo'], bd.url);
