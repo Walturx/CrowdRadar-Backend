@@ -27,6 +27,7 @@ import { ValidacionException } from '../../src/exception/http/ValidacionExceptio
 import { crearManejadorErrores, traducirError } from '../../src/middleware/manejarErrores.js';
 import { crearAppPrueba } from '../support/appPrueba.js';
 import { crearLoggerEspia } from '../support/LoggerEspia.js';
+import { permitirErrorInterno } from '../support/guardiaErrorInterno.js';
 
 const appQueLanza = (error: unknown, opciones: { limiteJson?: string; logger?: ReturnType<typeof crearLoggerEspia>['logger'] } = {}) =>
   crearAppPrueba({
@@ -114,6 +115,7 @@ describe('manejarErrores: errores de infraestructura', () => {
   });
 
   it('error desconocido -> 500 ERROR_INTERNO sin stack ni detalle, y se registra en el servidor', async () => {
+    permitirErrorInterno();
     const { logger, lineas } = crearLoggerEspia();
     const res = await request(appQueLanza(new Error('clave de la base: s3creto'), { logger })).get('/falla');
 
@@ -134,6 +136,7 @@ describe('manejarErrores: errores de infraestructura', () => {
   });
 
   it('un valor lanzado que no es Error tambien produce 500 ERROR_INTERNO', async () => {
+    permitirErrorInterno();
     const res = await request(appQueLanza('texto suelto')).get('/falla');
     expect(res.status).toBe(500);
     expect(res.body.code).toBe('ERROR_INTERNO');
@@ -168,6 +171,7 @@ describe('manejarErrores: reintento sugerido (R4-414, R1-401)', () => {
   });
 
   it('otro error de base de datos sigue siendo 500 y no lleva Retry-After', async () => {
+    permitirErrorInterno();
     const otro = new DatabaseError(Object.assign(new Error('syntax error at or near'), { code: '42601', sql: '' }));
     const res = await request(appQueLanza(otro)).get('/falla');
     expect(res.status).toBe(500);

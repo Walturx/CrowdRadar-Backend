@@ -11,6 +11,7 @@ import { ConexionFalsa } from '../support/ConexionFalsa.js';
 import { crearContenedorPrueba, type OpcionesContenedorPrueba } from '../support/crearContenedorPrueba.js';
 import { EstadoServicio } from '../../src/util/EstadoServicio.js';
 import { crearLoggerEspia } from '../support/LoggerEspia.js';
+import { permitirErrorInterno } from '../support/guardiaErrorInterno.js';
 
 function crear(opciones: OpcionesContenedorPrueba = {}, extra?: (router: Router) => void) {
   const ctx = crearContenedorPrueba(opciones);
@@ -142,6 +143,7 @@ describe('errores 500 y request id', () => {
     });
 
   it('el 500 trae requestId (igual al X-Request-Id), no trae stack ni detalle interno', async () => {
+    permitirErrorInterno();
     const { app } = crear({ logger: crearLoggerEspia('silent').logger }, boom);
     const res = await request(app).get('/prueba/boom').set('X-Request-Id', 'req-abc-123');
     expect(res.status).toBe(500);
@@ -156,6 +158,7 @@ describe('errores 500 y request id', () => {
   });
 
   it('sin cabecera se genera un requestId y coincide con el de la respuesta', async () => {
+    permitirErrorInterno();
     const { app } = crear({ logger: crearLoggerEspia('silent').logger }, boom);
     const res = await request(app).get('/prueba/boom');
     expect(res.body.requestId).toEqual(expect.any(String));
