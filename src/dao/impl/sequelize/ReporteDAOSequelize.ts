@@ -10,7 +10,7 @@ import type { AgregadoHora, ConsultaAgregada, FiltroPendientes, NuevoReporte, Re
 import { VALOR_NIVEL } from '../../../entity/valorNivel.js';
 import { DOMINIO_EMAIL_SINTETICO } from '../../../util/sintetico.js';
 import { ReporteModel } from './model/ReporteModel.js';
-import { campoDe, columnasDe } from './sqlCrudo.js';
+import { asignacionesDe, campoDe, columnasDe } from './sqlCrudo.js';
 
 const aTransaccion = (tx?: ContextoTx) => tx as unknown as Transaction | undefined;
 
@@ -221,13 +221,17 @@ export class ReporteDAOSequelize implements ReporteDAO {
     return armarPagina(rows.map(aEntidadReporte), count, paginacion);
   }
 
-  /** Updates the given columns and returns the row (UPDATE ... RETURNING, one statement); null when it does not exist. */
+  /**
+   * Updates the given columns and returns the row (UPDATE ... RETURNING, one statement); null when it does not exist.
+   * Undefined values leave their column as is; with nothing to change it is a plain read (no UPDATE, `updatedAt` kept).
+   */
   private async modificar(id: number, cambios: Partial<InferAttributes<ReporteModel>>, tx?: ContextoTx): Promise<ReporteSaturacion | null> {
-    const asignaciones = Object.keys(cambios).map((atributo) => `"${campoDe(ReporteModel, atributo)}" = :${atributo}`);
+    const asignacion = asignacionesDe(cambios, (atributo) => campoDe(ReporteModel, atributo));
+    if (!asignacion) return this.buscarPorId(id, tx);
     const [fila] = await this.filas(
-      `UPDATE reporte_saturacion SET ${asignaciones.join(', ')}, updated_at = :ahora__ WHERE id = :id__
+      `UPDATE reporte_saturacion SET ${asignacion.set}, updated_at = :__ahora WHERE id = :__id
        RETURNING ${columnasDe(ReporteModel)}`,
-      { ...cambios, ahora__: new Date(), id__: id },
+      { ...asignacion.valores, __ahora: new Date(), __id: id },
       tx,
     );
     return fila ?? null;

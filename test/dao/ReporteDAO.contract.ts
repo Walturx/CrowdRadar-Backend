@@ -124,6 +124,22 @@ export function contratoReporteDAO(nombre: string, crearEntorno: () => Promise<E
       it('registrarPuntos devuelve null si el reporte no existe', async () => {
         expect(await dao.registrarPuntos(424242, 10, null)).toBeNull();
       });
+
+      it('un valor undefined (un caller JS sin tipos) deja la columna como estaba en vez de fallar o borrarla', async () => {
+        const reporte = await crear(NivelSaturacion.TRANQUILO, T0);
+        await dao.registrarPuntos(reporte.id, 0, MotivoSinPuntos.TOPE_DIARIO);
+        const actualizado = await dao.registrarPuntos(reporte.id, 5, undefined as unknown as null);
+        expect(actualizado).toMatchObject({ id: reporte.id, puntosOtorgados: 5, motivoSinPuntos: 'TOPE_DIARIO' });
+        expect(await dao.buscarPorId(reporte.id)).toMatchObject({ puntosOtorgados: 5, motivoSinPuntos: 'TOPE_DIARIO' });
+      });
+
+      it('sin nada que cambiar (solo undefined) no escribe: devuelve la fila tal cual, o null si no existe', async () => {
+        const reporte = await crear(NivelSaturacion.TRANQUILO, T0);
+        const antes = await dao.buscarPorId(reporte.id);
+        expect(await dao.actualizarConfiabilidad(reporte.id, undefined as unknown as number)).toEqual(antes);
+        expect(await dao.buscarPorId(reporte.id)).toEqual(antes);
+        expect(await dao.actualizarEstado(424242, undefined as unknown as EstadoReporte)).toBeNull();
+      });
     });
 
     describe('listarPorUsuario', () => {
