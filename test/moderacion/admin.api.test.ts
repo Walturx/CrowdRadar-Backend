@@ -196,6 +196,13 @@ describe('rutas admin de moderacion', () => {
         const otra = await request(app).post(`/api/admin/usuarios/${u.id}/reactivacion`).set(comoAdmin());
         expect([otra.status, otra.body.code]).toEqual([409, 'USUARIO_NO_SUSPENDIDO']);
       });
+      it('reactiva a un SUSPENDIDO cuya sancion ya vencio (sin sancion vigente que levantar)', async () => {
+        const u = ctx.usuarioDAO.agregar(aUsuario({ status: EstadoCuenta.SUSPENDIDO }));
+        const res = await request(app).post(`/api/admin/usuarios/${u.id}/reactivacion`).set(comoAdmin());
+        expect(res.status).toBe(200);
+        expect((await ctx.usuarioDAO.buscarPorId(u.id))?.status).toBe(EstadoCuenta.ACTIVO);
+        expect(await ctx.sancionDAO.buscarVigente(u.id, AHORA)).toBeNull();
+      });
       it('404 con un usuario inexistente', async () => {
         const res = await request(app).post('/api/admin/usuarios/999/reactivacion').set(comoAdmin());
         expect(res.status).toBe(404);
