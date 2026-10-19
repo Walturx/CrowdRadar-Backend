@@ -4,6 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { construirFavoritoAlerta } from '../../src/container/favoritoAlerta.js';
+import { crearContenedor, ensamblar } from '../../src/container/index.js';
 import { construirInfraestructura } from '../../src/container/infraestructura.js';
 import { construirLugar } from '../../src/container/lugar.js';
 import { construirModeracion } from '../../src/container/moderacion.js';
@@ -71,6 +72,27 @@ describe('ensamblar', () => {
   it('respeta el orden congelado: reporte antes que validacion, sistema primero', () => {
     expect(orden[0]).toBe('sistema');
     expect(orden.indexOf('reporte')).toBeLessThan(orden.indexOf('validacion'));
+  });
+
+  it('sin DAOs inyectados arma los de Sequelize para favoritos/alertas y validacion sin tocar la base', () => {
+    const conexion = new ConexionFalsa();
+    const produccion = ensamblar({
+      cfg: configPrueba(),
+      logger: crearLoggerSilencioso(),
+      conexion,
+      usuarioDAO: new UsuarioDAOMemoria(),
+      lugarDAO: new LugarDAOMemoria(),
+      reporteDAO: new ReporteDAOMemoria(),
+      hasher: new HasherFalso(),
+      emisorToken: new EmisorTokenFalso(),
+    });
+    expect(modulos(produccion.rutas)).toEqual(orden);
+    expect([conexion.verificaciones, conexion.transacciones]).toEqual([0, 0]);
+  });
+
+  it('crearContenedor falla rapido (rechaza) si Postgres no es alcanzable', async () => {
+    const cfg = configPrueba({ DB_HOST: '127.0.0.1', DB_PUERTO: 1 });
+    await expect(crearContenedor(cfg, crearLoggerSilencioso())).rejects.toThrow(/ECONNREFUSED|connect/i);
   });
 
   it('expone CORS y trust proxy desde la configuracion', () => {
