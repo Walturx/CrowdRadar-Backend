@@ -10,6 +10,12 @@ import { UsuarioNoEncontradoException } from '../../src/exception/usuario/Usuari
 import { ModeracionFacadeImpl } from '../../src/facade/impl/ModeracionFacadeImpl.js';
 import { AHORA, MS_DIA, armarModeracion } from './entornoModeracion.js';
 
+/** Every key of the object graph (dates and arrays included), to assert a field appears nowhere. */
+function clavesAnidadas(valor: unknown): string[] {
+  if (valor === null || typeof valor !== 'object' || valor instanceof Date) return [];
+  return Object.entries(valor).flatMap(([clave, hijo]) => [clave, ...clavesAnidadas(hijo)]);
+}
+
 describe('ModeracionFacadeImpl', () => {
   let m: ReturnType<typeof armarModeracion>;
   beforeEach(() => {
@@ -72,6 +78,16 @@ describe('ModeracionFacadeImpl', () => {
         [poco.reporte.id, 1],
       ]);
       expect(lista.items[0]).toMatchObject({ lugar: { nombre: 'Parque Kennedy' }, autor: { id: mucho.autor.id } });
+    });
+
+    it('la cola y el detalle solo llevan del autor id, nombre, apellido y email: nunca passwordHash', async () => {
+      const { reporte } = await m.reporteDenunciado(1);
+      const lista = await m.facade.listarReportesDenunciados(pagina);
+      const detalle = await m.facade.obtenerReporteDenunciado(reporte.id);
+      for (const resultado of [lista.items[0]!, detalle]) {
+        expect(Object.keys(resultado.autor).sort()).toEqual(['apellido', 'email', 'id', 'nombre']);
+        expect(clavesAnidadas(resultado)).not.toContain('passwordHash');
+      }
     });
 
     it('sin denuncias pendientes: pagina vacia (S3)', async () => {

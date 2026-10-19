@@ -1,5 +1,5 @@
 import type { EnviadorCorreo } from '../../adapter/correo/EnviadorCorreo.js';
-import { contextoReporteDesde, type ContextoReporteDAO } from '../../dao/ContextoReporteDAO.js';
+import { aAutorReporte, contextoReporteDesde, type ContextoReporteDAO } from '../../dao/ContextoReporteDAO.js';
 import type { DenunciaDAO } from '../../dao/DenunciaDAO.js';
 import type { LugarDAO } from '../../dao/LugarDAO.js';
 import type { Pagina, Paginacion } from '../../dao/Paginacion.js';
@@ -179,7 +179,7 @@ export class ModeracionFacadeImpl implements ModeracionFacade {
     if (!reporte || reporte.estado === EstadoReporte.ELIMINADO) throw new ReporteNoEncontradoException();
     const [lugar, autor] = await Promise.all([lugarDAO.buscarPorId(reporte.lugarId, tx), usuarioDAO.buscarPorId(reporte.usuarioId, tx)]);
     if (!lugar || !autor) throw new ReporteNoEncontradoException();
-    return { reporte, lugar, autor };
+    return { reporte, lugar, autor: aAutorReporte(autor) };
   }
 
   async resolverDenuncias(adminId: number, reporteId: number, decision: DecisionModeracion, comentario: string | null): Promise<ResultadoResolucion> {
