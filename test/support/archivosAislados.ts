@@ -11,4 +11,6 @@ export const ARCHIVOS_AISLADOS = [
   'test/database/historialSintetico.unit.test.ts',
   // Writes ADMIN_* / BCRYPT_COSTO into process.env around the admin seeder (restored after each case).
   'test/database/herramientas.unit.test.ts',
+  // Rebinds the global Sequelize model classes to throwaway instances.
+  'test/dao/initModels.unit.test.ts',
 ];
