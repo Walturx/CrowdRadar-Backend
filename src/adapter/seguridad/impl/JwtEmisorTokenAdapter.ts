@@ -1,3 +1,4 @@
+import { createSecretKey, type KeyObject } from 'node:crypto';
 import jwt, { type SignOptions } from 'jsonwebtoken';
 import { z } from 'zod';
 import type { Usuario } from '../../../entity/Usuario.js';
@@ -28,7 +29,12 @@ export interface OpcionesJwt {
  * with zod before anything trusts `id`; even then `autenticar` re-reads the user.
  */
 export class JwtEmisorTokenAdapter implements EmisorToken {
-  constructor(private readonly opciones: OpcionesJwt) {}
+  /** Built once: given a string, jsonwebtoken creates a KeyObject on every sign and verify (one per request). */
+  private readonly clave: KeyObject;
+
+  constructor(private readonly opciones: OpcionesJwt) {
+    this.clave = createSecretKey(Buffer.from(opciones.jwtSecreto, 'utf8'));
+  }
 
   emitir(usuario: Usuario): TokenEmitido {
     const claims: Omit<ClaimsToken, 'iat'> = {
@@ -38,7 +44,7 @@ export class JwtEmisorTokenAdapter implements EmisorToken {
       rol: usuario.rol,
       status: usuario.status,
     };
-    const token = jwt.sign(claims, this.opciones.jwtSecreto, {
+    const token = jwt.sign(claims, this.clave, {
       algorithm: ALGORITMO,
       expiresIn: this.opciones.jwtExpiraEn as SignOptions['expiresIn'],
     });
@@ -47,7 +53,7 @@ export class JwtEmisorTokenAdapter implements EmisorToken {
   }
 
   verificar(token: string): ClaimsToken {
-    const payload = jwt.verify(token, this.opciones.jwtSecreto, { algorithms: [ALGORITMO] });
+    const payload = jwt.verify(token, this.clave, { algorithms: [ALGORITMO] });
     return esquemaClaims.parse(payload);
   }
 }
