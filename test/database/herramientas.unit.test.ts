@@ -37,6 +37,7 @@ describe('seeder usuario-admin', () => {
   const queryInterface = { sequelize: { query: async (...argumentos: unknown[]) => void consultas.push(argumentos) } };
 
   const sembrar = (env: Record<string, string>) => {
+    consultas.length = 0; // each case counts only its own queries, whatever order the cases run in
     const anterior = { ...process.env };
     Object.assign(process.env, { ADMIN_EMAIL: '', ADMIN_PASSWORD: '', BCRYPT_COSTO: '4', ...env });
     return seeder.up(queryInterface).finally(() => {

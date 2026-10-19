@@ -19,6 +19,7 @@ import { crearContenedorPrueba } from '../support/crearContenedorPrueba.js';
 import { LugarDAOMemoria } from '../support/dao/memoria/LugarDAOMemoria.js';
 import { crearLoggerEspia } from '../support/LoggerEspia.js';
 import { aUsuario } from '../support/fabrica/datos.js';
+import { relojVirtual } from '../support/relojVirtual.js';
 
 const LUGAR = 7;
 const evento = () =>
@@ -102,9 +103,14 @@ describe('container/favoritoAlerta', () => {
     ctx.lugarDAO.agregar({ id: LUGAR });
     await ctx.favoritoDAO.crear(1, LUGAR);
     await ctx.dispositivoDAO.registrar(1, 'tok-1', PlataformaPush.ANDROID);
-    const inicio = Date.now();
-    await subject.notificar(evento());
-    expect(Date.now() - inicio).toBeLessThan(1000);
+    const reloj = relojVirtual();
+    try {
+      // Cut at the configured PUSH_TIMEOUT_MS (25 ms on the virtual clock), not left hanging.
+      const { ms } = await reloj.medir(() => subject.notificar(evento()), 1000);
+      expect(ms).toBe(25);
+    } finally {
+      reloj.restaurar();
+    }
     expect(await ctx.alertaDAO.contarNoLeidas(1)).toBe(1);
     expect(lineas.some((l) => l.level === 50 && String(l.msg).includes('agoto el tiempo'))).toBe(true);
   });

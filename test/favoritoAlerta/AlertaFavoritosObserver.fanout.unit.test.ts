@@ -13,6 +13,7 @@ import { AlertaDAOMemoria } from '../support/dao/memoria/AlertaDAOMemoria.js';
 import { DispositivoDAOMemoria } from '../support/dao/memoria/DispositivoDAOMemoria.js';
 import { FavoritoDAOMemoria } from '../support/dao/memoria/FavoritoDAOMemoria.js';
 import { crearLoggerEspia } from '../support/LoggerEspia.js';
+import { relojVirtual } from '../support/relojVirtual.js';
 
 const LUGAR = 7;
 const evento = crearEventoSaturacion({
@@ -104,9 +105,14 @@ describe('AlertaFavoritosObserver: tiempo limite del push', () => {
       },
     };
     const t = await armar(3, notificador, { pushTimeoutMs: 30, concurrencia: 1 });
-    const inicio = Date.now();
-    await t.observer.alCambiarSaturacion(evento);
-    expect(Date.now() - inicio).toBeLessThan(500);
+    const reloj = relojVirtual();
+    try {
+      // The hung push is cut at its 30 ms timeout (virtual clock); the other two are immediate.
+      const { ms } = await reloj.medir(() => t.observer.alCambiarSaturacion(evento), 1000);
+      expect(ms).toBe(30);
+    } finally {
+      reloj.restaurar();
+    }
     expect([...enviados].sort()).toEqual(['tok-2', 'tok-3']);
     expect(await t.alertas.contarNoLeidas(1)).toBe(1);
     const error = t.lineas.find((l) => l.level === 50);
