@@ -1,6 +1,8 @@
 import { BcryptHasherAdapter } from '../adapter/seguridad/impl/BcryptHasherAdapter.js';
 import { JwtEmisorTokenAdapter } from '../adapter/seguridad/impl/JwtEmisorTokenAdapter.js';
 import type { ConfiguracionApp } from '../config/ConfiguracionApp.js';
+import type { ContextoReporteDAO } from '../dao/ContextoReporteDAO.js';
+import { ContextoReporteDAOSequelize } from '../dao/impl/sequelize/ContextoReporteDAOSequelize.js';
 import { LugarDAOSequelize } from '../dao/impl/sequelize/LugarDAOSequelize.js';
 import { ReporteDAOSequelize } from '../dao/impl/sequelize/ReporteDAOSequelize.js';
 import { UsuarioDAOSequelize } from '../dao/impl/sequelize/UsuarioDAOSequelize.js';
@@ -20,6 +22,8 @@ import { construirValidacion, crearDaosValidacionSequelize, type DaosValidacion 
 export interface OpcionesEnsamblado {
   favoritoAlerta?: DaosFavoritoAlerta;
   validacion?: DaosValidacion;
+  /** Joined read of the moderation queue; without it the facade composes the entity DAOs of the infrastructure. */
+  contextoReporteDAO?: ContextoReporteDAO;
 }
 
 /**
@@ -46,7 +50,7 @@ export function ensamblar(dependencias: DependenciasInfraestructura, opciones: O
       ...construirFavoritoAlerta(infra, daosFavoritoAlerta),
       ...construirReporte(infra),
       ...construirValidacion(infra, daosValidacion),
-      ...construirModeracion(infra, daosValidacion.denunciaDAO),
+      ...construirModeracion(infra, daosValidacion.denunciaDAO, opciones.contextoReporteDAO),
     ],
   };
 }
@@ -54,15 +58,18 @@ export function ensamblar(dependencias: DependenciasInfraestructura, opciones: O
 /** Production composition: connects to PostgreSQL (fails fast when unreachable) and wires the real adapters. */
 export async function crearContenedor(cfg: ConfiguracionApp, logger: Logger, estado?: EstadoServicio): Promise<Contenedor> {
   const conexion = await new ConexionPostgresFactory(cfg.bd, logger).conectar();
-  return ensamblar({
-    cfg,
-    logger,
-    conexion,
-    estado,
-    usuarioDAO: new UsuarioDAOSequelize(),
-    lugarDAO: new LugarDAOSequelize({ limiteMax: cfg.lugares.limiteMax }),
-    reporteDAO: new ReporteDAOSequelize(),
-    hasher: new BcryptHasherAdapter(cfg.seguridad.bcryptCosto),
-    emisorToken: new JwtEmisorTokenAdapter(cfg.seguridad),
-  });
+  return ensamblar(
+    {
+      cfg,
+      logger,
+      conexion,
+      estado,
+      usuarioDAO: new UsuarioDAOSequelize(),
+      lugarDAO: new LugarDAOSequelize({ limiteMax: cfg.lugares.limiteMax }),
+      reporteDAO: new ReporteDAOSequelize(),
+      hasher: new BcryptHasherAdapter(cfg.seguridad.bcryptCosto),
+      emisorToken: new JwtEmisorTokenAdapter(cfg.seguridad),
+    },
+    { contextoReporteDAO: new ContextoReporteDAOSequelize() },
+  );
 }

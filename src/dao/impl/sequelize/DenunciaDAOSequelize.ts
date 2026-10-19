@@ -58,18 +58,17 @@ export class DenunciaDAOSequelize implements DenunciaDAO {
   async listarReportesConPendientes(paginacion: Paginacion, tx?: ContextoTx): Promise<Pagina<ReporteDenunciado>> {
     const transaction = aTransaccion(tx);
     const sequelize = DenunciaModel.sequelize!;
-    const [conteo] = await sequelize.query<{ total: number }>(
-      'SELECT COUNT(DISTINCT reporte_id)::int AS total FROM denuncia WHERE estado = :pendiente',
-      { replacements: { pendiente: EstadoDenuncia.PENDIENTE }, type: QueryTypes.SELECT, transaction },
-    );
-    const filas = await sequelize.query<{ reporteId: number; pendientes: number; ultimaDenunciaEn: Date }>(
-      `SELECT reporte_id AS "reporteId", COUNT(*)::int AS pendientes, MAX(fecha_hora) AS "ultimaDenunciaEn"
+    const desde = desplazamiento(paginacion);
+    // One statement: the window COUNT(*) OVER () runs after GROUP BY, so it counts reports, not complaints.
+    const filas = await sequelize.query<{ reporteId: number; pendientes: number; ultimaDenunciaEn: Date; total: number }>(
+      `SELECT reporte_id AS "reporteId", COUNT(*)::int AS pendientes, MAX(fecha_hora) AS "ultimaDenunciaEn",
+              (COUNT(*) OVER ())::int AS total
          FROM denuncia WHERE estado = :pendiente
         GROUP BY reporte_id
         ORDER BY pendientes DESC, "ultimaDenunciaEn" DESC, reporte_id DESC
         LIMIT :limite OFFSET :desde`,
       {
-        replacements: { pendiente: EstadoDenuncia.PENDIENTE, limite: paginacion.size, desde: desplazamiento(paginacion) },
+        replacements: { pendiente: EstadoDenuncia.PENDIENTE, limite: paginacion.size, desde },
         type: QueryTypes.SELECT,
         transaction,
       },
@@ -79,7 +78,17 @@ export class DenunciaDAOSequelize implements DenunciaDAO {
       pendientes: f.pendientes,
       ultimaDenunciaEn: new Date(f.ultimaDenunciaEn),
     }));
-    return armarPagina(items, conteo?.total ?? 0, paginacion);
+    // A page past the end has no row to carry the total: only then is it counted apart.
+    const total = filas[0]?.total ?? (desde === 0 ? 0 : await this.contarReportesConPendientes(transaction));
+    return armarPagina(items, total, paginacion);
+  }
+
+  private async contarReportesConPendientes(transaction?: Transaction): Promise<number> {
+    const [conteo] = await DenunciaModel.sequelize!.query<{ total: number }>(
+      'SELECT COUNT(DISTINCT reporte_id)::int AS total FROM denuncia WHERE estado = :pendiente',
+      { replacements: { pendiente: EstadoDenuncia.PENDIENTE }, type: QueryTypes.SELECT, transaction },
+    );
+    return conteo?.total ?? 0;
   }
 
   async resumirMotivos(reporteId: number, tx?: ContextoTx): Promise<ResumenMotivo[]> {

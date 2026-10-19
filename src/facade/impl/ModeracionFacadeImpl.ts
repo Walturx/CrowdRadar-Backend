@@ -1,4 +1,5 @@
 import type { EnviadorCorreo } from '../../adapter/correo/EnviadorCorreo.js';
+import { contextoReporteDesde, type ContextoReporteDAO } from '../../dao/ContextoReporteDAO.js';
 import type { DenunciaDAO } from '../../dao/DenunciaDAO.js';
 import type { LugarDAO } from '../../dao/LugarDAO.js';
 import type { Pagina, Paginacion } from '../../dao/Paginacion.js';
@@ -42,6 +43,8 @@ export interface DependenciasModeracionFacade {
   denunciaDAO: DenunciaDAO;
   reporteDAO: ReporteDAO;
   lugarDAO: LugarDAO;
+  /** Batch read of report, place and author for the review queue; defaults to composing the three DAOs above. */
+  contextoReporteDAO?: ContextoReporteDAO;
   karmaService: KarmaService;
   saturacionService: SaturacionService;
   subject: SaturacionSubject;
@@ -61,7 +64,11 @@ const escaparHtml = (texto: string): string =>
  * transaction; the mail and the level-change event go out after the commit and never fail the request.
  */
 export class ModeracionFacadeImpl implements ModeracionFacade {
-  constructor(private readonly deps: DependenciasModeracionFacade) {}
+  private readonly contextos: ContextoReporteDAO;
+
+  constructor(private readonly deps: DependenciasModeracionFacade) {
+    this.contextos = deps.contextoReporteDAO ?? contextoReporteDesde(deps);
+  }
 
   async suspender(adminId: number, usuarioId: number, dias: DiasSuspension, motivo: string): Promise<SancionUsuario> {
     const { usuarioDAO, sancionDAO, conexion, reloj, diasPermitidos } = this.deps;
@@ -142,11 +149,21 @@ export class ModeracionFacadeImpl implements ModeracionFacade {
     return { usuario, sancionVigente };
   }
 
+  /**
+   * Two reads whatever the page size: the page of reports with pending complaints and, in one batch, their report,
+   * place and author. As with the detail, a listed report that was removed (or lost its place or author) is a 404.
+   */
   async listarReportesDenunciados(paginacion: Paginacion): Promise<Pagina<ReporteDenunciadoItem>> {
     const pagina = await this.deps.denunciaDAO.listarReportesConPendientes(paginacion);
-    const items = await Promise.all(
-      pagina.items.map(async (resumen) => ({ ...resumen, ...(await this.contextoDe(resumen.reporteId)) })),
+    if (pagina.items.length === 0) return { ...pagina, items: [] };
+    const contextos = new Map(
+      (await this.contextos.buscarPorReportes(pagina.items.map((i) => i.reporteId))).map((c) => [c.reporte.id, c]),
     );
+    const items = pagina.items.map((resumen) => {
+      const contexto = contextos.get(resumen.reporteId);
+      if (!contexto || contexto.reporte.estado === EstadoReporte.ELIMINADO) throw new ReporteNoEncontradoException();
+      return { ...resumen, ...contexto };
+    });
     return { ...pagina, items };
   }
 

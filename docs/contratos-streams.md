@@ -326,6 +326,8 @@ Interfaces to implement:
 - `service/VerificadorEstadoCuenta.ts` -> `service/impl/VerificadorEstadoCuentaImpl.ts`, sanction-aware
   (reactivates when a sanction expired).
 - `dao/SancionDAO.ts` -> `dao/impl/sequelize/SancionDAOSequelize.ts`.
+- `dao/ContextoReporteDAO.ts` (read model: report, place and author of a whole page in one query) ->
+  `dao/impl/sequelize/ContextoReporteDAOSequelize.ts`; in-memory compositions use `contextoReporteDesde`.
 
 Owned files: `facade/ModeracionFacade*`, `service/impl/VerificadorEstadoCuentaImpl.ts` (replaces the C0 minimum),
 `controller/ModeracionController.ts`, `mapper/ModeracionMapper.ts`, `dao/impl/sequelize/SancionDAOSequelize.ts`,

@@ -45,7 +45,7 @@ export function armarModeracion(diasPermitidos: readonly number[] = [3, 7, 30]) 
   const saturacionService = {
     recalcular: vi.fn(async (lugarId: number) => ({ lugarId, anterior: NivelSaturacion.SATURADO, nuevo: NivelSaturacion.MODERADO, actualizadoEn: AHORA })),
   };
-  const facade = new ModeracionFacadeImpl({
+  const deps = {
     usuarioDAO,
     sancionDAO,
     denunciaDAO,
@@ -59,7 +59,8 @@ export function armarModeracion(diasPermitidos: readonly number[] = [3, 7, 30]) 
     reloj,
     logger,
     diasPermitidos,
-  });
+  };
+  const facade = new ModeracionFacadeImpl(deps);
   const usuario = (extra: Partial<Usuario> = {}) => usuarioDAO.agregar(aUsuario(extra));
   const admin = () => usuario({ rol: Rol.ADMIN });
   const suspendido = async (dias = 7) => {
@@ -79,5 +80,5 @@ export function armarModeracion(diasPermitidos: readonly number[] = [3, 7, 30]) 
     }
     return { autor, lugar, reporte };
   };
-  return { facade, reloj, usuarioDAO, sancionDAO, denunciaDAO, reporteDAO, lugarDAO, correo, subject, conexion, lineas, karmaService, saturacionService, usuario, admin, suspendido, reporteDenunciado };
+  return { facade, deps, reloj, usuarioDAO, sancionDAO, denunciaDAO, reporteDAO, lugarDAO, correo, subject, conexion, lineas, karmaService, saturacionService, usuario, admin, suspendido, reporteDenunciado };
 }

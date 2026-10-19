@@ -1,4 +1,5 @@
 import { ModeracionController } from '../controller/ModeracionController.js';
+import type { ContextoReporteDAO } from '../dao/ContextoReporteDAO.js';
 import type { DenunciaDAO } from '../dao/DenunciaDAO.js';
 import { ModeracionFacadeImpl } from '../facade/impl/ModeracionFacadeImpl.js';
 import type { ModeracionFacade } from '../facade/ModeracionFacade.js';
@@ -10,9 +11,10 @@ import { crearEnviadorCorreo } from './seguridad.js';
 
 /**
  * ModeracionFacade over the shared infrastructure. Karma and saturation come from the report stream's wiring (they
- * only revoke and recompute here); the mail goes through the same provider as the recovery links.
+ * only revoke and recompute here); the mail goes through the same provider as the recovery links. Without a
+ * `contextoReporteDAO` (in-memory compositions) the facade composes it from the entity DAOs.
  */
-export function crearModeracionFacade(infra: Infraestructura, denunciaDAO: DenunciaDAO): ModeracionFacade {
+export function crearModeracionFacade(infra: Infraestructura, denunciaDAO: DenunciaDAO, contextoReporteDAO?: ContextoReporteDAO): ModeracionFacade {
   const { cfg, logger, conexion, reloj, usuarioDAO, sancionDAO, lugarDAO, reporteDAO, subject } = infra;
   const { karmaService, saturacionService } = construirServiciosReporte({ cfg, reloj, logger, conexion, usuarioDAO, lugarDAO, reporteDAO, subject });
   return new ModeracionFacadeImpl({
@@ -21,6 +23,7 @@ export function crearModeracionFacade(infra: Infraestructura, denunciaDAO: Denun
     denunciaDAO,
     reporteDAO,
     lugarDAO,
+    contextoReporteDAO,
     karmaService,
     saturacionService,
     subject,
@@ -33,7 +36,7 @@ export function crearModeracionFacade(infra: Infraestructura, denunciaDAO: Denun
 }
 
 /** Moderation stream (M6), admin chain. */
-export function construirModeracion(infra: Infraestructura, denunciaDAO: DenunciaDAO): MontajeRuta[] {
-  const controller = new ModeracionController(crearModeracionFacade(infra, denunciaDAO));
+export function construirModeracion(infra: Infraestructura, denunciaDAO: DenunciaDAO, contextoReporteDAO?: ContextoReporteDAO): MontajeRuta[] {
+  const controller = new ModeracionController(crearModeracionFacade(infra, denunciaDAO, contextoReporteDAO));
   return [{ modulo: 'moderacion', ruta: '/api/admin', router: crearModeracionRouter(infra.guardas, controller) }];
 }

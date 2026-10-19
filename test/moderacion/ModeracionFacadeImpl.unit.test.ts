@@ -1,11 +1,13 @@
 /** ModeracionFacadeImpl unit tests (rubric M6, >= 4 cases): reactivation, user directory and the report review queue. */
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { contextoReporteDesde } from '../../src/dao/ContextoReporteDAO.js';
 import { EstadoCuenta } from '../../src/enum/EstadoCuenta.js';
 import { EstadoReporte } from '../../src/enum/EstadoReporte.js';
 import { SinDenunciasPendientesException } from '../../src/exception/moderacion/SinDenunciasPendientesException.js';
 import { UsuarioNoSuspendidoException } from '../../src/exception/moderacion/UsuarioNoSuspendidoException.js';
 import { ReporteNoEncontradoException } from '../../src/exception/reporte/ReporteNoEncontradoException.js';
 import { UsuarioNoEncontradoException } from '../../src/exception/usuario/UsuarioNoEncontradoException.js';
+import { ModeracionFacadeImpl } from '../../src/facade/impl/ModeracionFacadeImpl.js';
 import { AHORA, MS_DIA, armarModeracion } from './entornoModeracion.js';
 
 describe('ModeracionFacadeImpl', () => {
@@ -74,6 +76,25 @@ describe('ModeracionFacadeImpl', () => {
 
     it('sin denuncias pendientes: pagina vacia (S3)', async () => {
       expect((await m.facade.listarReportesDenunciados(pagina)).items).toEqual([]);
+    });
+
+    it('lee reporte, lugar y autor de toda la pagina en un solo lote (sin N+1)', async () => {
+      const a = await m.reporteDenunciado(1);
+      const b = await m.reporteDenunciado(2);
+      const contextoReporteDAO = { buscarPorReportes: vi.fn(contextoReporteDesde(m).buscarPorReportes) };
+      const facade = new ModeracionFacadeImpl({ ...m.deps, contextoReporteDAO });
+      const lista = await facade.listarReportesDenunciados(pagina);
+      expect(contextoReporteDAO.buscarPorReportes).toHaveBeenCalledTimes(1);
+      expect(contextoReporteDAO.buscarPorReportes).toHaveBeenCalledWith([b.reporte.id, a.reporte.id]);
+      expect(lista.items.map((i) => [i.reporte.id, i.lugar.id, i.autor.id])).toEqual([
+        [b.reporte.id, b.lugar.id, b.autor.id],
+        [a.reporte.id, a.lugar.id, a.autor.id],
+      ]);
+    });
+
+    it('un reporte listado que ya fue eliminado: 404 como en el detalle', async () => {
+      await m.reporteDenunciado(1, { estado: EstadoReporte.ELIMINADO });
+      await expect(m.facade.listarReportesDenunciados(pagina)).rejects.toBeInstanceOf(ReporteNoEncontradoException);
     });
 
     it('detalle con el desglose de motivos (S2) y 404 si no existe', async () => {
