@@ -158,8 +158,8 @@ export function contratoReporteDAO(nombre: string, crearEntorno: () => Promise<E
         const fuera = await crear(NivelSaturacion.SATURADO, desplazar(T0, 10));
         await dao.actualizarEstado(fuera.id, EstadoReporte.ELIMINADO);
         expect(await dao.agregarPorHora(consulta())).toEqual([
-          { dia: '2026-10-05', hora: 9, promedio: 2.5, muestras: 2 },
-          { dia: '2026-10-05', hora: 14, promedio: 1, muestras: 1 },
+          { dia: '2026-10-05', hora: 9, promedio: 2.5, muestras: 2, sinteticos: 0 },
+          { dia: '2026-10-05', hora: 14, promedio: 1, muestras: 1, sinteticos: 0 },
         ]);
       });
 
@@ -170,13 +170,13 @@ export function contratoReporteDAO(nombre: string, crearEntorno: () => Promise<E
         const laborables = await dao.agregarPorHora(consulta({ dias: FiltroDias.LABORABLES }));
         expect(laborables.map((a) => a.dia)).toEqual(['2026-10-05']);
         const finde = await dao.agregarPorHora(consulta({ dias: FiltroDias.FIN_DE_SEMANA }));
-        expect(finde).toEqual([{ dia: '2026-10-03', hora: 15, promedio: 3, muestras: 1 }]);
+        expect(finde).toEqual([{ dia: '2026-10-03', hora: 15, promedio: 3, muestras: 1, sinteticos: 0 }]);
         const hastaExclusivo = await dao.agregarPorHora(consulta({ hasta: T0 }));
         expect(hastaExclusivo.map((a) => a.dia)).toEqual(['2026-10-03']);
       });
     });
 
-    describe('hayReportesSinteticos', () => {
+    describe('agregarPorHora: sinteticos (reportes de usuarios de demo por celda)', () => {
       const ventana = (extra: Record<string, unknown> = {}) => ({
         lugarId,
         desde: new Date('2026-10-01T05:00:00Z'),
@@ -185,26 +185,29 @@ export function contratoReporteDAO(nombre: string, crearEntorno: () => Promise<E
         zonaHoraria: LIMA,
         ...extra,
       });
+      const haySinteticos = async (extra: Record<string, unknown> = {}) =>
+        (await dao.agregarPorHora(ventana(extra))).some((celda) => celda.sinteticos > 0);
 
-      it('es falso con reportes de usuarios reales y verdadero en cuanto uno es sintetico', async () => {
+      it('es 0 con reportes de usuarios reales y cuenta los sinteticos de cada celda', async () => {
         await crear(NivelSaturacion.MODERADO, T0);
-        expect(await dao.hayReportesSinteticos(ventana())).toBe(false);
+        expect(await haySinteticos()).toBe(false);
         await crear(NivelSaturacion.SATURADO, desplazar(T0, 5), { usuarioId: await sembrador.usuarioSintetico() });
-        expect(await dao.hayReportesSinteticos(ventana())).toBe(true);
+        expect(await haySinteticos()).toBe(true);
+        expect(await dao.agregarPorHora(ventana())).toEqual([{ dia: '2026-10-05', hora: 9, promedio: 2.5, muestras: 2, sinteticos: 1 }]);
       });
 
       it('solo cuenta el lugar, el rango [desde, hasta), los ACTIVO y el filtro de dias de la consulta', async () => {
         const sintetico = await sembrador.usuarioSintetico();
         const otroLugar = await sembrador.lugar();
         await crear(NivelSaturacion.MODERADO, T0, { usuarioId: sintetico, lugarId: otroLugar });
-        expect(await dao.hayReportesSinteticos(ventana())).toBe(false);
+        expect(await haySinteticos()).toBe(false);
         const eliminado = await crear(NivelSaturacion.MODERADO, T0, { usuarioId: sintetico });
         await dao.actualizarEstado(eliminado.id, EstadoReporte.ELIMINADO);
-        expect(await dao.hayReportesSinteticos(ventana())).toBe(false);
+        expect(await haySinteticos()).toBe(false);
         await crear(NivelSaturacion.MODERADO, T0, { usuarioId: sintetico }); // Monday
-        expect(await dao.hayReportesSinteticos(ventana({ hasta: T0 }))).toBe(false);
-        expect(await dao.hayReportesSinteticos(ventana({ dias: FiltroDias.FIN_DE_SEMANA }))).toBe(false);
-        expect(await dao.hayReportesSinteticos(ventana({ dias: FiltroDias.LABORABLES }))).toBe(true);
+        expect(await haySinteticos({ hasta: T0 })).toBe(false);
+        expect(await haySinteticos({ dias: FiltroDias.FIN_DE_SEMANA })).toBe(false);
+        expect(await haySinteticos({ dias: FiltroDias.LABORABLES })).toBe(true);
       });
     });
 

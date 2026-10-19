@@ -2,7 +2,7 @@
  * Unit tests of AnaliticaServiceImpl over the in-memory DAOs: history, period comparison and best hour
  * (spec M4 R11-R13, S15-S17). Times are Lima (UTC-5); "now" is Wednesday 2026-10-07 10:00 Lima.
  */
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EstadoReporte } from '../../src/enum/EstadoReporte.js';
 import { AgrupacionHistorial } from '../../src/enum/AgrupacionHistorial.js';
 import { FiltroDias } from '../../src/enum/FiltroDias.js';
@@ -160,6 +160,22 @@ describe('AnaliticaServiceImpl', () => {
         status: 404,
         code: CodigoError.LUGAR_NO_ENCONTRADO,
       });
+    });
+
+    it('un lugar inexistente con un rango invalido sigue siendo 404 (el lugar se valida primero)', async () => {
+      const consulta = { agrupacion: AgrupacionHistorial.DIA, desde: '2026-10-07', hasta: '2026-10-01' };
+      await expect(servicio.obtenerHistorial(lugarId + 99, consulta)).rejects.toMatchObject({ status: 404, code: CodigoError.LUGAR_NO_ENCONTRADO });
+      await expect(servicio.obtenerHistorial(lugarId, consulta)).rejects.toMatchObject({ code: CodigoError.RANGO_FECHAS_INVALIDO });
+    });
+
+    it('lee el lugar y una sola agregacion (que trae tambien si hay sinteticos) por peticion', async () => {
+      const buscarLugar = vi.spyOn(lugarDAO, 'buscarPorId');
+      const agregar = vi.spyOn(reporteDAO, 'agregarPorHora');
+      reportar('2026-10-07', 9, VALOR.MODERADO, { usuarioId: await sembrador.usuarioSintetico() });
+      const r = await servicio.obtenerHistorial(lugarId, { agrupacion: AgrupacionHistorial.HORA });
+      expect(r.sintetico).toBe(true);
+      expect(buscarLugar).toHaveBeenCalledTimes(1);
+      expect(agregar).toHaveBeenCalledTimes(1);
     });
   });
 

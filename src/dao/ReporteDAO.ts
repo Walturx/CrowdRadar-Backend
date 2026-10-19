@@ -32,6 +32,8 @@ export interface AgregadoHora {
   hora: number;
   promedio: number;
   muestras: number;
+  /** How many of `muestras` were written by demo users (email domain DOMINIO_EMAIL_SINTETICO). */
+  sinteticos: number;
 }
 
 /**
@@ -85,10 +87,11 @@ export interface ReporteDAO {
   actualizarEstado(id: number, estado: EstadoReporte, tx?: ContextoTx): Promise<ReporteSaturacion | null>;
   /** 0..100; null return when the report does not exist (M5). */
   actualizarConfiabilidad(id: number, nivel: number, tx?: ContextoTx): Promise<ReporteSaturacion | null>;
-  /** Buckets by (day, hour) in the query zone, ordered by day then hour; empty buckets are omitted. */
+  /**
+   * Buckets by (day, hour) in the query zone, ordered by day then hour; empty buckets are omitted. Each bucket also
+   * says how many of its reports come from demo users, so the analytics answer `sintetico` from the same read.
+   */
   agregarPorHora(consulta: ConsultaAgregada, tx?: ContextoTx): Promise<AgregadoHora[]>;
-  /** True when some ACTIVO report of the query (same place, range and day filter) was written by a demo user (email domain DOMINIO_EMAIL_SINTETICO). */
-  hayReportesSinteticos(consulta: ConsultaAgregada, tx?: ContextoTx): Promise<boolean>;
   /** Newest first (SQL: `ORDER BY fecha_hora DESC, id DESC`). */
   listarPendientesDeValidar(
     filtro: FiltroPendientes,

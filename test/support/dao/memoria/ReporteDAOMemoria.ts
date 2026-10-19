@@ -151,35 +151,22 @@ export class ReporteDAOMemoria implements ReporteDAO {
   }
 
   async agregarPorHora(consulta: ConsultaAgregada): Promise<AgregadoHora[]> {
-    const acumulado = new Map<string, { dia: string; hora: number; suma: number; muestras: number }>();
+    const acumulado = new Map<string, { dia: string; hora: number; suma: number; muestras: number; sinteticos: number }>();
     for (const r of this.todos()) {
       if (r.lugarId !== consulta.lugarId || r.estado !== EstadoReporte.ACTIVO) continue;
       if (r.fechaHora < consulta.desde || r.fechaHora >= consulta.hasta) continue;
-      const { dia, hora, finDeSemana } = enZona(r.fechaHora, consulta.zonaHoraria);
-      if (consulta.dias === FiltroDias.LABORABLES && finDeSemana) continue;
-      if (consulta.dias === FiltroDias.FIN_DE_SEMANA && !finDeSemana) continue;
+      if (!cuentaDia(r.fechaHora, consulta)) continue;
+      const { dia, hora } = enZona(r.fechaHora, consulta.zonaHoraria);
       const clave = `${dia}#${hora}`;
-      const celda = acumulado.get(clave) ?? { dia, hora, suma: 0, muestras: 0 };
+      const celda = acumulado.get(clave) ?? { dia, hora, suma: 0, muestras: 0, sinteticos: 0 };
       celda.suma += VALOR_NIVEL[r.nivelSaturacion];
       celda.muestras += 1;
+      if (this.sembrador?.esSintetico(r.usuarioId)) celda.sinteticos += 1;
       acumulado.set(clave, celda);
     }
     return [...acumulado.values()]
       .sort((a, b) => a.dia.localeCompare(b.dia) || a.hora - b.hora)
-      .map(({ dia, hora, suma, muestras }) => ({ dia, hora, promedio: suma / muestras, muestras }));
-  }
-
-  async hayReportesSinteticos(consulta: ConsultaAgregada): Promise<boolean> {
-    if (!this.sembrador) return false;
-    return this.todos().some(
-      (r) =>
-        r.lugarId === consulta.lugarId &&
-        r.estado === EstadoReporte.ACTIVO &&
-        r.fechaHora >= consulta.desde &&
-        r.fechaHora < consulta.hasta &&
-        cuentaDia(r.fechaHora, consulta) &&
-        this.sembrador!.esSintetico(r.usuarioId),
-    );
+      .map(({ dia, hora, suma, muestras, sinteticos }) => ({ dia, hora, promedio: suma / muestras, muestras, sinteticos }));
   }
 
   async listarPendientesDeValidar(filtro: FiltroPendientes, paginacion: Paginacion): Promise<Pagina<ReporteSaturacion>> {

@@ -244,6 +244,10 @@ M4 notes (delivered in the BE-01..03 slices):
 - Contract touch (M4-BE-05b): `AnaliticaService.obtenerMejorHorario(lugarId, dias, semanas)` (mejor-horario) was split from
   BE-05 to keep the slice under the review budget; a place without opening hours uses `ANALITICA_HORA_APERTURA` /
   `ANALITICA_HORA_CIERRE` (8 and 22).
+- Contract touch (performance phase 3): `hayReportesSinteticos` was folded into `agregarPorHora`: each `AgregadoHora`
+  carries `sinteticos` (reports of demo users in the bucket), so an analytics request reads the place and one
+  aggregation in parallel instead of three sequential statements. Migration 14 adds the partial index
+  `ix_usuario_sintetico` whose predicate is the same `LIKE` the aggregation uses.
 - Contract touch (M4-BE-06): the seeder `20261005100003-historial-sintetico.cjs` and its pure generator
   `database/lib/historial-sintetico.cjs` (outside `database/seeders`, because sequelize-cli runs every file of that folder).
   The switch `SEED_DEMO` was renamed `SEED_SINTETICO` (unset: on outside production, off in production; `true` in
