@@ -1,5 +1,5 @@
 import { configDefaults, defineConfig } from 'vitest/config';
-// The list lives in its own module so the guard test (test/support/aislamiento.guard.test.ts) can import it too.
+// The list lives in its own module so the guard test (test/support/aislamiento.unit.test.ts) can import it too.
 import { ARCHIVOS_AISLADOS } from './test/support/archivosAislados.js';
 
 export default defineConfig({
