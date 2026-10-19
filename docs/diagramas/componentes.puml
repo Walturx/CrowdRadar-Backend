@@ -1,0 +1,140 @@
+@startuml componentes
+' Diagrama de componentes y capas del backend CrowdRadar (derivado de src/).
+' Cadena de una peticion: route -> middleware -> controller -> [facade] -> service -> DAO (interfaz) -> dao/impl/sequelize -> PostgreSQL
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam componentStyle uml2
+skinparam packageStyle rectangle
+
+title CrowdRadar Backend - Componentes y capas
+
+actor "App Flutter" as app
+
+package "Arranque" as arranque {
+  component "server.ts\n(http.Server, apagado ordenado)" as server
+  component "app.ts\ncreateApp(contenedor)\nhelmet, cors, json" as appts
+}
+
+package "config" as config {
+  component "ConfiguracionApp\n<<Singleton>> getInstance()\n(valida esquemaEntorno, zod)" as cfg
+}
+
+package "container (composition root)" as container {
+  component "index.ts: crearContenedor() / ensamblar()\ninfraestructura.ts, seguridad.ts, lugar.ts,\nreporte.ts, validacion.ts, favoritoAlerta.ts,\nmoderacion.ts" as cont
+}
+
+package "route" as route {
+  component "Routers (*.routes.ts): auth, usuario,\nrecuperacion, lugar, reporte, analitica,\nvalidacion, favorito, alerta, moderacion, sistema" as routers
+}
+
+package "middleware" as middleware {
+  component "limitarIntentos, autenticar, requerirRol, validar\nregistroPeticiones, rutaNoEncontrada, manejarErrores" as mws
+}
+
+package "controller" as controller {
+  component "13 Controllers: AuthController, ReporteController,\nModeracionController, ValidacionController, ..." as ctrls
+}
+
+package "mapper / dto" as mapper {
+  component "Mappers (entidad -> ResponseDTO)\ndto/request (zod), dto/response\nRespuestaDTO {message, data}" as mappers
+}
+
+package "facade" as facade {
+  interface "ReporteFacade\nModeracionFacade\nRecuperacionFacade" as IFac
+  component "impl/ReporteFacadeImpl\nimpl/ModeracionFacadeImpl\nimpl/RecuperacionFacadeImpl" as facImpl
+}
+
+package "service" as service {
+  interface "AuthService, ReporteService, SaturacionService,\nKarmaService, ValidacionService, ... (14)" as ISvc
+  component "impl/AuthServiceImpl, impl/ReporteServiceImpl,\nimpl/SaturacionServiceImpl, ..." as svcImpl
+}
+
+package "pattern/strategy" as strategy {
+  package "saturacion" {
+    interface "EstrategiaSaturacion" as IEstSat
+    component "SaturacionPonderadaStrategy\nSaturacionUltimoReporteStrategy" as estSat
+  }
+  package "confiabilidad" {
+    interface "EstrategiaConfiabilidad" as IEstConf
+    component "ConfiabilidadPonderadaKarmaStrategy\nConfiabilidadSimpleStrategy" as estConf
+  }
+}
+
+package "pattern/observer" as observer {
+  interface "SaturacionSubject" as ISubj
+  component "PublicadorSaturacion" as pub
+  interface "SaturacionObserver" as IObs
+  component "AlertaFavoritosObserver" as obsAlerta
+}
+
+package "adapter" as adapter {
+  interface "Hasher, EmisorToken, GeneradorToken,\nEnviadorCorreo, NotificadorPush" as IAdapt
+  component "BcryptHasherAdapter, JwtEmisorTokenAdapter,\nCryptoGeneradorTokenAdapter, ConsolaCorreoAdapter,\nConsolaNotificadorAdapter, FcmNotificadorAdapter" as adapt
+}
+
+package "dao" as dao {
+  interface "UsuarioDAO, LugarDAO, ReporteDAO, ValidacionDAO,\nDenunciaDAO, SancionDAO, FavoritoDAO, AlertaDAO,\nDispositivoDAO, TokenRecuperacionDAO" as IDao
+  component "impl/sequelize: UsuarioDAOSequelize, ...\nimpl/sequelize/model: Models, initModels()" as daoImpl
+}
+
+package "datasource" as datasource {
+  interface "ConexionBD\ntransaccion(), verificar(), cerrar()" as IConexion
+  component "ConexionFactory <<Factory Method>>\nconectar() -> crearConexion()" as factory
+  component "impl/ConexionPostgresFactory" as pgFactory
+  component "impl/ConexionSequelize" as conSeq
+}
+
+package "entity / enum / exception" as dominio {
+  component "Entidades TS puras, enums,\nAppException y subclases" as entidades
+}
+
+database "PostgreSQL 16" as pg
+
+' --- Arranque y cableado (columna izquierda) ---
+app -down-> appts : HTTP JSON
+server -right-> appts
+server -left-> cfg : getInstance()
+server -down-> cont : crearContenedor(cfg)
+cont .right.> routers : crea e inyecta todo\n(controllers, facades, services,\nDAOs, adapters, estrategias)
+cont .down.> pgFactory : conectar()
+cont .down.> pub : suscribir(AlertaFavoritosObserver)
+
+' --- Cadena de una peticion (columna central) ---
+appts -down-> routers
+routers -down-> mws
+mws -down-> ctrls
+ctrls -right-> mappers
+ctrls -down-> IFac
+ctrls -down-> ISvc
+facImpl .up.|> IFac
+facImpl -down-> ISvc
+facImpl -down-> IDao
+facImpl -left-> IConexion : transaccion()
+facImpl -right-> ISubj : notificar(evento)
+svcImpl .up.|> ISvc
+svcImpl -down-> IDao
+svcImpl -right-> IEstSat : calcular()
+svcImpl -right-> IEstConf
+svcImpl -right-> IAdapt
+mws -right-> IAdapt : EmisorToken.verificar()
+daoImpl .up.|> IDao
+daoImpl -down-> pg : SQL
+daoImpl .right.> entidades
+
+' --- Implementaciones de patrones y adaptadores ---
+estSat .up.|> IEstSat
+estConf .up.|> IEstConf
+pub .up.|> ISubj
+obsAlerta .up.|> IObs
+pub -right-> IObs : alRecibir(evento)
+obsAlerta -down-> IDao
+obsAlerta -down-> IAdapt : NotificadorPush.enviar()
+adapt .up.|> IAdapt
+
+' --- Datasource ---
+pgFactory -up-|> factory
+pgFactory -right-> conSeq : crea
+conSeq .up.|> IConexion
+conSeq -down-> pg
+@enduml

@@ -1,0 +1,111 @@
+@startuml secuencia-crear-reporte
+' POST /api/reportes (route/reporte.routes.ts -> ReporteController.registrar -> ReporteFacadeImpl.registrar).
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam sequenceMessageAlign left
+skinparam responseMessageBelowArrow true
+autonumber
+
+title POST /api/reportes - Registrar reporte de saturacion
+
+actor "App Flutter" as app
+participant "reporte.routes\n(Router /api)" as route
+participant "autenticar" as auth
+participant "validar\n(crearReporteSchema)" as validar
+participant "ReporteController" as ctrl
+participant "ReporteFacadeImpl" as facade
+participant "LugarDAO\n(LugarDAOSequelize)" as lugarDAO
+participant "ConexionBD\n(ConexionSequelize)" as conexion
+participant "ReporteServiceImpl" as repSvc
+participant "ReporteDAO\n(ReporteDAOSequelize)" as repDAO
+participant "KarmaServiceImpl" as karma
+participant "UsuarioDAO" as usuarioDAO
+participant "SaturacionServiceImpl" as satSvc
+participant "EstrategiaSaturacion\n(SaturacionPonderadaStrategy)" as estrategia
+participant "PublicadorSaturacion\n<<SaturacionSubject>>" as pub
+participant "AlertaFavoritosObserver" as obs
+participant "FavoritoDAO / AlertaDAO /\nDispositivoDAO" as obsDAO
+participant "NotificadorPush\n(ConsolaNotificadorAdapter /\nFcmNotificadorAdapter)" as push
+participant "manejarErrores" as errores
+database "PostgreSQL" as pg
+
+app -> route : POST /api/reportes\nAuthorization: Bearer <jwt>\n{ lugarId, nivel }
+route -> auth : autenticar(req)
+note right of auth : ver secuencia-login-jwt (parte 2)\n401 NO_AUTENTICADO / TOKEN_INVALIDO\n403 CUENTA_SUSPENDIDA
+auth -> validar : next()
+alt cuerpo invalido
+  validar -> errores : ValidacionException
+  errores --> app : 400 VALIDACION_FALLIDA
+end
+validar -> ctrl : registrar(req, res)
+ctrl -> facade : registrar(usuarioId, lugarId, nivel)
+facade -> lugarDAO : buscarPorId(lugarId)
+lugarDAO -> pg : SELECT lugar
+alt lugar inexistente
+  facade -> errores : LugarNoEncontradoException
+  errores --> app : 404 LUGAR_NO_ENCONTRADO
+end
+
+group conexion.transaccion(tx) [una transaccion por reporte]
+  facade -> conexion : transaccion(trabajo)
+  conexion -> pg : BEGIN
+  facade -> repSvc : validarCooldown(usuarioId, lugarId, tx)
+  repSvc -> repDAO : buscarUltimoDeUsuarioEnLugar(usuarioId, lugarId, tx)
+  repDAO -> pg : SELECT pg_advisory_xact_lock(usuarioId, lugarId)
+  repDAO -> pg : SELECT ultimo reporte (usuario, lugar)
+  alt dentro de COOLDOWN_REPORTE_MIN
+    repSvc -> facade : ReporteEnEsperaException(minutosRestantes)
+    facade -> conexion : ROLLBACK
+    facade -> errores : propaga
+    errores --> app : 422 REPORTE_EN_ESPERA\n"Vuelve a intentarlo en N minutos"
+  end
+  facade -> lugarDAO : buscarPorIdParaActualizar(lugarId, tx)
+  lugarDAO -> pg : SELECT ... FROM lugar FOR UPDATE\n(serializa reportes del mismo lugar)
+  facade -> repSvc : crear(usuarioId, lugarId, nivel, tx)
+  repSvc -> repDAO : crear({usuarioId, lugarId, nivelSaturacion, fechaHora}, tx)
+  repDAO -> pg : INSERT reporte_saturacion
+  facade -> karma : otorgarPorReporte(usuarioId, reporteId, tx)
+  karma -> repDAO : contarPremiadosDeUsuarioDesde(usuarioId, inicioDelDia, tx)
+  repDAO -> pg : SELECT pg_advisory_xact_lock(usuarioId, 0); COUNT
+  alt tope diario (KARMA_REPORTES_PREMIADOS_DIA) alcanzado
+    karma -> repDAO : registrarPuntos(reporteId, 0, TOPE_DIARIO, tx)
+  else
+    karma -> usuarioDAO : incrementarKarma(usuarioId, KARMA_POR_REPORTE, tx)
+    karma -> repDAO : registrarPuntos(reporteId, puntos, null, tx)
+  end
+  facade -> satSvc : recalcular(lugarId, tx)
+  satSvc -> lugarDAO : buscarPorId(lugarId, tx)
+  satSvc -> repDAO : listarRecientesPorLugar(lugarId, desde, tx)
+  satSvc -> estrategia : calcular(reportes, ahora)
+  estrategia --> satSvc : NivelSaturacion | null
+  satSvc -> lugarDAO : actualizarSaturacion(lugarId, nuevo, ahora, tx)
+  satSvc --> facade : CambioSaturacion {anterior, nuevo, actualizadoEn}
+  alt lock_timeout / deadlock / serializacion (55P03, 40P01, 40001)
+    conexion -> pg : ROLLBACK
+    errores --> app : 503 SERVICIO_NO_DISPONIBLE + Retry-After
+  end
+  conexion -> pg : COMMIT
+end
+
+opt cambio.anterior != cambio.nuevo (solo despues del COMMIT)
+  facade -> facade : crearEventoSaturacion(...)\ndevuelve SaturacionCambiadaEvento
+  facade -> pub : notificar(evento)\n(carrera contra EVENTOS_PRESUPUESTO_MS)
+  pub -> obs : alRecibir(evento)
+  obs -> obs : alCambiarSaturacion(evento)
+  obs -> obsDAO : favoritoDAO.listarConAlertasPorLugar(lugarId)\n(excluye al autor)
+  loop por seguidor (mapearConLimite, ALERTAS_CONCURRENCIA)
+    obs -> obsDAO : alertaDAO.crear(...) (alerta in-app primero)
+    obs -> obsDAO : dispositivoDAO.listarTokensPorUsuario(usuarioId)
+    obs -> push : enviar(tokens, mensaje)\n(conTiempoLimite PUSH_TIMEOUT_MS)
+    opt tokensInvalidos
+      obs -> obsDAO : dispositivoDAO.eliminarTokens(tokensInvalidos)
+    end
+  end
+  note over pub, push : Un fallo de suscriptor o de push solo se registra en el log:\nnunca deshace el reporte ni cambia la respuesta.
+end
+
+facade --> ctrl : ReporteRegistrado {reporte, karma, lugar}
+ctrl -> ctrl : ReporteMapper.aCreado(registrado)
+ctrl --> app : 201 { message: "Reporte registrado correctamente.", data }
+@enduml
