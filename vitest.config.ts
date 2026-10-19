@@ -1,16 +1,6 @@
 import { configDefaults, defineConfig } from 'vitest/config';
-
-/**
- * Files that reset or replace modules (`vi.resetModules`, `vi.mock` of app modules, `vi.stubEnv` read at import time)
- * or the ConfiguracionApp singleton. They keep a fresh module graph per file; with a shared graph their copies of the
- * exception classes leak into the next file of the worker and `instanceof` in the error middleware stops matching.
- * Add a file here when it needs that kind of isolation.
- */
-export const ARCHIVOS_AISLADOS = [
-  'test/config/server.inproceso.api.test.ts',
-  'test/config/ConfiguracionApp.unit.test.ts',
-  'test/database/historialSintetico.unit.test.ts',
-];
+// The list lives in its own module so the guard test (test/support/aislamiento.guard.test.ts) can import it too.
+import { ARCHIVOS_AISLADOS } from './test/support/archivosAislados.js';
 
 export default defineConfig({
   test: {
