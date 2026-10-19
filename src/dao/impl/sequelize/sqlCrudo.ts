@@ -29,6 +29,26 @@ export function columnasDe(modelo: ModelStatic<Model>): string {
   return lista;
 }
 
+/** Prefix of the replacement names the statements add themselves (`:__id`, `:__ahora`); no model attribute has it. */
+export const PREFIJO_INTERNO = '__';
+
+/**
+ * SET list of a hand-written `UPDATE ... RETURNING`: `"column" = :attribute` per change, with the values keyed by
+ * attribute. `undefined` values are dropped (they mean "leave the column as is"; Sequelize would otherwise reject the
+ * missing replacement); null when nothing is left, so the caller sends no UPDATE at all. An attribute with the
+ * internal prefix is rejected, so a change can never overwrite the statement's own replacements.
+ */
+export function asignacionesDe(
+  cambios: Record<string, unknown>,
+  campo: (atributo: string) => string,
+): { set: string; valores: Record<string, unknown> } | null {
+  const pares = Object.entries(cambios).filter(([, valor]) => valor !== undefined);
+  if (pares.length === 0) return null;
+  const reservado = pares.find(([atributo]) => atributo.startsWith(PREFIJO_INTERNO));
+  if (reservado) throw new Error(`Atributo reservado ${reservado[0]}: el prefijo ${PREFIJO_INTERNO} es de los reemplazos internos`);
+  return { set: pares.map(([atributo]) => `"${campo(atributo)}" = :${atributo}`).join(', '), valores: Object.fromEntries(pares) };
+}
+
 /** Column name of an attribute (e.g. `puntosOtorgados` -> `puntos_otorgados`). Attribute names come from code, never input. */
 export function campoDe(modelo: ModelStatic<Model>, atributo: string): string {
   const par = campos(modelo).find(([nombre]) => nombre === atributo);

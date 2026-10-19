@@ -202,7 +202,10 @@ export class ReporteDAOMemoria implements ReporteDAO {
   private async modificar(id: number, cambios: Partial<ReporteSaturacion>): Promise<ReporteSaturacion | null> {
     const actual = this.filas.get(id);
     if (!actual) return null;
-    const nuevo = { ...actual, ...cambios, updatedAt: this.reloj.ahora() };
+    // Like the SQL one: an undefined value leaves the column as is.
+    const definidos = Object.fromEntries(Object.entries(cambios).filter(([, valor]) => valor !== undefined));
+    if (Object.keys(definidos).length === 0) return copia(actual);
+    const nuevo = { ...actual, ...definidos, updatedAt: this.reloj.ahora() };
     this.filas.set(id, nuevo);
     return copia(nuevo);
   }
