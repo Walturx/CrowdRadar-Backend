@@ -188,7 +188,7 @@ Layer folders are singular and one type lives in one PascalCase file.
 | A class, interface or type that is the module's main export | PascalCase file named after it | `UsuarioDAO.ts`, `AuthServiceImpl.ts`, `Contenedor.ts` |
 | Concrete adapters (`adapter/**/impl/`) | PascalCase ending in `Adapter`; the port keeps the plain name | port `Hasher.ts`, adapter `BcryptHasherAdapter.ts` |
 | Functions and middleware | camelCase, singular | `autenticar.ts`, `limitarIntentos.ts`, `reintentar.ts` |
-| Routers | `*.routes.ts` (`<resource>.routes.ts`), lowercase; helpers `middlewareRuta.ts`, `stub.ts` | `usuario.routes.ts` |
+| Routers | `*.routes.ts` (`<resource>.routes.ts`), lowercase; helper `middlewareRuta.ts` | `usuario.routes.ts` |
 | Composition root | `container/<stream>.ts`, lowercase, one per stream, plus `Contenedor.ts` | `container/reporte.ts` |
 | Tests | mirror `src/` and carry the kind before `.test.ts`: `.unit` (no I/O), `.api` (HTTP through supertest or a spawned server), `.contract` (shared DAO contract, real PostgreSQL migrations); `.whitebox` / `.blackbox` (the per-stream evidence tests of the test design: branch coverage of one method, equivalence/boundary tables over one endpoint) | `autenticar.unit.test.ts`, `auth.usuario.api.test.ts`, `UsuarioDAOMemoria.contract.test.ts` |
 

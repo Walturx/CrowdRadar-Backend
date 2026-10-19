@@ -3,7 +3,7 @@
  * no x-powered-by, trust proxy from config, 100kb JSON, request ids, routers, 404 and the
  * error middleware last. Review rows R1-201, R4-205/R3-201, R4-206, R4-207, R4-208.
  */
-import { Router } from 'express';
+import { Router, type RequestHandler } from 'express';
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { createApp } from '../../src/app.js';
@@ -12,7 +12,7 @@ import { crearContenedorPrueba, type OpcionesContenedorPrueba } from '../support
 import { EstadoServicio } from '../../src/util/EstadoServicio.js';
 import { crearLoggerEspia } from '../support/LoggerEspia.js';
 import { permitirErrorInterno } from '../support/guardiaErrorInterno.js';
-import { noImplementado } from '../../src/route/stub.js';
+import { NoImplementadoException } from '../../src/exception/http/NoImplementadoException.js';
 
 function crear(opciones: OpcionesContenedorPrueba = {}, extra?: (router: Router) => void) {
   const ctx = crearContenedorPrueba(opciones);
@@ -166,9 +166,13 @@ describe('errores 500 y request id', () => {
     expect(res.headers['x-request-id']).toBe(res.body.requestId);
   });
 
-  it('una ruta congelada aun sin entregar (stub noImplementado) responde 501 NO_IMPLEMENTADO con la operacion, sin traza de error del manejador', async () => {
+  it('una operacion aun sin entregar (NoImplementadoException) responde 501 NO_IMPLEMENTADO con la operacion, sin traza de error del manejador', async () => {
     const espia = crearLoggerEspia('info');
-    const { app } = crear({ logger: espia.logger }, (router) => router.post('/pendiente', noImplementado('modulo.operacion')));
+    // Every frozen route is delivered (the src/route/stub.ts handler was removed); the 501 path stays covered here.
+    const pendiente: RequestHandler = () => {
+      throw new NoImplementadoException('Funcionalidad no implementada: modulo.operacion.');
+    };
+    const { app } = crear({ logger: espia.logger }, (router) => router.post('/pendiente', pendiente));
     const res = await request(app).post('/prueba/pendiente').send({});
     expect(res.status).toBe(501);
     expect(res.body).toEqual({ message: 'Funcionalidad no implementada: modulo.operacion.', code: 'NO_IMPLEMENTADO', errors: [] });

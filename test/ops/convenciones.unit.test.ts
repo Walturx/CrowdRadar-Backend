@@ -45,7 +45,7 @@ describe('convenciones de nombres', () => {
   it('los modulos de route/ son <recurso>.routes.ts o ayudantes en camelCase singular (R2-407)', () => {
     expect(existsSync(resolve(RAIZ, 'src/route/middlewareRuta.ts'))).toBe(true);
     expect(existsSync(resolve(RAIZ, 'src/route/middlewaresRuta.ts'))).toBe(false);
-    const raros = archivos('src/route').filter((ruta) => !/\/([a-z]+\.routes|middlewareRuta|stub)\.ts$/.test(ruta));
+    const raros = archivos('src/route').filter((ruta) => !/\/([a-z]+\.routes|middlewareRuta)\.ts$/.test(ruta));
     expect(raros).toEqual([]);
   });
 
