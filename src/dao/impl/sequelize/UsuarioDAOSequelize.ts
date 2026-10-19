@@ -29,7 +29,7 @@ const aTransaccion = (tx?: ContextoTx) => tx as unknown as Transaction | undefin
 /** `%`, `_` and `\` in user text must match literally inside ILIKE. */
 const escaparLike = (texto: string) => texto.replace(/[\\%_]/g, (caracter) => `\\${caracter}`);
 
-function aEntidad(modelo: UsuarioModel): Usuario {
+export function aEntidadUsuario(modelo: UsuarioModel): Usuario {
   return {
     id: modelo.id,
     nombre: modelo.nombre,
@@ -54,7 +54,7 @@ function aEntidad(modelo: UsuarioModel): Usuario {
 export class UsuarioDAOSequelize implements UsuarioDAO {
   async buscarPorId(id: number, tx?: ContextoTx): Promise<Usuario | null> {
     const modelo = await UsuarioModel.findByPk(id, { transaction: aTransaccion(tx) });
-    return modelo ? aEntidad(modelo) : null;
+    return modelo ? aEntidadUsuario(modelo) : null;
   }
 
   async buscarPorEmail(email: string, tx?: ContextoTx): Promise<Usuario | null> {
@@ -62,7 +62,7 @@ export class UsuarioDAOSequelize implements UsuarioDAO {
       where: { email: email.toLowerCase() },
       transaction: aTransaccion(tx),
     });
-    return modelo ? aEntidad(modelo) : null;
+    return modelo ? aEntidadUsuario(modelo) : null;
   }
 
   async crear(datos: NuevoUsuario, tx?: ContextoTx): Promise<Usuario> {
@@ -71,7 +71,7 @@ export class UsuarioDAOSequelize implements UsuarioDAO {
         { ...datos, email: datos.email.toLowerCase() },
         { transaction: aTransaccion(tx) },
       );
-      return aEntidad(modelo);
+      return aEntidadUsuario(modelo);
     } catch (error) {
       if (error instanceof UniqueConstraintError) throw new EmailYaRegistradoException();
       throw error;
@@ -116,7 +116,7 @@ export class UsuarioDAOSequelize implements UsuarioDAO {
       offset: desplazamiento(paginacion),
       transaction: aTransaccion(tx),
     });
-    return armarPagina(rows.map(aEntidad), count, paginacion);
+    return armarPagina(rows.map(aEntidadUsuario), count, paginacion);
   }
 
   /** Updates only the defined fields; reads the row back so callers get the stored state. */

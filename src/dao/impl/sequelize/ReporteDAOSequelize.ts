@@ -31,7 +31,7 @@ export const SQL_VALOR_NIVEL = `CASE nivel_saturacion ${Object.entries(VALOR_NIV
   .map(([nivel, valor]) => `WHEN '${nivel}' THEN ${valor}`)
   .join(' ')} END`;
 
-function aEntidad(modelo: ReporteModel): ReporteSaturacion {
+export function aEntidadReporte(modelo: ReporteModel): ReporteSaturacion {
   return {
     id: modelo.id,
     usuarioId: modelo.usuarioId,
@@ -64,18 +64,18 @@ export class ReporteDAOSequelize implements ReporteDAO {
       },
       { transaction: aTransaccion(tx) },
     );
-    return aEntidad(modelo);
+    return aEntidadReporte(modelo);
   }
 
   async buscarPorId(id: number, tx?: ContextoTx): Promise<ReporteSaturacion | null> {
     const modelo = await ReporteModel.findByPk(id, { transaction: aTransaccion(tx) });
-    return modelo ? aEntidad(modelo) : null;
+    return modelo ? aEntidadReporte(modelo) : null;
   }
 
   async buscarPorIdParaActualizar(id: number, tx?: ContextoTx): Promise<ReporteSaturacion | null> {
     const transaction = aTransaccion(tx);
     const modelo = await ReporteModel.findByPk(id, { transaction, lock: transaction ? transaction.LOCK.UPDATE : false });
-    return modelo ? aEntidad(modelo) : null;
+    return modelo ? aEntidadReporte(modelo) : null;
   }
 
   async buscarUltimoDeUsuarioEnLugar(
@@ -90,7 +90,7 @@ export class ReporteDAOSequelize implements ReporteDAO {
       transaction,
     });
     const modelo = await ReporteModel.findOne({ where: { usuarioId, lugarId }, order: MAS_NUEVO_PRIMERO, transaction });
-    return modelo ? aEntidad(modelo) : null;
+    return modelo ? aEntidadReporte(modelo) : null;
   }
 
   async listarRecientesPorLugar(lugarId: number, desde: Date, tx?: ContextoTx): Promise<ReporteSaturacion[]> {
@@ -99,7 +99,7 @@ export class ReporteDAOSequelize implements ReporteDAO {
       order: MAS_NUEVO_PRIMERO,
       transaction: aTransaccion(tx),
     });
-    return filas.map(aEntidad);
+    return filas.map(aEntidadReporte);
   }
 
   contarPorLugarDesde(lugarId: number, desde: Date, tx?: ContextoTx): Promise<number> {
@@ -209,7 +209,7 @@ export class ReporteDAOSequelize implements ReporteDAO {
       offset: desplazamiento(paginacion),
       transaction: aTransaccion(tx),
     });
-    return armarPagina(rows.map(aEntidad), count, paginacion);
+    return armarPagina(rows.map(aEntidadReporte), count, paginacion);
   }
 
   /** Updates the given columns and reads the row back; null when the report does not exist. */

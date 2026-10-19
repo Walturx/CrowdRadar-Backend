@@ -34,7 +34,7 @@ export interface OpcionesLugarDAOSequelize {
   limiteMax: number;
 }
 
-function aEntidad(modelo: LugarModel): Lugar {
+export function aEntidadLugar(modelo: LugarModel): Lugar {
   return {
     id: modelo.id,
     osmTipo: modelo.osmTipo as TipoOsm,
@@ -97,18 +97,18 @@ export class LugarDAOSequelize implements LugarDAO {
 
   async buscarPorId(id: number, tx?: ContextoTx): Promise<Lugar | null> {
     const modelo = await LugarModel.findByPk(id, { transaction: aTransaccion(tx) });
-    return modelo ? aEntidad(modelo) : null;
+    return modelo ? aEntidadLugar(modelo) : null;
   }
 
   async buscarPorIdParaActualizar(id: number, tx: ContextoTx): Promise<Lugar | null> {
     const modelo = await LugarModel.findByPk(id, { transaction: aTransaccion(tx), lock: true });
-    return modelo ? aEntidad(modelo) : null;
+    return modelo ? aEntidadLugar(modelo) : null;
   }
 
   async buscarPorIds(ids: readonly number[], tx?: ContextoTx): Promise<Lugar[]> {
     if (ids.length === 0) return [];
     const modelos = await LugarModel.findAll({ where: { id: [...new Set(ids)] }, transaction: aTransaccion(tx) });
-    return modelos.map(aEntidad);
+    return modelos.map(aEntidadLugar);
   }
 
   buscar(filtro: FiltroLugares, tx?: ContextoTx): Promise<Lugar[]> {
@@ -126,7 +126,7 @@ export class LugarDAOSequelize implements LugarDAO {
       limit: Math.min(filtro.limite, this.opciones.limiteMax),
       transaction: aTransaccion(tx),
     });
-    return modelos.map(aEntidad);
+    return modelos.map(aEntidadLugar);
   }
 
   async contarPorCategoria(tx?: ContextoTx): Promise<ConteoCategoria[]> {
