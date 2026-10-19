@@ -99,6 +99,8 @@ ejecutarContratoDAO<Entorno>({
           expect(item.reporte).toMatchObject({ id: sembrado.reporteId, usuarioId: sembrado.autorId, lugarId: sembrado.lugarId, estado: EstadoReporte.ACTIVO });
           expect(item.lugar.id).toBe(sembrado.lugarId);
           expect(item.autor.id).toBe(sembrado.autorId);
+          // Only the author columns the queue shows are read: no password hash, no account state.
+          expect(Object.keys(item.autor).sort()).toEqual(['apellido', 'email', 'id', 'nombre']);
           expect(item.ultimaDenunciaEn).toBeInstanceOf(Date);
         }
       });

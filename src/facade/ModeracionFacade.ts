@@ -1,3 +1,4 @@
+import type { AutorReporte } from '../dao/ContextoReporteDAO.js';
 import type { ReporteDenunciado, ResumenMotivo } from '../dao/DenunciaDAO.js';
 import type { Pagina, Paginacion } from '../dao/Paginacion.js';
 import type { FiltroUsuarios } from '../dao/UsuarioDAO.js';
@@ -14,13 +15,13 @@ export type DecisionModeracion = 'MANTENER' | 'ELIMINAR';
 export interface ReporteDenunciadoItem extends ReporteDenunciado {
   reporte: ReporteSaturacion;
   lugar: Lugar;
-  autor: Usuario;
+  autor: AutorReporte;
 }
 
 export interface DetalleReporteDenunciado {
   reporte: ReporteSaturacion;
   lugar: Lugar;
-  autor: Usuario;
+  autor: AutorReporte;
   /** PENDIENTE complaints (the sum of `motivos`). */
   pendientes: number;
   motivos: ResumenMotivo[];

@@ -6,11 +6,17 @@ import type { LugarDAO } from './LugarDAO.js';
 import type { ReporteDAO } from './ReporteDAO.js';
 import type { UsuarioDAO } from './UsuarioDAO.js';
 
+/** What the moderation screens show of a report's author. Never the credentials (`passwordHash`) or the account state. */
+export type AutorReporte = Pick<Usuario, 'id' | 'nombre' | 'apellido' | 'email'>;
+
+/** Copies only the AutorReporte fields, so a full Usuario passed in does not leak the rest. */
+export const aAutorReporte = ({ id, nombre, apellido, email }: AutorReporte): AutorReporte => ({ id, nombre, apellido, email });
+
 /** A report with its place and its author. */
 export interface ContextoReporte {
   reporte: ReporteSaturacion;
   lugar: Lugar;
-  autor: Usuario;
+  autor: AutorReporte;
 }
 
 /**
@@ -42,7 +48,7 @@ export function contextoReporteDesde(daos: {
       return reportes.flatMap((reporte, i) => {
         const lugar = lugares.get(reporte.lugarId);
         const autor = autores[i];
-        return lugar && autor ? [{ reporte, lugar, autor }] : [];
+        return lugar && autor ? [{ reporte, lugar, autor: aAutorReporte(autor) }] : [];
       });
     },
   };
