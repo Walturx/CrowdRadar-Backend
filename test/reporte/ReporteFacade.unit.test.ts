@@ -247,7 +247,8 @@ describe('ReporteFacadeImpl.registrar', () => {
         return buscarLugar(id);
       };
       await facade.registrar(usuarioId, lugarId, SATURADO);
-      expect(llamadas).toEqual(['lugar', 'cooldown', 'bloqueo-lugar', 'crear', 'lugar-en-tx']);
+      // The recompute reuses the locked row: no 'lugar-en-tx' read after 'crear' (phase 3, one round trip less).
+      expect(llamadas).toEqual(['lugar', 'cooldown', 'bloqueo-lugar', 'crear']);
       expect(conexion.transacciones).toBe(1);
     });
 

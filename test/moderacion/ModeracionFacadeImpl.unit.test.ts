@@ -115,7 +115,8 @@ describe('ModeracionFacadeImpl', () => {
       expect((await m.reporteDAO.buscarPorId(reporte.id))?.estado).toBe(EstadoReporte.ELIMINADO);
       expect((await m.denunciaDAO.listarReportesConPendientes(pagina)).total).toBe(0);
       expect(m.karmaService.revocarPorReporteEliminado).toHaveBeenCalledWith(reporte.id, expect.anything());
-      expect(m.saturacionService.recalcular).toHaveBeenCalledWith(lugar.id, expect.anything());
+      // The place locked for the removal is handed over, so the recompute does not read it again.
+      expect(m.saturacionService.recalcular).toHaveBeenCalledWith(lugar.id, expect.anything(), expect.objectContaining({ id: lugar.id }));
       expect(m.subject.eventos).toHaveLength(1);
       expect(m.subject.eventos[0]).toMatchObject({ lugarId: lugar.id, autorId: autor.id });
       expect(m.conexion.transacciones).toBe(1);

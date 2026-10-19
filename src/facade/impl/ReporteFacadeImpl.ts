@@ -43,10 +43,11 @@ export class ReporteFacadeImpl implements ReporteFacade {
 
     const { creado, karma, cambio } = await conexion.transaccion(async (tx) => {
       await reporteService.validarCooldown(usuarioId, lugarId, tx);
-      await lugarDAO.buscarPorIdParaActualizar(lugarId, tx);
+      const bloqueado = await lugarDAO.buscarPorIdParaActualizar(lugarId, tx);
       const nuevo = await reporteService.crear(usuarioId, lugarId, nivel, tx);
       const resultadoKarma = await karmaService.otorgarPorReporte(usuarioId, nuevo.id, tx);
-      const cambioSaturacion = await saturacionService.recalcular(lugarId, tx);
+      // The locked row is the current level: the recompute does not read the place again.
+      const cambioSaturacion = await saturacionService.recalcular(lugarId, tx, bloqueado ?? undefined);
       return { creado: nuevo, karma: resultadoKarma, cambio: cambioSaturacion };
     });
 

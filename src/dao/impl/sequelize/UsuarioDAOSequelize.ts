@@ -1,4 +1,4 @@
-import { Op, QueryTypes, UniqueConstraintError, type Order, type Transaction, type WhereOptions } from 'sequelize';
+import { Op, QueryTypes, UniqueConstraintError, type InferAttributes, type Order, type Transaction, type WhereOptions } from 'sequelize';
 import type { ContextoTx } from '../../../datasource/ConexionBD.js';
 import type { Usuario } from '../../../entity/Usuario.js';
 import type { EstadoCuenta } from '../../../enum/EstadoCuenta.js';
@@ -29,7 +29,8 @@ const aTransaccion = (tx?: ContextoTx) => tx as unknown as Transaction | undefin
 /** `%`, `_` and `\` in user text must match literally inside ILIKE. */
 const escaparLike = (texto: string) => texto.replace(/[\\%_]/g, (caracter) => `\\${caracter}`);
 
-export function aEntidadUsuario(modelo: UsuarioModel): Usuario {
+/** Accepts a model instance or a `raw: true` row (same attribute names). */
+export function aEntidadUsuario(modelo: InferAttributes<UsuarioModel>): Usuario {
   return {
     id: modelo.id,
     nombre: modelo.nombre,
@@ -53,8 +54,9 @@ export function aEntidadUsuario(modelo: UsuarioModel): Usuario {
  */
 export class UsuarioDAOSequelize implements UsuarioDAO {
   async buscarPorId(id: number, tx?: ContextoTx): Promise<Usuario | null> {
-    const modelo = await UsuarioModel.findByPk(id, { transaction: aTransaccion(tx) });
-    return modelo ? aEntidadUsuario(modelo) : null;
+    // raw: every authenticated request reads its user, so skip building a model instance.
+    const fila = await UsuarioModel.findByPk(id, { transaction: aTransaccion(tx), raw: true });
+    return fila ? aEntidadUsuario(fila) : null;
   }
 
   async buscarPorEmail(email: string, tx?: ContextoTx): Promise<Usuario | null> {

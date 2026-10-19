@@ -31,7 +31,16 @@ interface EntornoFacadeBD {
   nuevoLugar(): Promise<number>;
   /** Events the facade published, in publish order. */
   eventos: SaturacionCambiadaEvento[];
+  /** SQL statements sent so far through this environment's Sequelize instance. */
+  sentencias(): number;
 }
+
+/**
+ * Statements of one report (place check, BEGIN, 2 advisory locks, cooldown read, place row lock, insert, premiados
+ * count, karma, points, recent reports, level write, COMMIT). It was 16 before phase 3 (two read-backs after UPDATE
+ * and a second read of the place already locked); each one held the transaction's connection for a round trip.
+ */
+const MAX_SENTENCIAS_REGISTRAR = 13;
 
 ejecutarContratoDAO<EntornoFacadeBD>({
   titulo: 'ReporteFacadeImpl concurrencia (PostgreSQL)',
@@ -73,6 +82,17 @@ ejecutarContratoDAO<EntornoFacadeBD>({
         expect((await lugarDAO.buscarPorId(lugarId))?.saturacionActual).toBe(segundo?.nivelNuevo);
       });
 
+      it(`un reporte cuesta a lo sumo ${MAX_SENTENCIAS_REGISTRAR} sentencias SQL (sin relecturas dentro de la transaccion)`, async () => {
+        const { facade, usuarioId, lugarId, sentencias } = await crearEntorno();
+        const antes = sentencias();
+        const { reporte, lugar } = await facade.registrar(usuarioId, lugarId, NivelSaturacion.SATURADO);
+        const usadas = sentencias() - antes;
+        expect(usadas).toBeGreaterThan(0);
+        expect(usadas).toBeLessThanOrEqual(MAX_SENTENCIAS_REGISTRAR);
+        expect(reporte).toMatchObject({ usuarioId, lugarId, puntosOtorgados: 10, motivoSinPuntos: null });
+        expect(lugar).toMatchObject({ id: lugarId, saturacionActual: NivelSaturacion.SATURADO });
+      });
+
       it('un usuario reportando en 8 lugares a la vez no supera el tope diario de karma', async () => {
         const { facade, reporteDAO, usuarioDAO, usuarioId, lugarId, nuevoLugar } = await crearEntorno();
         const lugarIds = [lugarId, ...(await Promise.all(Array.from({ length: 7 }, nuevoLugar)))];
@@ -92,6 +112,10 @@ ejecutarContratoDAO<EntornoFacadeBD>({
     const usuarioDAO = new UsuarioDAOSequelize();
     const reporteDAO = new ReporteDAOSequelize();
     const eventos: SaturacionCambiadaEvento[] = [];
+    let sentencias = 0;
+    sequelize.addHook('beforeQuery', () => {
+      sentencias += 1;
+    });
     const facade = crearFacadePrueba({
       usuarioDAO,
       lugarDAO,
@@ -100,6 +124,17 @@ ejecutarContratoDAO<EntornoFacadeBD>({
       reloj: new RelojFijo(INSTANTE_PRUEBA),
       subject: { suscribir: () => {}, notificar: async (e) => void eventos.push(e) },
     });
-    return { facade, reporteDAO, lugarDAO, usuarioDAO, usuarioId, otroUsuarioId, lugarId, nuevoLugar: () => sembrador.lugar(), eventos };
+    return {
+      facade,
+      reporteDAO,
+      lugarDAO,
+      usuarioDAO,
+      usuarioId,
+      otroUsuarioId,
+      lugarId,
+      nuevoLugar: () => sembrador.lugar(),
+      eventos,
+      sentencias: () => sentencias,
+    };
   },
 });

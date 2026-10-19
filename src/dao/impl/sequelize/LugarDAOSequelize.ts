@@ -1,4 +1,4 @@
-import { fn, literal, Op, where, type Order, type Transaction, type WhereOptions } from 'sequelize';
+import { fn, literal, Op, where, type InferAttributes, type Order, type Transaction, type WhereOptions } from 'sequelize';
 import type { ContextoTx } from '../../../datasource/ConexionBD.js';
 import type { Lugar, TipoOsm } from '../../../entity/Lugar.js';
 import { CategoriaLugar } from '../../../enum/CategoriaLugar.js';
@@ -34,7 +34,8 @@ export interface OpcionesLugarDAOSequelize {
   limiteMax: number;
 }
 
-export function aEntidadLugar(modelo: LugarModel): Lugar {
+/** Accepts a model instance or a `raw: true` row (same attribute names): list reads skip building model instances. */
+export function aEntidadLugar(modelo: InferAttributes<LugarModel>): Lugar {
   return {
     id: modelo.id,
     osmTipo: modelo.osmTipo as TipoOsm,
@@ -96,8 +97,8 @@ export class LugarDAOSequelize implements LugarDAO {
   constructor(private readonly opciones: OpcionesLugarDAOSequelize) {}
 
   async buscarPorId(id: number, tx?: ContextoTx): Promise<Lugar | null> {
-    const modelo = await LugarModel.findByPk(id, { transaction: aTransaccion(tx) });
-    return modelo ? aEntidadLugar(modelo) : null;
+    const fila = await LugarModel.findByPk(id, { transaction: aTransaccion(tx), raw: true });
+    return fila ? aEntidadLugar(fila) : null;
   }
 
   async buscarPorIdParaActualizar(id: number, tx: ContextoTx): Promise<Lugar | null> {
@@ -107,8 +108,8 @@ export class LugarDAOSequelize implements LugarDAO {
 
   async buscarPorIds(ids: readonly number[], tx?: ContextoTx): Promise<Lugar[]> {
     if (ids.length === 0) return [];
-    const modelos = await LugarModel.findAll({ where: { id: [...new Set(ids)] }, transaction: aTransaccion(tx) });
-    return modelos.map(aEntidadLugar);
+    const filas = await LugarModel.findAll({ where: { id: [...new Set(ids)] }, transaction: aTransaccion(tx), raw: true });
+    return filas.map(aEntidadLugar);
   }
 
   buscar(filtro: FiltroLugares, tx?: ContextoTx): Promise<Lugar[]> {
@@ -120,13 +121,14 @@ export class LugarDAOSequelize implements LugarDAO {
   }
 
   private async listar(filtro: FiltroLugares | FiltroExploracion, tx?: ContextoTx): Promise<Lugar[]> {
-    const modelos = await LugarModel.findAll({
+    const filas = await LugarModel.findAll({
       where: { [Op.and]: condiciones(filtro) },
       order: ORDEN_POR_NOMBRE,
       limit: Math.min(filtro.limite, this.opciones.limiteMax),
       transaction: aTransaccion(tx),
+      raw: true,
     });
-    return modelos.map(aEntidadLugar);
+    return filas.map(aEntidadLugar);
   }
 
   async contarPorCategoria(tx?: ContextoTx): Promise<ConteoCategoria[]> {
@@ -146,10 +148,11 @@ export class LugarDAOSequelize implements LugarDAO {
     actualizadaEn: Date,
     tx?: ContextoTx,
   ): Promise<Lugar | null> {
-    const [filas] = await LugarModel.update(
+    // RETURNING: the updated row comes back with the UPDATE, no second SELECT inside the report transaction.
+    const [, filas] = await LugarModel.update(
       { saturacionActual: nivel, saturacionActualizadaEn: actualizadaEn },
-      { where: { id }, transaction: aTransaccion(tx) },
+      { where: { id }, transaction: aTransaccion(tx), returning: true },
     );
-    return filas > 0 ? this.buscarPorId(id, tx) : null;
+    return filas[0] ? aEntidadLugar(filas[0]) : null;
   }
 }

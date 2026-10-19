@@ -1,4 +1,5 @@
 import type { ContextoTx } from '../datasource/ConexionBD.js';
+import type { Lugar } from '../entity/Lugar.js';
 import type { NivelSaturacion } from '../enum/NivelSaturacion.js';
 
 export interface CambioSaturacion {
@@ -14,5 +15,9 @@ export interface CambioSaturacion {
  * it never publishes events (the facade does, after the commit).
  */
 export interface SaturacionService {
-  recalcular(lugarId: number, tx: ContextoTx): Promise<CambioSaturacion>;
+  /**
+   * `lugarActual`: the place as the caller already read it inside `tx` (typically the `FOR UPDATE` row), so its
+   * previous level is not read a second time; when omitted the service reads it.
+   */
+  recalcular(lugarId: number, tx: ContextoTx, lugarActual?: Lugar): Promise<CambioSaturacion>;
 }

@@ -1,6 +1,7 @@
 import type { LugarDAO } from '../../dao/LugarDAO.js';
 import type { ReporteDAO } from '../../dao/ReporteDAO.js';
 import type { ContextoTx } from '../../datasource/ConexionBD.js';
+import type { Lugar } from '../../entity/Lugar.js';
 import { LugarNoEncontradoException } from '../../exception/lugar/LugarNoEncontradoException.js';
 import type { EstrategiaSaturacion } from '../../pattern/strategy/saturacion/EstrategiaSaturacion.js';
 import type { Reloj } from '../../util/Reloj.js';
@@ -23,9 +24,9 @@ export interface DependenciasSaturacionService {
 export class SaturacionServiceImpl implements SaturacionService {
   constructor(private readonly deps: DependenciasSaturacionService) {}
 
-  async recalcular(lugarId: number, tx: ContextoTx): Promise<CambioSaturacion> {
+  async recalcular(lugarId: number, tx: ContextoTx, lugarActual?: Lugar): Promise<CambioSaturacion> {
     const { lugarDAO, reporteDAO, estrategia, reloj, ventanaMin } = this.deps;
-    const lugar = await lugarDAO.buscarPorId(lugarId, tx);
+    const lugar = lugarActual ?? (await lugarDAO.buscarPorId(lugarId, tx));
     if (!lugar) throw new LugarNoEncontradoException();
     const ahora = reloj.ahora();
     const desde = new Date(ahora.getTime() - ventanaMin * MS_POR_MINUTO);
