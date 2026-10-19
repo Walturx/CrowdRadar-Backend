@@ -6,6 +6,7 @@ import { EstadoServicio } from '../../src/util/EstadoServicio.js';
 import { ConexionFalsa } from '../support/ConexionFalsa.js';
 import { crearAppPrueba } from '../support/appPrueba.js';
 import { esperar503Reintentable } from '../support/erroresBD.js';
+import { relojVirtual } from '../support/relojVirtual.js';
 
 const appCon = (conexion: ConexionFalsa, estado = new EstadoServicio(), timeoutMs?: number) =>
   crearAppPrueba({ montar: (app) => void app.use('/', crearSistemaRouter(conexion, estado, timeoutMs)) });
@@ -34,10 +35,17 @@ describe('GET /api/salud', () => {
   it('503 SERVICIO_NO_DISPONIBLE si la base no responde dentro del limite (pool agotado, sin esperar el acquire)', async () => {
     const conexion = new ConexionFalsa();
     conexion.verificacionColgada = true;
-    const inicio = Date.now();
-    const res = await request(appCon(conexion, new EstadoServicio(), 60)).get('/api/salud');
-    esperar503Reintentable(res);
-    expect(Date.now() - inicio).toBeLessThan(1500);
+    // Virtual clock: the hung probe can only be cut by the 60 ms timer, so the answer comes once that timer is due,
+    // whatever the machine's load (the real-clock version compared elapsed wall time with 1500 ms).
+    const reloj = relojVirtual();
+    try {
+      const { resultado: res, ms } = await reloj.medir(async () => request(appCon(conexion, new EstadoServicio(), 60)).get('/api/salud'), TIMEOUT_SALUD_MS);
+      esperar503Reintentable(res);
+      expect(ms).toBeGreaterThanOrEqual(60);
+      expect(ms).toBeLessThan(TIMEOUT_SALUD_MS);
+    } finally {
+      reloj.restaurar();
+    }
   });
 
   it('un rechazo tardio de la sonda ya abandonada no provoca una promesa rechazada sin manejar', async () => {
