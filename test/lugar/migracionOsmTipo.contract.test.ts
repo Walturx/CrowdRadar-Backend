@@ -15,6 +15,8 @@ import {
 const UNIQUE = '23505';
 const CHECK = '23514';
 const SEMILLA = '20261005100002-lugares-lima.cjs';
+// Undone by name: later migrations (14+) stay applied, so the test does not depend on 13 being the last one.
+const MIGRACION_13 = '20261005000013-lugar-osm-tipo.cjs';
 
 describe.skipIf(!URL_BD_TEST)('migracion 13: lugar.osm_tipo (PostgreSQL)', () => {
   let bd: BaseTemporal;
@@ -68,9 +70,9 @@ describe.skipIf(!URL_BD_TEST)('migracion 13: lugar.osm_tipo (PostgreSQL)', () =>
     expect(conteo).toEqual({ total: '45', sin_saturacion: '45' });
   });
 
-  it('db:migrate:undo revierte la migracion 13 y db:migrate la vuelve a aplicar', async () => {
+  it('db:migrate:undo --name revierte la migracion 13 y db:migrate la vuelve a aplicar', async () => {
     await q('DELETE FROM lugar');
-    const deshacer = await ejecutarCli(['db:migrate:undo'], bd.url);
+    const deshacer = await ejecutarCli(['db:migrate:undo', '--name', MIGRACION_13], bd.url);
     expect(deshacer.codigo, deshacer.salida).toBe(0);
     const columnas = await q<{ column_name: string }>("SELECT column_name FROM information_schema.columns WHERE table_name = 'lugar'");
     expect(columnas.map((c) => c.column_name)).not.toContain('osm_tipo');
@@ -178,12 +180,12 @@ describe.skipIf(!URL_BD_TEST)('migracion 13 sobre una base con los 6 lugares de 
     ]);
   });
 
-  it('db:migrate:undo falla con un mensaje claro y la lista de osm_id repetidos si dos tipos comparten numero', async () => {
+  it('db:migrate:undo --name de la 13 falla con un mensaje claro y la lista de osm_id repetidos si dos tipos comparten numero', async () => {
     await q('DELETE FROM lugar_favorito');
     await q('DELETE FROM reporte_saturacion');
     await q('DELETE FROM lugar');
     await q("INSERT INTO lugar (osm_id, osm_tipo, nombre, latitud, longitud, categoria) VALUES (777, 'node', 'N', -12.1, -77.0, 'PARQUE'), (777, 'way', 'W', -12.1, -77.0, 'PARQUE')");
-    const deshacer = await ejecutarCli(['db:migrate:undo'], bd.url);
+    const deshacer = await ejecutarCli(['db:migrate:undo', '--name', MIGRACION_13], bd.url);
     expect(deshacer.codigo).not.toBe(0);
     expect(deshacer.salida).toContain('777');
     expect(deshacer.salida).toMatch(/osm_id/);

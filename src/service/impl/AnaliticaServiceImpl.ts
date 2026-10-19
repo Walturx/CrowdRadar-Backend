@@ -85,6 +85,9 @@ const punto = (etiqueta: string, celda: Celda): PuntoHistorial => ({
 
 const etiquetaHora = (hora: number) => `${String(hora).padStart(2, '0')}:00`;
 
+/** True when some report of the aggregation was written by a demo user (spec M4 R10). */
+const haySinteticos = (agregados: readonly AgregadoHora[]) => agregados.some((celda) => celda.sinteticos > 0);
+
 /**
  * Pattern: Service layer. Reads the hourly aggregation of the reports and shapes history, comparison and best hour; the daily
  * history is derived from the hourly buckets. It never writes.
@@ -93,38 +96,38 @@ export class AnaliticaServiceImpl implements AnaliticaService {
   constructor(private readonly deps: DependenciasAnaliticaService) {}
 
   async obtenerHistorial(lugarId: number, consulta: ConsultaHistorial): Promise<ResultadoHistorial> {
-    await this.exigirLugar(lugarId);
     const diario = consulta.agrupacion === AgrupacionHistorial.DIA;
     const hasta = consulta.hasta ?? diaDe(this.deps.reloj.ahora(), this.deps.zonaHoraria);
     const desde = consulta.desde ?? (diario ? sumarDias(hasta, -DIAS_ANTES_HISTORIAL_DIARIO) : hasta);
-    // The history accepts a single day (desde == hasta); `comparar` keeps its stricter rule of at least one day.
-    this.validarRango(desde, hasta, false);
-
-    const ventana = this.ventana(lugarId, desde, hasta, FiltroDias.TODOS);
-    const [agregados, sintetico] = await Promise.all([
-      this.deps.reporteDAO.agregarPorHora(ventana),
-      this.deps.reporteDAO.hayReportesSinteticos(ventana),
-    ]);
+    const [, agregados] = await this.conLugar(
+      lugarId,
+      // The history accepts a single day (desde == hasta); `comparar` keeps its stricter rule of at least one day.
+      () => this.validarRango(desde, hasta, false),
+      () => this.deps.reporteDAO.agregarPorHora(this.ventana(lugarId, desde, hasta, FiltroDias.TODOS)),
+    );
     // The DAO answers by day then hour, so the days come out chronological; the hours of day are sorted here.
     const puntos = diario
       ? [...porDia(agregados)].map(([dia, celda]) => punto(dia, celda))
       : [...porHoraDelDia(agregados)].sort(([a], [b]) => a - b).map(([hora, celda]) => punto(etiquetaHora(hora), celda));
-    return { hayDatos: puntos.length > 0, sintetico, puntos };
+    return { hayDatos: puntos.length > 0, sintetico: haySinteticos(agregados), puntos };
   }
 
   async compararPeriodos(lugarId: number, a: PeriodoComparacion, b: PeriodoComparacion): Promise<ResultadoComparacion> {
-    await this.exigirLugar(lugarId);
-    this.validarRango(a.desde, a.hasta, true);
-    this.validarRango(b.desde, b.hasta, true);
-    const ventanaA = this.ventana(lugarId, a.desde, a.hasta, a.dias);
-    const ventanaB = this.ventana(lugarId, b.desde, b.hasta, b.dias);
     const { reporteDAO } = this.deps;
-    const [aggA, aggB, sinteticoA, sinteticoB] = await Promise.all([
-      reporteDAO.agregarPorHora(ventanaA),
-      reporteDAO.agregarPorHora(ventanaB),
-      reporteDAO.hayReportesSinteticos(ventanaA),
-      reporteDAO.hayReportesSinteticos(ventanaB),
-    ]);
+    const [, [aggA, aggB]] = await this.conLugar(
+      lugarId,
+      () => {
+        this.validarRango(a.desde, a.hasta, true);
+        this.validarRango(b.desde, b.hasta, true);
+      },
+      () =>
+        Promise.all([
+          reporteDAO.agregarPorHora(this.ventana(lugarId, a.desde, a.hasta, a.dias)),
+          reporteDAO.agregarPorHora(this.ventana(lugarId, b.desde, b.hasta, b.dias)),
+        ]),
+    );
+    const sinteticoA = haySinteticos(aggA);
+    const sinteticoB = haySinteticos(aggB);
     const celdasA = porHoraDelDia(aggA);
     const celdasB = porHoraDelDia(aggB);
     const muestrasA = aggA.reduce((total, x) => total + x.muestras, 0);
@@ -143,12 +146,15 @@ export class AnaliticaServiceImpl implements AnaliticaService {
   }
 
   async obtenerMejorHorario(lugarId: number, dias: FiltroDias, semanas: number): Promise<ResultadoMejorHorario> {
-    const lugar = await this.exigirLugar(lugarId);
     const hasta = diaDe(this.deps.reloj.ahora(), this.deps.zonaHoraria);
     const desde = sumarDias(hasta, -(semanas * DIAS_POR_SEMANA - 1));
-    const ventana = this.ventana(lugarId, desde, hasta, dias);
     const { reporteDAO, minMuestras } = this.deps;
-    const [agregados, sintetico] = await Promise.all([reporteDAO.agregarPorHora(ventana), reporteDAO.hayReportesSinteticos(ventana)]);
+    const [lugar, agregados] = await this.conLugar(
+      lugarId,
+      () => undefined,
+      () => reporteDAO.agregarPorHora(this.ventana(lugarId, desde, hasta, dias)),
+    );
+    const sintetico = haySinteticos(agregados);
     const abierto = horarioDe(lugar, this.deps.horaAperturaPorDefecto, this.deps.horaCierrePorDefecto);
     const recomendaciones: FranjaRecomendada[] = [...porHoraDelDia(agregados).entries()]
       .filter(([hora, celda]) => abierto(hora) && celda.muestras >= minMuestras)
@@ -169,6 +175,21 @@ export class AnaliticaServiceImpl implements AnaliticaService {
     const lugar = await this.deps.lugarDAO.buscarPorId(lugarId);
     if (!lugar) throw new LugarNoEncontradoException();
     return lugar;
+  }
+
+  /**
+   * Reads the place and the aggregation in parallel (one round trip of latency instead of two), keeping the error
+   * precedence of the sequential version: a missing place is a 404 even when `validar` (the range checks) also fails.
+   */
+  private async conLugar<T>(lugarId: number, validar: () => void, leer: () => Promise<T>): Promise<[Lugar, T]> {
+    const lugar = this.exigirLugar(lugarId);
+    try {
+      validar();
+    } catch (error) {
+      await lugar;
+      throw error;
+    }
+    return Promise.all([lugar, leer()]);
   }
 
   /** `desde` <= `hasta` by at most 31 days (and by at least one when `exigirUnDia`). */

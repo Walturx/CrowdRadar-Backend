@@ -3,6 +3,7 @@
  * Each run creates a throwaway database, so it never touches the configured one.
  * Spec: R-A9.1, R-A9.2, R-A9.3. Design section 3.
  */
+import { DOMINIO_EMAIL_SINTETICO } from '../../src/util/sintetico.js';
 import bcrypt from 'bcrypt';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -48,6 +49,7 @@ const INDICES = [
   'ix_sancion_usuario_fin',
   'ix_favorito_lugar_alertas',
   'ix_alerta_usuario_leida_fecha',
+  'ix_usuario_sintetico',
   'uq_usuario_email',
   'uq_lugar_osm',
   'uq_validacion_reporte_usuario',
@@ -114,7 +116,7 @@ describe.skipIf(!URL_BD_TEST)('migraciones (PostgreSQL real)', () => {
       expect(await tablas()).toEqual(TODAS);
     });
 
-    it('SequelizeMeta registra las 12 migraciones en orden', async () => {
+    it('SequelizeMeta registra las 13 migraciones en orden', async () => {
       const filas = await q<{ name: string }>('SELECT name FROM "SequelizeMeta" ORDER BY name');
       expect(filas.map((f) => f.name)).toEqual([
         '20261005000001-crear-usuario.cjs',
@@ -129,6 +131,7 @@ describe.skipIf(!URL_BD_TEST)('migraciones (PostgreSQL real)', () => {
         '20261005000010-crear-dispositivo-push.cjs',
         '20261005000012-usuario-password-cambiada-en.cjs',
         '20261005000013-lugar-osm-tipo.cjs',
+        '20261018000014-usuario-indice-sintetico.cjs',
       ]);
     });
   });
@@ -155,6 +158,11 @@ describe.skipIf(!URL_BD_TEST)('migraciones (PostgreSQL real)', () => {
       const existentes = new Set(filas.map((f) => f.indexname));
       expect(INDICES.length).toBeGreaterThan(0);
       for (const indice of INDICES) expect(existentes.has(indice), indice).toBe(true);
+    });
+
+    it('ix_usuario_sintetico es parcial con el mismo LIKE que usa la analitica (si no, el planificador no lo usa)', async () => {
+      const [fila] = await q<{ indexdef: string }>("SELECT indexdef FROM pg_indexes WHERE indexname = 'ix_usuario_sintetico'");
+      expect(fila?.indexdef).toContain(`WHERE ((email)::text ~~ '%${DOMINIO_EMAIL_SINTETICO}'::text)`);
     });
 
     it('las claves foraneas usan el ON DELETE del diseno', async () => {
@@ -456,7 +464,21 @@ describe.skipIf(!URL_BD_TEST)('migraciones (PostgreSQL real)', () => {
     const columnaOsmTipo = () =>
       q("SELECT 1 FROM information_schema.columns WHERE table_name = 'lugar' AND column_name = 'osm_tipo'");
 
-    it('db:migrate:undo deshace solo la ultima migracion (lugar.osm_tipo) y la rehace', async () => {
+    const indiceSintetico = () => q("SELECT 1 FROM pg_indexes WHERE indexname = 'ix_usuario_sintetico'");
+
+    it('db:migrate:undo deshace solo la ultima migracion (ix_usuario_sintetico) y la rehace', async () => {
+      const deshacer = await ejecutarCli(['db:migrate:undo'], bd.url);
+      expect(deshacer.codigo, deshacer.salida).toBe(0);
+      expect(await tablas()).toEqual(TODAS);
+      expect(await indiceSintetico()).toEqual([]);
+      expect(await columnaOsmTipo()).toHaveLength(1);
+      const rehacer = await ejecutarCli(['db:migrate'], bd.url);
+      expect(rehacer.codigo, rehacer.salida).toBe(0);
+      expect(await indiceSintetico()).toHaveLength(1);
+    });
+
+    it('un segundo db:migrate:undo deshace lugar.osm_tipo y la rehace', async () => {
+      await ejecutarCli(['db:migrate:undo'], bd.url);
       const deshacer = await ejecutarCli(['db:migrate:undo'], bd.url);
       expect(deshacer.codigo, deshacer.salida).toBe(0);
       expect(await tablas()).toEqual(TODAS);
@@ -467,7 +489,8 @@ describe.skipIf(!URL_BD_TEST)('migraciones (PostgreSQL real)', () => {
       expect(await columnaOsmTipo()).toHaveLength(1);
     });
 
-    it('un segundo db:migrate:undo deshace password_cambiada_en y la rehace', async () => {
+    it('un tercer db:migrate:undo deshace password_cambiada_en y la rehace', async () => {
+      await ejecutarCli(['db:migrate:undo'], bd.url);
       await ejecutarCli(['db:migrate:undo'], bd.url);
       const deshacer = await ejecutarCli(['db:migrate:undo'], bd.url);
       expect(deshacer.codigo, deshacer.salida).toBe(0);
@@ -478,7 +501,8 @@ describe.skipIf(!URL_BD_TEST)('migraciones (PostgreSQL real)', () => {
       expect(await columnaOsmTipo()).toHaveLength(1);
     });
 
-    it('un tercer db:migrate:undo deshace dispositivo_push y la rehace', async () => {
+    it('un cuarto db:migrate:undo deshace dispositivo_push y la rehace', async () => {
+      await ejecutarCli(['db:migrate:undo'], bd.url);
       await ejecutarCli(['db:migrate:undo'], bd.url);
       await ejecutarCli(['db:migrate:undo'], bd.url);
       const deshacer = await ejecutarCli(['db:migrate:undo'], bd.url);

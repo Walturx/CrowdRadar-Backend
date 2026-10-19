@@ -142,33 +142,23 @@ export class ReporteDAOSequelize implements ReporteDAO {
     return this.modificar(id, { nivelConfiabilidad: nivel }, tx);
   }
 
+  /**
+   * The demo users are read once per statement (a MATERIALIZED CTE over the partial index `ix_usuario_sintetico`, whose
+   * predicate is this same LIKE) and LEFT JOINed by id, so the synthetic count costs no extra round trip.
+   */
   async agregarPorHora(consulta: ConsultaAgregada, tx?: ContextoTx): Promise<AgregadoHora[]> {
     const filas = await ReporteModel.sequelize!.query<AgregadoHora>(
-      `SELECT to_char(fecha_hora AT TIME ZONE :zona, 'YYYY-MM-DD') AS dia,
+      `WITH demo AS MATERIALIZED (SELECT id FROM usuario WHERE email LIKE :patron)
+       SELECT to_char(fecha_hora AT TIME ZONE :zona, 'YYYY-MM-DD') AS dia,
               EXTRACT(HOUR FROM fecha_hora AT TIME ZONE :zona)::int AS hora,
               AVG(${SQL_VALOR_NIVEL})::float8 AS promedio,
-              COUNT(*)::int AS muestras
-         FROM reporte_saturacion
+              COUNT(*)::int AS muestras,
+              COUNT(demo.id)::int AS sinteticos
+         FROM reporte_saturacion r LEFT JOIN demo ON demo.id = r.usuario_id
         WHERE lugar_id = :lugarId AND estado = 'ACTIVO' AND fecha_hora >= :desde AND fecha_hora < :hasta
               ${FILTRO_SQL_DIAS[consulta.dias]}
         GROUP BY 1, 2
         ORDER BY 1, 2`,
-      {
-        replacements: { lugarId: consulta.lugarId, desde: consulta.desde, hasta: consulta.hasta, zona: consulta.zonaHoraria },
-        type: QueryTypes.SELECT,
-        transaction: aTransaccion(tx),
-      },
-    );
-    return filas.map(({ dia, hora, promedio, muestras }) => ({ dia, hora, promedio, muestras }));
-  }
-
-  async hayReportesSinteticos(consulta: ConsultaAgregada, tx?: ContextoTx): Promise<boolean> {
-    const [fila] = await ReporteModel.sequelize!.query<{ hay: boolean }>(
-      `SELECT EXISTS (
-         SELECT 1 FROM reporte_saturacion r JOIN usuario u ON u.id = r.usuario_id
-          WHERE r.lugar_id = :lugarId AND r.estado = 'ACTIVO' AND r.fecha_hora >= :desde AND r.fecha_hora < :hasta
-                AND u.email LIKE :patron ${FILTRO_SQL_DIAS[consulta.dias].replaceAll('fecha_hora', 'r.fecha_hora')}
-       ) AS hay`,
       {
         replacements: {
           lugarId: consulta.lugarId,
@@ -181,7 +171,7 @@ export class ReporteDAOSequelize implements ReporteDAO {
         transaction: aTransaccion(tx),
       },
     );
-    return fila?.hay === true;
+    return filas.map(({ dia, hora, promedio, muestras, sinteticos }) => ({ dia, hora, promedio, muestras, sinteticos }));
   }
 
   listarPendientesDeValidar(
