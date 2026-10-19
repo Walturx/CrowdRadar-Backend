@@ -172,8 +172,10 @@ describe('AnaliticaServiceImpl', () => {
       const buscarLugar = vi.spyOn(lugarDAO, 'buscarPorId');
       const agregar = vi.spyOn(reporteDAO, 'agregarPorHora');
       reportar('2026-10-07', 9, VALOR.MODERADO, { usuarioId: await sembrador.usuarioSintetico() });
+      reportar('2026-10-07', 9, VALOR.SATURADO);
       const r = await servicio.obtenerHistorial(lugarId, { agrupacion: AgrupacionHistorial.HORA });
-      expect(r.sintetico).toBe(true);
+      // The single aggregation still answers the whole contract: points, samples and the synthetic flag.
+      expect(r).toEqual({ hayDatos: true, sintetico: true, puntos: [{ etiqueta: '09:00', valor: 2.5, muestras: 2 }] });
       expect(buscarLugar).toHaveBeenCalledTimes(1);
       expect(agregar).toHaveBeenCalledTimes(1);
     });
@@ -251,6 +253,14 @@ describe('AnaliticaServiceImpl', () => {
         status: 400,
         code: CodigoError.RANGO_FECHAS_INVALIDO,
       });
+    });
+
+    it.each([
+      ['rango A invalido', { ...laborables, desde: '2026-09-09' }, finDeSemana],
+      ['rango B invalido', laborables, { ...finDeSemana, desde: '2026-10-11' }],
+    ])('un lugar inexistente con %s sigue siendo 404 (el lugar se valida primero)', async (_caso, a, b) => {
+      await expect(servicio.compararPeriodos(lugarId + 99, a, b)).rejects.toMatchObject({ status: 404, code: CodigoError.LUGAR_NO_ENCONTRADO });
+      await expect(servicio.compararPeriodos(lugarId, a, b)).rejects.toMatchObject({ status: 400, code: CodigoError.RANGO_FECHAS_INVALIDO });
     });
 
     it('un lugar inexistente es 404 y un periodo sintetico marca sintetico', async () => {
