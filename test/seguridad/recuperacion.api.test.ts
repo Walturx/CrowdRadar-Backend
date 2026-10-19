@@ -87,6 +87,16 @@ describe('API de recuperacion de contrasena (contenedor de prueba)', () => {
       expect((await solicitar('otra@crowdradar.pe')).status).toBe(200);
     });
 
+    it('409 CONFLICTO when the generated token collides with a stored one; no second mail and the first link still works', async () => {
+      await preparar({ tokensRecuperacion: ['token-repetido', 'token-repetido'] });
+      expect((await solicitar()).status).toBe(200);
+      const res = await solicitar();
+      expect(res.status).toBe(409);
+      expect(res.body).toEqual({ message: 'El recurso ya existe o está en conflicto.', code: 'CONFLICTO', errors: [] });
+      expect(ctx.correo.enviados).toHaveLength(1);
+      expect((await request(app).get('/api/auth/restablecer/validar').query({ token: 'token-repetido' })).status).toBe(200);
+    });
+
     it('the per-email counter ignores case and spaces, so a variant of the address cannot dodge it', async () => {
       for (const variante of [registro.email, registro.email.toUpperCase(), `  ${registro.email}  `]) expect((await solicitar(variante)).status).toBe(200);
       expect((await solicitar()).status).toBe(429);

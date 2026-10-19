@@ -119,7 +119,9 @@ describe('rutas admin de moderacion', () => {
       expect(JSON.stringify(res.body)).not.toMatch(/password|hash/i);
     });
     it('404 USUARIO_NO_ENCONTRADO y 400 con un id no numerico', async () => {
-      expect((await request(app).get('/api/admin/usuarios/999').set(comoAdmin())).body.code).toBe('USUARIO_NO_ENCONTRADO');
+      const res = await request(app).get('/api/admin/usuarios/999').set(comoAdmin());
+      expect(res.status).toBe(404);
+      expect(res.body).toEqual({ message: expect.any(String), code: 'USUARIO_NO_ENCONTRADO', errors: [] });
       expect((await request(app).get('/api/admin/usuarios/abc').set(comoAdmin())).status).toBe(400);
     });
 
@@ -177,7 +179,10 @@ describe('rutas admin de moderacion', () => {
         }
       });
       it('404 con un usuario inexistente', async () => {
-        expect((await suspender(999)).body.code).toBe('USUARIO_NO_ENCONTRADO');
+        const res = await suspender(999);
+        expect(res.status).toBe(404);
+        expect(res.body).toEqual({ message: expect.any(String), code: 'USUARIO_NO_ENCONTRADO', errors: [] });
+        expect(await ctx.sancionDAO.buscarVigente(999, new Date())).toBeNull();
       });
     });
 
@@ -192,7 +197,9 @@ describe('rutas admin de moderacion', () => {
         expect([otra.status, otra.body.code]).toEqual([409, 'USUARIO_NO_SUSPENDIDO']);
       });
       it('404 con un usuario inexistente', async () => {
-        expect((await request(app).post('/api/admin/usuarios/999/reactivacion').set(comoAdmin())).status).toBe(404);
+        const res = await request(app).post('/api/admin/usuarios/999/reactivacion').set(comoAdmin());
+        expect(res.status).toBe(404);
+        expect(res.body).toEqual({ message: expect.any(String), code: 'USUARIO_NO_ENCONTRADO', errors: [] });
       });
     });
   });
