@@ -4,12 +4,13 @@
  */
 import { createHash } from 'node:crypto';
 import request from 'supertest';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../../src/app.js';
 import { crearContenedorPrueba, type ContenedorPrueba } from '../support/crearContenedorPrueba.js';
 import { crearLoggerEspia, type LineaLog } from '../support/LoggerEspia.js';
 import { RelojFijo } from '../support/RelojFijo.js';
 import { UsuarioDAOMemoria } from '../support/dao/memoria/UsuarioDAOMemoria.js';
+import { esperar503Reintentable } from '../support/erroresBD.js';
 import { asentar } from './entornoRecuperacion.js';
 
 const registro = { nombre: 'Ana', apellido: 'Ruiz', email: 'ana.ruiz@crowdradar.pe', password: 'Vieja1234', telefono: '', distrito: 'Miraflores' };
@@ -122,6 +123,15 @@ describe('GET /recuperar/restablecer (pagina de restablecimiento)', () => {
       expect(lineas.length).toBeGreaterThan(0);
       expect(JSON.stringify(lineas)).not.toContain(token);
     });
+  });
+
+  it('a database outage while checking the token is 503 SERVICIO_NO_DISPONIBLE with Retry-After, not the expired-link page', async () => {
+    const token = await tokenVivo();
+    vi.spyOn(ctx.tokenDAO, 'buscarPorHash').mockRejectedValueOnce(Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:5432'), { code: 'ECONNREFUSED' }));
+    const res = await pagina(token);
+    esperar503Reintentable(res);
+    expect(res.text).not.toContain(MENSAJE_CADUCADO);
+    expect((await pagina(token)).status).toBe(200);
   });
 
   it('the page is rate limited per IP like the reset endpoint (R1-1306): the 11th view is a 429', async () => {

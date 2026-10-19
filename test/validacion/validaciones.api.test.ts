@@ -206,6 +206,13 @@ describe('API de validacion y denuncias (contenedor de prueba)', () => {
       });
     });
 
+    it('un reporte cuyo lugar ya no existe es 404 REPORTE_NO_ENCONTRADO, no un detalle a medias', async () => {
+      const huerfano = ctx.reporteDAO.agregar(aReporte({ usuarioId: autor.usuario.id, lugarId: 999_999 })).id;
+      const res = await request(app).get(`/api/reportes/${huerfano}`).set(nuevoUsuario().cabecera);
+      expect(res.status).toBe(404);
+      expect(res.body).toEqual({ message: expect.any(String), code: 'REPORTE_NO_ENCONTRADO', errors: [] });
+    });
+
     it('el autor ve esPropio y la advertencia cuando la confiabilidad es BAJA', async () => {
       for (let i = 0; i < 5; i += 1) await votoDe(nuevoUsuario().usuario.id, reporteId, i === 0 ? C : R);
       const res = await request(app).get(`/api/reportes/${reporteId}`).set(autor.cabecera);
