@@ -22,4 +22,9 @@ describe('BcryptHasherAdapter', () => {
   it('compara false (sin lanzar) cuando el hash almacenado no es valido', async () => {
     expect(await hasher.comparar('Secreta123', 'no-es-un-hash')).toBe(false);
   });
+
+  it('compara false (sin lanzar) cuando falta el hash almacenado, aunque bcrypt rechace el argumento', async () => {
+    // a row without password_hash must end in 401 CREDENCIALES_INVALIDAS, never in a 500
+    expect(await hasher.comparar('Secreta123', null as unknown as string)).toBe(false);
+  });
 });

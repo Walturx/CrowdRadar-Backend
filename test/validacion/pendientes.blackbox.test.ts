@@ -131,6 +131,14 @@ describe('GET /api/validaciones/pendientes (caja negra)', () => {
       expect(ids(await pedir(BASE))).toEqual([dentro]);
       expect(ids(await pedir(`${BASE}&radioKm=7`))).toEqual([dentro, fuera]);
     });
+
+    it('el radio es un circulo, no el cuadrado de busqueda: la esquina a 4,5 km N y 4,5 km E (~6,4 km) queda fuera', async () => {
+      const kmEnGradosLng = 0.009 / Math.cos((CENTRO.lat * Math.PI) / 180);
+      const esquina = ctx.lugarDAO.agregar({ nombre: 'Esquina', latitud: CENTRO.lat + 4.5 * 0.009, longitud: CENTRO.lng + 4.5 * kmEnGradosLng });
+      const enEsquina = reporteEn(esquina.id);
+      expect(ids(await pedir(BASE))).toEqual([]);
+      expect(ids(await pedir(`${BASE}&radioKm=7`))).toEqual([enEsquina]);
+    });
   });
 
   describe('horas (1..24, 3 por defecto)', () => {
