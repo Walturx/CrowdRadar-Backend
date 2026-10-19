@@ -3,6 +3,7 @@
  *
  * Usage: npm run bench -- [--seed] [--escenario=lugares,explorar,historial,denunciados,reportes]
  *                         [--duracion=30] [--conexiones=50] [--calentamiento=3] [--salida=bench-results/x.json]
+ *                         [--reportes-un-usuario]
  * Env: BENCH_URL (default http://localhost:3000), BENCH_PASSWORD, BENCH_DB_PUERTO (default 55432).
  *
  * Sessions: the admin and bench001 log in through POST /api/auth/login. The login limiter allows LIMITE_LOGIN attempts
@@ -10,8 +11,12 @@
  * (same HS256 claims as JwtEmisorTokenAdapter); `autenticar` still re-reads each user from the database, so every
  * request goes through the real auth path. If a login answers 429, that session falls back to a signed token too.
  *
- * POST /api/reportes: each request uses a distinct (user, place) pair (100 x 200 = 20000 pairs; consecutive requests
- * hit different places), so the 30-minute per-user-per-place cooldown is only reached if the run exhausts the pairs.
+ * POST /api/reportes: each request uses a distinct (user, place) pair (100 x 200 = 20000 pairs), so the 30-minute
+ * per-user-per-place cooldown is only reached if the run exhausts the pairs. By default consecutive requests come from
+ * different users AND hit different places (request i: user i mod 100, place (i + 101 * floor(i / 100)) mod 200), as
+ * real traffic does. `--reportes-un-usuario` restores the order of the baseline (docs/metricas-baseline.md): 200
+ * consecutive requests of ONE user on different places, so the in-flight reports all queue on that user's karma lock
+ * (pg_advisory_xact_lock(usuario, 0), which keeps the daily cap exact); it measures that lock, not the endpoint.
  * Leftover bench reports younger than 31 minutes (from a previous run) are deleted first.
  *
  * Latency percentiles are computed from every response time (autocannon's own histogram has no p95); 429 is counted
@@ -20,6 +25,7 @@
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import process from 'node:process';
 import autocannon from 'autocannon';
 import jwt from 'jsonwebtoken';
@@ -32,10 +38,11 @@ const TAMANO_PAGINA = 20;
 const NIVELES = ['TRANQUILO', 'MODERADO', 'SATURADO'];
 
 function argumentos() {
-  const opciones = { escenarios: ESCENARIOS, duracion: 30, conexiones: 50, calentamiento: 3, seed: false, salida: null };
+  const opciones = { escenarios: ESCENARIOS, duracion: 30, conexiones: 50, calentamiento: 3, seed: false, salida: null, reportesUnUsuario: false };
   for (const arg of process.argv.slice(2)) {
     const [clave, valor] = arg.replace(/^--/, '').split('=');
     if (clave === 'seed') opciones.seed = true;
+    else if (clave === 'reportes-un-usuario') opciones.reportesUnUsuario = true;
     else if (clave === 'escenario') opciones.escenarios = valor.split(',').filter((e) => ESCENARIOS.includes(e));
     else if (clave === 'duracion') opciones.duracion = Number(valor);
     else if (clave === 'conexiones') opciones.conexiones = Number(valor);
@@ -154,7 +161,16 @@ async function limpiarReportesRecientes() {
   }
 }
 
-function escenarios({ tokenUsuario, tokenAdmin, tokens, lugares }) {
+/**
+ * Pair of request `i` of the reports scenario. Every user gets all 200 places before any pair repeats: for a fixed user
+ * u = i mod 100 the place index is (u + 101k) mod 200 with k = floor(i / 100), and 101 is coprime with 200.
+ */
+export function parReporte(i, totalUsuarios, totalLugares, unUsuario) {
+  if (unUsuario) return { usuario: Math.floor(i / totalLugares) % totalUsuarios, lugar: i % totalLugares };
+  return { usuario: i % totalUsuarios, lugar: (i + (totalUsuarios + 1) * Math.floor(i / totalUsuarios)) % totalLugares };
+}
+
+function escenarios({ tokenUsuario, tokenAdmin, tokens, lugares, reportesUnUsuario }) {
   const auth = (token) => ({ authorization: `Bearer ${token}` });
   const desde = hoyEn(ZONA, -6);
   const hasta = hoyEn(ZONA);
@@ -200,7 +216,7 @@ function escenarios({ tokenUsuario, tokenAdmin, tokens, lugares }) {
       },
     },
     reportes: {
-      metodo: 'POST /api/reportes (par usuario/lugar distinto por peticion)',
+      metodo: `POST /api/reportes (par usuario/lugar distinto por peticion${reportesUnUsuario ? ', un usuario a la vez' : ', usuarios rotando'})`,
       antes: limpiarReportesRecientes,
       opciones: {
         requests: [
@@ -209,8 +225,9 @@ function escenarios({ tokenUsuario, tokenAdmin, tokens, lugares }) {
             path: '/api/reportes',
             setupRequest: (req) => {
               const i = par++;
-              const lugarId = lugares[i % lugares.length];
-              const token = tokens[Math.floor(i / lugares.length) % tokens.length];
+              const { usuario, lugar } = parReporte(i, tokens.length, lugares.length, reportesUnUsuario);
+              const lugarId = lugares[lugar];
+              const token = tokens[usuario];
               return {
                 ...req,
                 headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
@@ -236,7 +253,13 @@ async function main() {
   const tokens = [sesionUsuario.token, ...usuarios.slice(1).map(firmar)];
   escribir(`sesiones: admin=${sesionAdmin.origen}, bench001=${sesionUsuario.origen}, ${tokens.length - 1} firmados con JWT_SECRETO`);
 
-  const definiciones = escenarios({ tokenUsuario: sesionUsuario.token, tokenAdmin: sesionAdmin.token, tokens, lugares });
+  const definiciones = escenarios({
+    tokenUsuario: sesionUsuario.token,
+    tokenAdmin: sesionAdmin.token,
+    tokens,
+    lugares,
+    reportesUnUsuario: opciones.reportesUnUsuario,
+  });
   const resultados = [];
   for (const nombre of opciones.escenarios) {
     const def = definiciones[nombre];
@@ -261,7 +284,10 @@ async function main() {
   escribir(`resultados: ${salida}`);
 }
 
-main().catch((err) => {
-  process.stderr.write(`${err.stack ?? err}\n`);
-  process.exit(1);
-});
+// Run only as a script (`npm run bench`); importing the module (tests of parReporte) must not start a benchmark.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((err) => {
+    process.stderr.write(`${err.stack ?? err}\n`);
+    process.exit(1);
+  });
+}
