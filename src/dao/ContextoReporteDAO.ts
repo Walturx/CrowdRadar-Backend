@@ -22,7 +22,7 @@ export interface ContextoReporte {
 /**
  * Pattern: DAO (port, read model of M6). Reads report, place and author of many reports at once, so a page of the
  * moderation queue costs one read instead of three per item. Reports of any `estado` are returned; a report that does
- * not exist (or whose place or author is gone) is omitted. No order is promised: callers index by `reporte.id`.
+ * not exist (or whose place or author is gone) is omitted, and a repeated id yields one entry. No ids: no read. No order is promised: callers index by `reporte.id`.
  * Owner: M6.
  */
 export interface ContextoReporteDAO {
@@ -40,6 +40,7 @@ export function contextoReporteDesde(daos: {
 }): ContextoReporteDAO {
   return {
     async buscarPorReportes(reporteIds, tx) {
+      if (reporteIds.length === 0) return [];
       const reportes = (await Promise.all([...new Set(reporteIds)].map((id) => daos.reporteDAO.buscarPorId(id, tx)))).filter(
         (r): r is ReporteSaturacion => r !== null,
       );
