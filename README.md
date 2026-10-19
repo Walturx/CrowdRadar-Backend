@@ -131,11 +131,18 @@ share files with database-free ones, so no file list has to be kept in sync). Wh
 | Script | Purpose |
 |---|---|
 | `npm run bench:seed` | Deletes the previous bench rows and inserts a repeatable dataset in the docker database: 200 places, 100 users `benchNNN@bench.crowdradar.local`, 5000 reports, 150 reported reports. `-- --solo-limpiar` only deletes them |
-| `npm run bench` | autocannon against a running API (`docker compose up`); scenarios `lugares`, `explorar`, `historial`, `denunciados`, `reportes`. Options: `-- --seed --escenario=a,b --duracion=30 --conexiones=50 --calentamiento=3 --salida=bench-results/x.json` |
+| `npm run bench` | autocannon against a running API (`docker compose up`); scenarios `lugares`, `explorar`, `historial`, `denunciados`, `reportes`. Options: `-- --seed --escenario=a,b --duracion=30 --conexiones=50 --calentamiento=3 --salida=bench-results/x.json --reportes-un-usuario` |
 
 Both read the same `.env` as the API and refuse `NODE_ENV=production`. Extra variables: `BENCH_URL` (http://localhost:3000),
 `BENCH_PASSWORD`, `BENCH_DB_HOST` (127.0.0.1), `BENCH_DB_PUERTO` (55432, so set `DB_PUERTO=55432` for compose or override it).
 Results go to `bench-results/` (ignored by git); the reference numbers are in [docs/metricas-baseline.md](docs/metricas-baseline.md).
+
+A repeatable run is `docker compose up -d --build` (the `migrate` service applies pending migrations) followed by
+`npm run bench -- --seed`: the seed resets only the bench rows and the `reportes` scenario first deletes bench reports
+younger than 31 minutes, so consecutive runs start from the same data. In `reportes` every request uses a distinct
+(user, place) pair and, by default, consecutive requests come from different users and places, like real traffic.
+`--reportes-un-usuario` restores the order of the baseline (200 consecutive requests of one user), which mostly
+measures the wait on that user's karma lock (`pg_advisory_xact_lock(usuario, 0)`, kept so the daily cap is exact).
 
 Tests follow strict TDD (red, green, refactor). `test/support` holds the in-memory DAOs, fakes and
 `crearContenedorPrueba`, which assembles the real composition root with fakes instead of a database. The in-memory
