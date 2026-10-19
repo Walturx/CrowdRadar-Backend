@@ -76,3 +76,28 @@ describe('JwtEmisorTokenAdapter.verificar', () => {
     expect(() => emisor.verificar(token)).toThrow();
   });
 });
+
+describe('JwtEmisorTokenAdapter: compatibilidad con la firma por string', () => {
+  // Before the KeyObject was built once, tokens were signed and verified with the secret string itself: tokens issued
+  // then (still valid until they expire) must verify now, and the other way round during a rolling deploy. The
+  // non-ASCII secret pins the UTF-8 encoding of the key on both paths.
+  it.each([
+    ['ASCII', SECRETO],
+    ['con caracteres no ASCII', `ñandú-${'x'.repeat(40)}-🔑`],
+  ])('secreto %s: un token firmado con el string verifica en el adaptador y viceversa', (_caso, secreto) => {
+    const adaptador = new JwtEmisorTokenAdapter({ jwtSecreto: secreto, jwtExpiraEn: '1h' });
+    const viejo = jwt.sign(claimsValidos, secreto, { algorithm: 'HS256', expiresIn: '1h' });
+    expect(adaptador.verificar(viejo)).toMatchObject(claimsValidos);
+
+    const { token } = adaptador.emitir(aUsuario({ id: 7, email: 'a@b.pe' }));
+    expect(jwt.verify(token, secreto, { algorithms: ['HS256'] })).toMatchObject({ id: 7, email: 'a@b.pe' });
+  });
+
+  it('con otro secreto (string o adaptador) la firma no verifica', () => {
+    const adaptador = new JwtEmisorTokenAdapter({ jwtSecreto: SECRETO, jwtExpiraEn: '1h' });
+    const ajeno = jwt.sign(claimsValidos, `${SECRETO}-otro`, { algorithm: 'HS256', expiresIn: '1h' });
+    expect(() => adaptador.verificar(ajeno)).toThrow(/invalid signature/);
+    const { token } = adaptador.emitir(aUsuario({ id: 7 }));
+    expect(() => jwt.verify(token, `${SECRETO}-otro`, { algorithms: ['HS256'] })).toThrow(/invalid signature/);
+  });
+});
