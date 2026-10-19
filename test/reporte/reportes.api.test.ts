@@ -10,6 +10,7 @@ import { ServicioNoDisponibleException } from '../../src/exception/http/Servicio
 import { sancionVigente } from '../support/cuentaSuspendida.js';
 import { crearContenedorPrueba, type ContenedorPrueba } from '../support/crearContenedorPrueba.js';
 import { aUsuario } from '../support/fabrica/datos.js';
+import { esperar503Reintentable, lockTimeout, restriccionUnica } from '../support/erroresBD.js';
 
 describe('API de reportes (contenedor de prueba)', () => {
   let ctx: ContenedorPrueba;
@@ -122,8 +123,26 @@ describe('API de reportes (contenedor de prueba)', () => {
       const { cabecera } = nuevoUsuario();
       vi.spyOn(ctx.reporteDAO, 'crear').mockRejectedValueOnce(new ServicioNoDisponibleException());
       const res = await reportar(cabecera, { lugarId, nivel: 'MODERADO' });
-      expect(res.status).toBe(503);
-      expect(res.body.code).toBe('SERVICIO_NO_DISPONIBLE');
+      esperar503Reintentable(res);
+    });
+
+    it('503 SERVICIO_NO_DISPONIBLE con Retry-After si Postgres cancela por lock_timeout (55P03); reintentar luego funciona', async () => {
+      const { usuario, cabecera } = nuevoUsuario();
+      vi.spyOn(ctx.reporteDAO, 'crear').mockRejectedValueOnce(lockTimeout());
+      esperar503Reintentable(await reportar(cabecera, { lugarId, nivel: 'MODERADO' }));
+      expect((await ctx.reporteDAO.listarPorUsuario(usuario.id, { page: 1, size: 10 })).total).toBe(0);
+
+      const reintento = await reportar(cabecera, { lugarId, nivel: 'MODERADO' });
+      expect(reintento.status).toBe(201);
+    });
+
+    it('409 CONFLICTO (no 500) si salta un indice unico que el DAO no traduce, sin filtrar el nombre del indice', async () => {
+      const { cabecera } = nuevoUsuario();
+      vi.spyOn(ctx.reporteDAO, 'crear').mockRejectedValueOnce(restriccionUnica());
+      const res = await reportar(cabecera, { lugarId, nivel: 'MODERADO' });
+      expect(res.status).toBe(409);
+      expect(res.body).toEqual({ message: 'El recurso ya existe o está en conflicto.', code: 'CONFLICTO', errors: [] });
+      expect(JSON.stringify(res.body)).not.toContain('uq_prueba');
     });
   });
 

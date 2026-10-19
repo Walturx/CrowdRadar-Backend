@@ -5,6 +5,7 @@ import { crearSistemaRouter, TIMEOUT_SALUD_MS } from '../../src/route/sistema.ro
 import { EstadoServicio } from '../../src/util/EstadoServicio.js';
 import { ConexionFalsa } from '../support/ConexionFalsa.js';
 import { crearAppPrueba } from '../support/appPrueba.js';
+import { esperar503Reintentable } from '../support/erroresBD.js';
 
 const appCon = (conexion: ConexionFalsa, estado = new EstadoServicio(), timeoutMs?: number) =>
   crearAppPrueba({ montar: (app) => void app.use('/', crearSistemaRouter(conexion, estado, timeoutMs)) });
@@ -35,8 +36,7 @@ describe('GET /api/salud', () => {
     conexion.verificacionColgada = true;
     const inicio = Date.now();
     const res = await request(appCon(conexion, new EstadoServicio(), 60)).get('/api/salud');
-    expect(res.status).toBe(503);
-    expect(res.body.code).toBe('SERVICIO_NO_DISPONIBLE');
+    esperar503Reintentable(res);
     expect(Date.now() - inicio).toBeLessThan(1500);
   });
 
@@ -90,7 +90,7 @@ describe('GET /api/salud', () => {
 
   it('503 SERVICIO_NO_DISPONIBLE si la base falla rapido', async () => {
     const res = await request(appCon(new ConexionFalsa(new Error('connect ECONNREFUSED')))).get('/api/salud');
-    expect(res.status).toBe(503);
-    expect(res.body.code).toBe('SERVICIO_NO_DISPONIBLE');
+    esperar503Reintentable(res);
+    expect(JSON.stringify(res.body)).not.toContain('ECONNREFUSED');
   });
 });
