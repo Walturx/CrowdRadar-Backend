@@ -4,7 +4,7 @@
  * also carries the total (COUNT(*) OVER ()) and one batch read of report, place and author.
  */
 import { QueryTypes, type Sequelize } from 'sequelize';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { ContextoReporteDAOSequelize } from '../../src/dao/impl/sequelize/ContextoReporteDAOSequelize.js';
 import { DenunciaDAOSequelize } from '../../src/dao/impl/sequelize/DenunciaDAOSequelize.js';
 import { LugarDAOSequelize } from '../../src/dao/impl/sequelize/LugarDAOSequelize.js';
@@ -19,6 +19,10 @@ import { RelojFijo } from '../support/RelojFijo.js';
 import { crearSembradorSequelize } from '../support/dao/sequelize/SembradorSequelize.js';
 
 const MAX_CONSULTAS_POR_PAGINA = 2;
+
+/** Hooks the environments added to the shared Sequelize instance; removed after each test so they do not pile up. */
+const limpiezas: (() => void)[] = [];
+let siguienteHook = 0;
 
 interface Entorno {
   facade: ModeracionFacadeImpl;
@@ -50,9 +54,11 @@ function armar(sequelize: Sequelize): Entorno {
     diasPermitidos: [3, 7, 30],
   });
   let consultas = 0;
-  sequelize.addHook('beforeQuery', () => {
+  const hook = `contarConsultasCola${(siguienteHook += 1)}`;
+  sequelize.addHook('beforeQuery', hook, () => {
     consultas += 1;
   });
+  limpiezas.push(() => sequelize.removeHook('beforeQuery', hook));
   return {
     facade,
     sequelize,
@@ -80,6 +86,8 @@ ejecutarContratoDAO<Entorno>({
   titulo: 'ModeracionFacadeImpl.listarReportesDenunciados: consultas por pagina (PostgreSQL)',
   contrato: (nombre, crearEntorno) => {
     describe(`cola de denunciados sin N+1 (${nombre})`, () => {
+      afterEach(() => limpiezas.splice(0).forEach((limpiar) => limpiar()));
+
       it(`una pagina de varios reportes cuesta a lo sumo ${MAX_CONSULTAS_POR_PAGINA} consultas y trae reporte, lugar y autor`, async () => {
         const { facade, sequelize, denunciado, contar } = await crearEntorno();
         await sequelize.query('DELETE FROM denuncia');
