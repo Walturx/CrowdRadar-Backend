@@ -1,0 +1,176 @@
+@startuml er
+' Diagrama entidad-relacion derivado de database/migrations/*.cjs (migraciones 01-10, 12 y 13).
+' Notacion: * = NOT NULL, <<PK>>, <<FK>>, <<UQ>>. Todas las tablas tienen created_at / updated_at TIMESTAMPTZ NOT NULL.
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam linetype ortho
+hide circle
+hide methods
+
+title CrowdRadar - Modelo entidad-relacion (PostgreSQL)
+
+entity "usuario" as usuario {
+  * id : SERIAL <<PK>>
+  --
+  * nombre : VARCHAR(80)
+  * apellido : VARCHAR(80)
+  * email : VARCHAR(120) <<UQ uq_usuario_email>>
+  password_hash : VARCHAR(100)
+  telefono : VARCHAR(20)
+  distrito : VARCHAR(60)
+  * rol : VARCHAR(10) = 'USUARIO' {USUARIO, ADMIN}
+  * status : VARCHAR(12) = 'ACTIVO' {ACTIVO, SUSPENDIDO}
+  * puntos_karma : INTEGER = 0 (>= 0)
+  password_cambiada_en : TIMESTAMPTZ (mig. 12)
+  --
+  CHECK email = lower(email)
+  ix_usuario_status (status)
+}
+
+entity "lugar" as lugar {
+  * id : SERIAL <<PK>>
+  --
+  osm_id : BIGINT
+  * osm_tipo : VARCHAR(8) = 'node' {node, way, relation} (mig. 13)
+  * nombre : VARCHAR(120)
+  direccion : VARCHAR(200)
+  * latitud : NUMERIC(9,6)
+  * longitud : NUMERIC(9,6)
+  * categoria : VARCHAR(20) {PARQUE, CENTRO_COMERCIAL, MERCADO,\n   TRANSPORTE, PLAZA, PLAYA}
+  saturacion_actual : VARCHAR(10) {TRANQUILO, MODERADO, SATURADO}
+  saturacion_actualizada_en : TIMESTAMPTZ
+  horario_atencion : VARCHAR(60)
+  hora_apertura : SMALLINT (0-23)
+  hora_cierre : SMALLINT (1-24)
+  url_foto : VARCHAR(300)
+  --
+  UQ uq_lugar_osm (osm_tipo, osm_id)
+  ix_lugar_categoria, ix_lugar_saturacion
+  ix_lugar_coordenadas (latitud, longitud)
+}
+
+entity "reporte_saturacion" as reporte {
+  * id : SERIAL <<PK>>
+  --
+  * usuario_id : INTEGER <<FK>> RESTRICT
+  * lugar_id : INTEGER <<FK>> RESTRICT
+  * nivel_saturacion : VARCHAR(10) {TRANQUILO, MODERADO, SATURADO}
+  * fecha_hora : TIMESTAMPTZ = now()
+  nivel_confiabilidad : NUMERIC(5,2) (0-100)
+  * estado : VARCHAR(10) = 'ACTIVO' {ACTIVO, ELIMINADO}
+  * puntos_otorgados : SMALLINT = 0
+  motivo_sin_puntos : VARCHAR(20) {TOPE_DIARIO, REPORTE_ELIMINADO}
+  --
+  ix_reporte_lugar_fecha (lugar_id, fecha_hora DESC)
+  ix_reporte_usuario_lugar_fecha (usuario_id, lugar_id, fecha_hora DESC)
+  ix_reporte_usuario_fecha (usuario_id, fecha_hora DESC)
+}
+
+entity "validacion_reporte" as validacion {
+  * id : SERIAL <<PK>>
+  --
+  * reporte_id : INTEGER <<FK>> CASCADE
+  * usuario_id : INTEGER <<FK>> CASCADE
+  * tipo_accion : VARCHAR(10) {CONFIRMAR, RECHAZAR}
+  * karma_votante : INTEGER (>= 0)
+  * puntos_otorgados : SMALLINT = 0
+  * fecha_hora : TIMESTAMPTZ = now()
+  --
+  UQ uq_validacion_reporte_usuario (reporte_id, usuario_id)
+  ix_validacion_usuario (usuario_id)
+}
+
+entity "denuncia" as denuncia {
+  * id : SERIAL <<PK>>
+  --
+  * reporte_id : INTEGER <<FK>> CASCADE
+  * usuario_id : INTEGER <<FK>> CASCADE
+  * motivo : VARCHAR(25) {INFORMACION_FALSA, SPAM,\n   CONTENIDO_INAPROPIADO, OTRO}
+  detalle : VARCHAR(280) (obligatorio si OTRO)
+  * estado : VARCHAR(12) = 'PENDIENTE'\n   {PENDIENTE, PROCEDENTE, DESESTIMADA}
+  * fecha_hora : TIMESTAMPTZ = now()
+  resuelta_por : INTEGER <<FK>> SET NULL
+  resuelta_en : TIMESTAMPTZ
+  --
+  UQ uq_denuncia_reporte_usuario (reporte_id, usuario_id)
+  ix_denuncia_estado_reporte (estado, reporte_id)
+}
+
+entity "sancion_usuario" as sancion {
+  * id : SERIAL <<PK>>
+  --
+  * usuario_id : INTEGER <<FK>> CASCADE
+  * administrador_id : INTEGER <<FK>> RESTRICT
+  * tipo : VARCHAR(25) = 'SUSPENSION_TEMPORAL'
+  * dias : SMALLINT {3, 7, 30}
+  * motivo : VARCHAR(280)
+  * fecha_inicio : TIMESTAMPTZ = now()
+  * fecha_fin : TIMESTAMPTZ (> fecha_inicio)
+  fecha_levantamiento : TIMESTAMPTZ
+  levantada_por : INTEGER <<FK>> SET NULL
+  --
+  ix_sancion_usuario_fin (usuario_id, fecha_fin DESC)
+}
+
+entity "lugar_favorito" as favorito {
+  * id : SERIAL <<PK>>
+  --
+  * usuario_id : INTEGER <<FK>> CASCADE
+  * lugar_id : INTEGER <<FK>> CASCADE
+  * alertas_activadas : BOOLEAN = true
+  --
+  UQ uq_favorito_usuario_lugar (usuario_id, lugar_id)
+  ix_favorito_lugar_alertas (lugar_id, alertas_activadas)
+}
+
+entity "alerta" as alerta {
+  * id : SERIAL <<PK>>
+  --
+  * favorito_id : INTEGER <<FK>> CASCADE
+  * usuario_id : INTEGER <<FK>> CASCADE
+  * lugar_id : INTEGER <<FK>> CASCADE
+  nivel_anterior : VARCHAR(10)
+  * nivel_nuevo : VARCHAR(10)
+  * mensaje : VARCHAR(200)
+  * leida : BOOLEAN = false
+  * fecha_hora : TIMESTAMPTZ = now()
+  --
+  ix_alerta_usuario_leida_fecha (usuario_id, leida, fecha_hora DESC)
+}
+
+entity "token_recuperacion" as token {
+  * id : SERIAL <<PK>>
+  --
+  * usuario_id : INTEGER <<FK>> CASCADE
+  * token_hash : CHAR(64) <<UQ uq_token_recuperacion_hash>>
+  * expira_en : TIMESTAMPTZ
+  usado_en : TIMESTAMPTZ
+}
+
+entity "dispositivo_push" as dispositivo {
+  * id : SERIAL <<PK>>
+  --
+  * usuario_id : INTEGER <<FK>> CASCADE
+  * token_fcm : VARCHAR(255) <<UQ uq_dispositivo_push_token>>
+  * plataforma : VARCHAR(10) {ANDROID, IOS}
+}
+
+usuario ||--o{ reporte : "fk_reporte_usuario"
+lugar ||--o{ reporte : "fk_reporte_lugar"
+reporte ||--o{ validacion : "fk_validacion_reporte"
+usuario ||--o{ validacion : "fk_validacion_usuario"
+reporte ||--o{ denuncia : "fk_denuncia_reporte"
+usuario ||--o{ denuncia : "fk_denuncia_usuario"
+usuario |o--o{ denuncia : "fk_denuncia_resuelta_por"
+usuario ||--o{ sancion : "fk_sancion_usuario"
+usuario ||--o{ sancion : "fk_sancion_administrador"
+usuario |o--o{ sancion : "fk_sancion_levantada_por"
+usuario ||--o{ favorito : "fk_favorito_usuario"
+lugar ||--o{ favorito : "fk_favorito_lugar"
+favorito ||--o{ alerta : "fk_alerta_favorito"
+usuario ||--o{ alerta : "fk_alerta_usuario"
+lugar ||--o{ alerta : "fk_alerta_lugar"
+usuario ||--o{ token : "fk_token_usuario"
+usuario ||--o{ dispositivo : "fk_dispositivo_usuario"
+@enduml

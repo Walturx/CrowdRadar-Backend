@@ -1,0 +1,111 @@
+@startuml secuencia-login-jwt
+' Parte 1: POST /api/auth/login (route/auth.routes.ts). Parte 2: peticion autenticada (middleware/autenticar.ts).
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam sequenceMessageAlign left
+skinparam responseMessageBelowArrow true
+autonumber
+
+title Inicio de sesion (JWT) y verificacion del token
+
+actor "App Flutter" as app
+participant "auth.routes\n(Router /api/auth)" as route
+participant "limitarLogin\n(limitarIntentos, clave ip)" as limIp
+participant "limitarBloqueoLogin\n(clave email, soloFallidos)" as limEmail
+participant "validar\n(iniciarSesionSchema)" as validar
+participant "AuthController" as ctrl
+participant "AuthServiceImpl" as svc
+participant "UsuarioDAO\n(UsuarioDAOSequelize)" as dao
+participant "Hasher\n(BcryptHasherAdapter)" as hasher
+participant "VerificadorEstadoCuentaImpl" as verif
+participant "SancionDAO" as sancionDAO
+participant "EmisorToken\n(JwtEmisorTokenAdapter)" as jwt
+participant "UsuarioMapper" as mapper
+participant "manejarErrores" as errores
+database "PostgreSQL" as pg
+
+== Parte 1: POST /api/auth/login ==
+
+app -> route : POST /api/auth/login { email, password }
+route -> limIp : LIMITE_LOGIN por IP / LIMITE_VENTANA_MIN
+alt limite por IP excedido
+  limIp -> errores : DemasiadasSolicitudesException
+  errores --> app : 429 DEMASIADAS_SOLICITUDES + Retry-After
+end
+limIp -> limEmail : next()
+alt email bloqueado (LIMITE_LOGIN fallos 401/404)
+  limEmail -> errores : DemasiadosIntentosException
+  errores --> app : 429 DEMASIADOS_INTENTOS + Retry-After
+end
+limEmail -> validar : next()
+alt DTO invalido (z.strictObject)
+  validar -> errores : ValidacionException
+  errores --> app : 400 VALIDACION_FALLIDA
+end
+validar -> ctrl : iniciarSesion(req, res)
+ctrl -> svc : iniciarSesion({ email, password })
+svc -> dao : buscarPorEmail(email)
+dao -> pg : SELECT usuario WHERE email
+dao --> svc : Usuario | null
+svc -> hasher : comparar(password, passwordHash | hashSenuelo)
+note right of hasher : siempre compara (hash senuelo si el email\nno existe): el tiempo no delata la cuenta
+hasher --> svc : coincide
+alt usuario inexistente
+  svc -> errores : CredencialesInvalidasException (GENERICA)\no CuentaNoExisteException (DETALLADA)
+  errores --> app : 401 CREDENCIALES_INVALIDAS / 404 CUENTA_NO_EXISTE
+else password incorrecta
+  svc -> errores : CredencialesInvalidasException
+  errores --> app : 401 CREDENCIALES_INVALIDAS
+end
+svc -> verif : verificar(usuario)
+opt status = SUSPENDIDO
+  verif -> sancionDAO : buscarVigente(usuarioId, ahora)
+  alt sancion vigente
+    verif -> errores : CuentaSuspendidaException
+    errores --> app : 403 CUENTA_SUSPENDIDA
+  else sancion vencida
+    verif -> dao : actualizarStatus(id, ACTIVO)
+  end
+end
+svc -> jwt : emitir(usuario)
+jwt -> jwt : jwt.sign(claims, JWT_SECRETO,\n{ algorithm: HS256, expiresIn: JWT_EXPIRA_EN })
+jwt --> svc : TokenEmitido { token, expiraEn }
+svc -> mapper : aSesion(usuario, tokenEmitido)
+mapper --> svc : SesionResponseDTO { token, expiraEn, user }
+svc --> ctrl : SesionResponseDTO
+ctrl --> app : 200 { message: "Inicio de sesión exitoso.", data }
+
+== Parte 2: peticion autenticada (p. ej. GET /api/users/profile) ==
+
+participant "autenticar\n(crearAutenticar)" as auth
+participant "Controller del recurso" as recurso
+
+app -> auth : Authorization: Bearer <jwt>
+alt cabecera ausente o mal formada (/^Bearer (\S+)$/)
+  auth -> errores : NoAutenticadoException
+  errores --> app : 401 NO_AUTENTICADO
+end
+auth -> jwt : verificar(token)
+jwt -> jwt : jwt.verify(token, JWT_SECRETO,\n{ algorithms: [HS256] })
+alt firma invalida / expirado / claims invalidos
+  auth -> errores : NoAutenticadoException
+  errores --> app : 401 TOKEN_INVALIDO
+end
+jwt --> auth : ClaimsToken { id, iat, ... }
+auth -> dao : buscarPorId(claims.id)
+dao -> pg : SELECT usuario
+alt usuario inexistente o iat < password_cambiada_en
+  auth -> errores : NoAutenticadoException
+  errores --> app : 401 TOKEN_INVALIDO
+end
+auth -> verif : verificar(usuario)
+note right of verif : misma regla de suspension que en el login\n(403 CUENTA_SUSPENDIDA)
+verif --> auth : Usuario
+auth -> auth : req.usuario = usuario
+opt rutas /api/admin
+  auth -> auth : requerirRol(ADMIN) => 403 si no es ADMIN
+end
+auth -> recurso : next()
+recurso --> app : 2xx { message, data }
+@enduml

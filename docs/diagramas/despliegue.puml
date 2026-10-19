@@ -1,0 +1,48 @@
+@startuml despliegue
+' Despliegue local/demo segun docker-compose.yml y Dockerfile.
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName Arial
+left to right direction
+
+title CrowdRadar - Diagrama de despliegue (docker compose)
+
+node "Dispositivo Android" as android {
+  artifact "App CrowdRadar\n(Flutter, APK)" as apk
+}
+
+node "Host Docker\n(PC de desarrollo / demo)" as host {
+  file ".env\n(DB_PASSWORD, JWT_SECRETO,\nADMIN_*, PUERTO, DB_PUERTO, ...)" as envfile
+
+  node "Red de compose (bridge)" as red {
+    node "api\n<<container>>\nnode:22-alpine (Dockerfile multi-stage)\nusuario node, restart: unless-stopped\nstop_grace_period: 40s" as api {
+      artifact "dist/server.js\n(Express 5 + Sequelize 6)" as server
+    }
+    node "migrate\n<<container one-shot>>\nmisma imagen, restart: no" as migrate {
+      artifact "npm run db:migrate\n(sequelize-cli,\ndatabase/migrations/*.cjs)" as migraciones
+    }
+    node "postgres\n<<container>>\npostgres:16-alpine\nhealthcheck: pg_isready" as postgres {
+      database "crowdradar\n(+ crowdradar_test via\ndocker/initdb)" as bd
+    }
+  }
+  component "Cliente local\n(psql, tests, scripts/bench)" as cliente
+  storage "volumen pgdata\n/var/lib/postgresql/data" as pgdata
+}
+
+apk --> api : HTTP/JSON REST :3000\n(host PUERTO:-3000 -> contenedor 3000)\nAuthorization: Bearer JWT
+server --> bd : TCP postgres:5432\n(DB_HOST=postgres, DB_PUERTO=5432)
+migraciones --> bd : TCP postgres:5432\n(DDL, SequelizeMeta)
+postgres --> pgdata
+cliente ..> postgres : 127.0.0.1:${DB_PUERTO:-5432} -> 5432\n(solo loopback; p. ej. DB_PUERTO=55432\nsi 5432 esta ocupado; scripts/bench usa 55432)
+envfile ..> api : env_file
+envfile ..> migrate : env_file
+
+api ..> postgres : depends_on\nservice_healthy
+api ..> migrate : depends_on\nservice_completed_successfully
+migrate ..> postgres : depends_on\nservice_healthy
+
+note bottom of api
+  GET /api/salud -> 200 (503 APAGANDO durante el apagado)
+  Nunca ejecuta migraciones: solo el servicio migrate
+end note
+@enduml
