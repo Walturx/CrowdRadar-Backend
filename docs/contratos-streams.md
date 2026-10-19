@@ -4,7 +4,8 @@ Change 0 froze the ports; streams M1 to M6 implement them in parallel against th
 (`test/support/dao/`, `test/support/adapter/`) and wire the real thing only in their own
 `src/container/<stream>.ts`. Paths below are relative to `src/` unless they start with `test/`, `docs/` or
 `database/`. The HTTP side (paths, methods, middleware chains, error codes) is in `docs/api-contract.md`; every
-route is a 501 stub until its stream replaces the handler in `route/<modulo>.routes.ts`.
+route was a 501 stub until its stream replaced the handler in `route/<modulo>.routes.ts` (all are delivered now, and
+the stub handler `route/stub.ts` was removed; `NoImplementadoException` still maps to 501 NO_IMPLEMENTADO).
 
 ## Rules that apply to every stream
 
