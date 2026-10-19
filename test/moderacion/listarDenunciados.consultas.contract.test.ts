@@ -120,6 +120,19 @@ ejecutarContratoDAO<Entorno>({
         expect(fuera.resultado).toMatchObject({ total: 3, items: [] });
       });
 
+      it('una pagina mixta (vigente + ELIMINADO con pendientes) lista solo el vigente, con total coherente y sin 404', async () => {
+        const { facade, sequelize, denunciado } = await crearEntorno();
+        await sequelize.query('DELETE FROM denuncia');
+        const vigente = await denunciado(1);
+        const eliminado = await denunciado(3);
+        await sequelize.query(`UPDATE reporte_saturacion SET estado = 'ELIMINADO' WHERE id = :id`, { replacements: { id: eliminado.reporteId } });
+
+        const resultado = await facade.listarReportesDenunciados({ page: 1, size: 1 });
+        expect(resultado).toMatchObject({ total: 1, page: 1, size: 1 });
+        expect(resultado.items.map((i) => i.reporteId)).toEqual([vigente.reporteId]);
+        expect(await facade.listarReportesDenunciados({ page: 2, size: 1 })).toMatchObject({ total: 1, items: [] });
+      });
+
       it('sin denuncias pendientes: pagina vacia con total 0', async () => {
         const { facade, sequelize, contar } = await crearEntorno();
         await sequelize.query('DELETE FROM denuncia');

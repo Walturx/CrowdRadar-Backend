@@ -2,6 +2,7 @@ import { QueryTypes, UniqueConstraintError, type Transaction } from 'sequelize';
 import type { ContextoTx } from '../../../datasource/ConexionBD.js';
 import type { Denuncia } from '../../../entity/Denuncia.js';
 import { EstadoDenuncia } from '../../../enum/EstadoDenuncia.js';
+import { EstadoReporte } from '../../../enum/EstadoReporte.js';
 import type { MotivoDenuncia } from '../../../enum/MotivoDenuncia.js';
 import { ConflictoException } from '../../../exception/http/ConflictoException.js';
 import type { DenunciaDAO, NuevaDenuncia, ReporteDenunciado, ResumenMotivo } from '../../DenunciaDAO.js';
@@ -9,6 +10,12 @@ import { armarPagina, desplazamiento, type Pagina, type Paginacion } from '../..
 import { DenunciaModel } from './model/DenunciaModel.js';
 
 const aTransaccion = (tx?: ContextoTx) => tx as unknown as Transaction | undefined;
+
+/**
+ * The review queue lists only reports still on the map. A removed report can keep PENDIENTE complaints (one filed
+ * while the removal was committing), and filtering here, not after paging, keeps `total` and the pages consistent.
+ */
+const SOLO_REPORTES_VIGENTES = 'JOIN reporte_saturacion r ON r.id = d.reporte_id AND r.estado <> :eliminado';
 
 function aEntidad(modelo: DenunciaModel): Denuncia {
   return {
@@ -61,14 +68,15 @@ export class DenunciaDAOSequelize implements DenunciaDAO {
     const desde = desplazamiento(paginacion);
     // One statement: the window COUNT(*) OVER () runs after GROUP BY, so it counts reports, not complaints.
     const filas = await sequelize.query<{ reporteId: number; pendientes: number; ultimaDenunciaEn: Date; total: number }>(
-      `SELECT reporte_id AS "reporteId", COUNT(*)::int AS pendientes, MAX(fecha_hora) AS "ultimaDenunciaEn",
+      `SELECT d.reporte_id AS "reporteId", COUNT(*)::int AS pendientes, MAX(d.fecha_hora) AS "ultimaDenunciaEn",
               (COUNT(*) OVER ())::int AS total
-         FROM denuncia WHERE estado = :pendiente
-        GROUP BY reporte_id
-        ORDER BY pendientes DESC, "ultimaDenunciaEn" DESC, reporte_id DESC
+         FROM denuncia d ${SOLO_REPORTES_VIGENTES}
+        WHERE d.estado = :pendiente
+        GROUP BY d.reporte_id
+        ORDER BY pendientes DESC, "ultimaDenunciaEn" DESC, d.reporte_id DESC
         LIMIT :limite OFFSET :desde`,
       {
-        replacements: { pendiente: EstadoDenuncia.PENDIENTE, limite: paginacion.size, desde },
+        replacements: { pendiente: EstadoDenuncia.PENDIENTE, eliminado: EstadoReporte.ELIMINADO, limite: paginacion.size, desde },
         type: QueryTypes.SELECT,
         transaction,
       },
@@ -85,8 +93,8 @@ export class DenunciaDAOSequelize implements DenunciaDAO {
 
   private async contarReportesConPendientes(transaction?: Transaction): Promise<number> {
     const [conteo] = await DenunciaModel.sequelize!.query<{ total: number }>(
-      'SELECT COUNT(DISTINCT reporte_id)::int AS total FROM denuncia WHERE estado = :pendiente',
-      { replacements: { pendiente: EstadoDenuncia.PENDIENTE }, type: QueryTypes.SELECT, transaction },
+      `SELECT COUNT(DISTINCT d.reporte_id)::int AS total FROM denuncia d ${SOLO_REPORTES_VIGENTES} WHERE d.estado = :pendiente`,
+      { replacements: { pendiente: EstadoDenuncia.PENDIENTE, eliminado: EstadoReporte.ELIMINADO }, type: QueryTypes.SELECT, transaction },
     );
     return conteo?.total ?? 0;
   }

@@ -34,7 +34,8 @@ export interface DenunciaDAO {
   crear(datos: NuevaDenuncia, tx?: ContextoTx): Promise<Denuncia>;
   existe(usuarioId: number, reporteId: number, tx?: ContextoTx): Promise<boolean>;
   /** Reports with PENDIENTE complaints: most pending first, then most recent complaint first, then `reporteId` DESC
-   * (SQL: `ORDER BY pendientes DESC, ultima_denuncia_en DESC, reporte_id DESC`). */
+   * (SQL: `ORDER BY pendientes DESC, ultima_denuncia_en DESC, reporte_id DESC`). ELIMINADO reports are left out of
+   * the items and of `total`, so the pages of the review queue stay consistent. */
   listarReportesConPendientes(paginacion: Paginacion, tx?: ContextoTx): Promise<Pagina<ReporteDenunciado>>;
   /** PENDIENTE complaints of the report grouped by reason. */
   resumirMotivos(reporteId: number, tx?: ContextoTx): Promise<ResumenMotivo[]>;

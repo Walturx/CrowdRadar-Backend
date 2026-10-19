@@ -2,6 +2,7 @@
 import { vi } from 'vitest';
 import type { Usuario } from '../../src/entity/Usuario.js';
 import { EstadoCuenta } from '../../src/enum/EstadoCuenta.js';
+import { EstadoReporte } from '../../src/enum/EstadoReporte.js';
 import { NivelSaturacion } from '../../src/enum/NivelSaturacion.js';
 import { Rol } from '../../src/enum/Rol.js';
 import { ModeracionFacadeImpl } from '../../src/facade/impl/ModeracionFacadeImpl.js';
@@ -34,8 +35,12 @@ export function armarModeracion(diasPermitidos: readonly number[] = [3, 7, 30]) 
   const usuarioDAO = new UsuarioDAOMemoria();
   const sancionDAO = new SancionDAOMemoria({ reloj });
   const autores = new Map<number, number>();
-  const denunciaDAO = new DenunciaDAOMemoria({ reloj, autorDe: (reporteId) => autores.get(reporteId) });
   const reporteDAO = new ReporteDAOMemoria({ reloj });
+  const denunciaDAO = new DenunciaDAOMemoria({
+    reloj,
+    autorDe: (reporteId) => autores.get(reporteId),
+    reporteEliminado: (reporteId) => reporteDAO.estadoDe(reporteId) === EstadoReporte.ELIMINADO,
+  });
   const lugarDAO = new LugarDAOMemoria({ reloj });
   const correo = new CorreoEspia();
   const subject = new SujetoEspia();

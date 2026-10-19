@@ -9,6 +9,8 @@ import type { Sembrador } from './Sembrador.js';
 export interface EntornoDenunciaDAO {
   dao: DenunciaDAO;
   sembrador: Sembrador;
+  /** Marks a seeded report ELIMINADO (what a moderation decision does) without touching its complaints. */
+  eliminarReporte(reporteId: number): Promise<void>;
 }
 
 const T0 = new Date('2026-10-05T14:00:00Z');
@@ -62,6 +64,24 @@ export function contratoDenunciaDAO(nombre: string, crearEntorno: () => Promise<
         { reporteId: dosDenuncias, pendientes: 2, ultimaDenunciaEn: minutos(2) },
         { reporteId: unaDenuncia, pendientes: 1, ultimaDenunciaEn: minutos(30) },
       ]);
+    });
+
+    it('listarReportesConPendientes omite los reportes ELIMINADO con pendientes: total y paginas no los cuentan', async () => {
+      const vigente = await reporteDelAutor();
+      const eliminado = await reporteDelAutor();
+      await denunciar(vigente, MotivoDenuncia.SPAM);
+      await denunciar(eliminado, MotivoDenuncia.SPAM);
+      // Shared table: compare against the total seen before the removal instead of an absolute number.
+      const antes = await entorno.dao.listarReportesConPendientes({ page: 1, size: 1000 });
+      await entorno.eliminarReporte(eliminado);
+      const despues = await entorno.dao.listarReportesConPendientes({ page: 1, size: 1000 });
+      expect(despues.total).toBe(antes.total - 1);
+      expect(despues.items).toHaveLength(despues.total);
+      expect(despues.items.map((i) => i.reporteId)).toContain(vigente);
+      expect(despues.items.map((i) => i.reporteId)).not.toContain(eliminado);
+      // A page past the end counts apart (no row carries the total): it must agree.
+      const fuera = await entorno.dao.listarReportesConPendientes({ page: despues.total + 1, size: 1 });
+      expect(fuera).toMatchObject({ total: despues.total, items: [] });
     });
 
     it('resumirMotivos cuenta solo las pendientes del reporte', async () => {
