@@ -117,13 +117,25 @@ not real**: the analytics endpoints answer `sintetico: true` whenever it is part
 
 Database-backed tests (migrations contract, DAO contract, real-server characterization) are opt-in: `npm test` skips
 them unless `DATABASE_URL_TEST` points to a throwaway PostgreSQL, for example
-`postgres://crowdradar:<password>@localhost:5432/crowdradar_test`. The tests create and drop temporary databases next
-to it. Use `npm run test:db` in CI so those tests can never be skipped silently. `.only` is forbidden
+`postgres://crowdradar:<password>@localhost:5432/crowdradar_test` (use your `DB_PUERTO` when it is not 5432). The docker
+`postgres` service creates `crowdradar_test` on a fresh volume (`docker/initdb/01-crear-bd-test.sql`). The tests create and
+drop temporary databases next to it. Use `npm run test:db` in CI so those tests can never be skipped silently. `.only` is forbidden
 (`allowOnly: false`).
 
 CI (`.github/workflows/ci.yml`) runs `lint`, `build` and `npm test`, then `npm run test:db` against a Postgres 16
 service; each job has a `timeout-minutes` limit, and `test:db` reruns the whole suite on purpose (the database cases
 share files with database-free ones, so no file list has to be kept in sync). Which interfaces each stream (M1 to M6) implements, and which files it owns, is in `docs/contratos-streams.md`.
+
+### Load benchmark
+
+| Script | Purpose |
+|---|---|
+| `npm run bench:seed` | Deletes the previous bench rows and inserts a repeatable dataset in the docker database: 200 places, 100 users `benchNNN@bench.crowdradar.local`, 5000 reports, 150 reported reports. `-- --solo-limpiar` only deletes them |
+| `npm run bench` | autocannon against a running API (`docker compose up`); scenarios `lugares`, `explorar`, `historial`, `denunciados`, `reportes`. Options: `-- --seed --escenario=a,b --duracion=30 --conexiones=50 --calentamiento=3 --salida=bench-results/x.json` |
+
+Both read the same `.env` as the API and refuse `NODE_ENV=production`. Extra variables: `BENCH_URL` (http://localhost:3000),
+`BENCH_PASSWORD`, `BENCH_DB_HOST` (127.0.0.1), `BENCH_DB_PUERTO` (55432, so set `DB_PUERTO=55432` for compose or override it).
+Results go to `bench-results/` (ignored by git); the reference numbers are in [docs/metricas-baseline.md](docs/metricas-baseline.md).
 
 Tests follow strict TDD (red, green, refactor). `test/support` holds the in-memory DAOs, fakes and
 `crearContenedorPrueba`, which assembles the real composition root with fakes instead of a database. The in-memory
@@ -142,7 +154,7 @@ src/
   app.ts               createApp(container): helmet, cors, json, request log, routers, 404, error middleware
   config/              ConfiguracionApp (Singleton) and the zod environment schema
   container/           composition root: one builder per stream + index.ts (ensamblar, crearContenedor)
-  route/               routers and the frozen mount contract; stubs answer 501 until a stream delivers
+  route/               one router per module (*.routes.ts) and the frozen mount contract; every stream is delivered
   middleware/          autenticar, requerirRol, validar, limitarIntentos, registroPeticiones, rutaNoEncontrada, manejarErrores
   controller/          HTTP adapters: call a service, wrap the result in a response envelope
   service/             use-case interfaces; impl/ holds the implementations
@@ -152,16 +164,19 @@ src/
   entity/              domain entities (plain TypeScript, no ORM)
   dto/                 request schemas (zod) and response shapes
   mapper/              entity -> response DTO
-  adapter/             ports and adapters: seguridad (Hasher, EmisorToken); later correo and push
-  pattern/             (later) strategy and observer
-  exception/           AppException, CodigoError, http/ (one class per HTTP status), usuario/ (module exceptions)
+  adapter/             ports and adapters: seguridad (Hasher, EmisorToken, GeneradorToken), correo (EnviadorCorreo), push (NotificadorPush)
+  pattern/             strategy/ (saturacion, confiabilidad) and observer/ (PublicadorSaturacion, AlertaFavoritosObserver)
+  exception/           AppException, CodigoError, http/ (one class per HTTP status), one folder per module (usuario/, reporte/, ...)
   datasource/          ConexionBD port, ConexionFactory (Factory Method), impl/ (PostgreSQL + Sequelize)
   enum/                domain enumerations as const objects
   types/               ambient Express typings (req.usuario)
-  util/                logger, Reloj, EstadoServicio, reintentar, servidorHttp
-database/              sequelize-cli: config.cjs, migrations/, seeders/, data/
+  util/                logger, Reloj, EstadoServicio, reintentar, servidorHttp, concurrencia, geo, dia, tiempo, ...
+database/              sequelize-cli: config.cjs, migrations/, seeders/, data/, lib/
+docker/initdb/         SQL run on a fresh Postgres volume (creates crowdradar_test)
+scripts/               test-db.ts (npm run test:db), bench/ (npm run bench, bench:seed), copiar-vistas.mjs, exportar-lugares-osm.ts
 test/                  mirrors src/; support/ holds fakes and builders
 docs/api-contract.md   the frozen API contract
+docs/diagramas/        PlantUML sources and rendered SVGs (see Diagramas)
 ```
 
 Layer folders are singular and one type lives in one PascalCase file.
@@ -186,6 +201,25 @@ three folders that do not map to one request-chain layer: `datasource/` is the c
 (infrastructure), `enum/` holds the shared domain vocabulary (const objects, no logic) and `types/` only extends
 Express's `Request`. They are intentional and listed in the design tree.
 
+## Diagramas
+
+PlantUML sources live in `docs/diagramas/*.puml`, each rendered to the SVG next to it. All are derived from the code
+(`src/`, `database/migrations/`, `docker-compose.yml`).
+
+| Diagram | What it shows | Source |
+|---|---|---|
+| [Componentes](docs/diagramas/componentes.svg) | Layers route -> middleware -> controller -> facade/service -> DAO interface -> `dao/impl/sequelize` -> PostgreSQL, composition root, adapters, strategy/observer, config and datasource | [componentes.puml](docs/diagramas/componentes.puml) |
+| [Entidad-relacion](docs/diagramas/er.svg) | The ten tables of the migrations with PKs, FKs (and their `ON DELETE`), unique constraints and indexes | [er.puml](docs/diagramas/er.puml) |
+| [Secuencia: crear reporte](docs/diagramas/secuencia-crear-reporte.svg) | `POST /api/reportes`: transaction, advisory and row locks, karma, saturation Strategy, Observer alerts and push, error branches | [secuencia-crear-reporte.puml](docs/diagramas/secuencia-crear-reporte.puml) |
+| [Secuencia: login y JWT](docs/diagramas/secuencia-login-jwt.svg) | `POST /api/auth/login` (rate limits, validation, bcrypt, JWT) and how `autenticar` verifies a token | [secuencia-login-jwt.puml](docs/diagramas/secuencia-login-jwt.puml) |
+| [Despliegue](docs/diagramas/despliegue.svg) | Android app -> `api` container (Node 22, :3000) -> `postgres` container, one-shot `migrate`, ports and volume | [despliegue.puml](docs/diagramas/despliegue.puml) |
+
+To re-render after a change (Docker, from the repository root):
+
+```bash
+docker run --rm -v "$PWD/docs/diagramas:/data" plantuml/plantuml:1.2024.7 -tsvg -charset UTF-8 /data/*.puml
+```
+
 ## Layering rule
 
 The request chain is **route -> middleware -> controller -> [facade] -> service -> dao (interface) -> dao/impl/sequelize**.
@@ -208,11 +242,12 @@ finds nothing; `rg "console\.log" src` finds nothing.
 | Singleton | `config/ConfiguracionApp`: immutable, validated once, fail-fast |
 | Factory Method | `datasource/ConexionFactory.conectar()` -> `ConexionPostgresFactory.crearConexion()` |
 | DAO | `dao/*DAO` ports with `dao/impl/sequelize/*DAOSequelize` and in-memory fakes in `test/support/dao/memoria` |
-| Adapter | `adapter/seguridad` (`BcryptHasherAdapter`, `JwtEmisorTokenAdapter`), `datasource/impl/ConexionSequelize`; correo and push to come |
-| Mapper | `mapper/UsuarioMapper` (entity -> response DTO) |
+| Adapter | `adapter/seguridad` (`BcryptHasherAdapter`, `JwtEmisorTokenAdapter`, `CryptoGeneradorTokenAdapter`), `adapter/correo` (`ConsolaCorreoAdapter`), `adapter/push` (`ConsolaNotificadorAdapter`, `FcmNotificadorAdapter`), `datasource/impl/ConexionSequelize` |
+| Mapper | `mapper/*Mapper` (entity -> response DTO), one per module |
 | Service Layer | `service/*Service` interfaces with `service/impl/*Impl`; controllers never touch DAOs |
-| Facade | `RecuperacionFacadeImpl` (M1), placeholders for `ReporteFacade`, `ModeracionFacade` (streams M4, M6) |
-| Strategy / Observer | placeholders for saturation and reliability strategies and the saturation observer (M4, M5, M3) |
+| Facade | `RecuperacionFacadeImpl` (M1), `ReporteFacadeImpl` (M4: one transaction for cooldown, report, karma and saturation), `ModeracionFacadeImpl` (M6) |
+| Strategy | `EstrategiaSaturacion` (`SaturacionPonderadaStrategy`, `SaturacionUltimoReporteStrategy`, chosen by `SATURACION_ESTRATEGIA`) and `EstrategiaConfiabilidad` (`ConfiabilidadPonderadaKarmaStrategy`, `ConfiabilidadSimpleStrategy`, chosen by `CONFIABILIDAD_ESTRATEGIA`) |
+| Observer | `PublicadorSaturacion` (subject) publishes `SaturacionCambiadaEvento` after a report commit (`ReporteFacadeImpl`) or a moderation change (`ModeracionFacadeImpl`); `AlertaFavoritosObserver` is subscribed in `container/favoritoAlerta.ts` |
 | composition root | `container/`: manual DI; each stream edits only its own builder; `crearContenedorPrueba` reuses it with fakes |
 
 ## Alertas y push
