@@ -52,7 +52,7 @@ describe('aislamiento de modulos en las pruebas', () => {
   it('todo archivo de prueba que toca modulos o process.env esta en ARCHIVOS_AISLADOS', () => {
     const aislados = new Set(ARCHIVOS_AISLADOS);
     const faltantes = archivosDePrueba(join(RAIZ, 'test'))
-      .filter((archivo) => archivo !== 'test/support/aislamiento.guard.test.ts')
+      .filter((archivo) => archivo !== 'test/support/aislamiento.unit.test.ts')
       .map((archivo) => [archivo, patronesDeAislamiento(readFileSync(join(RAIZ, archivo), 'utf8'))] as const)
       .filter(([archivo, patrones]) => patrones.length > 0 && !aislados.has(archivo));
     expect(faltantes).toEqual([]);
