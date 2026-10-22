@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../../src/app.js';
 import { EstadoCuenta } from '../../src/enum/EstadoCuenta.js';
 import { ServicioNoDisponibleException } from '../../src/exception/http/ServicioNoDisponibleException.js';
+import { sancionVigente } from '../support/cuentaSuspendida.js';
 import { crearContenedorPrueba, type ContenedorPrueba } from '../support/crearContenedorPrueba.js';
 import { aUsuario } from '../support/fabrica/datos.js';
 
@@ -83,7 +84,8 @@ describe('API de reportes (contenedor de prueba)', () => {
     });
 
     it('403 CUENTA_SUSPENDIDA con la cuenta suspendida', async () => {
-      const { cabecera } = nuevoUsuario(EstadoCuenta.SUSPENDIDO);
+      const { usuario, cabecera } = nuevoUsuario(EstadoCuenta.SUSPENDIDO);
+      await sancionVigente(ctx.sancionDAO, usuario.id);
       const res = await reportar(cabecera, { lugarId, nivel: 'MODERADO' });
       expect(res.status).toBe(403);
       expect(res.body.code).toBe('CUENTA_SUSPENDIDA');

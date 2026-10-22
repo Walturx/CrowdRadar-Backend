@@ -9,7 +9,7 @@ import { CredencialesInvalidasException } from '../../src/exception/usuario/Cred
 import { CuentaNoExisteException } from '../../src/exception/usuario/CuentaNoExisteException.js';
 import { CuentaSuspendidaException } from '../../src/exception/usuario/CuentaSuspendidaException.js';
 import { AuthServiceImpl } from '../../src/service/impl/AuthServiceImpl.js';
-import { VerificadorEstadoCuentaImpl } from '../../src/service/impl/VerificadorEstadoCuentaImpl.js';
+import { sancionVigente, verificadorMemoria } from '../support/cuentaSuspendida.js';
 import { EmisorTokenFalso } from '../support/adapter/EmisorTokenFalso.js';
 import { HasherFalso } from '../support/adapter/HasherFalso.js';
 import { UsuarioDAOMemoria } from '../support/dao/memoria/UsuarioDAOMemoria.js';
@@ -21,12 +21,14 @@ const PASSWORD = 'Secreta123';
 describe('AuthServiceImpl.iniciarSesion (rubrica M1)', () => {
   let dao: UsuarioDAOMemoria;
   let hasher: HasherFalso;
+  let cuenta: ReturnType<typeof verificadorMemoria>;
   const servicio = (politicaMensajes: 'GENERICA' | 'DETALLADA') =>
-    new AuthServiceImpl({ usuarioDAO: dao, hasher, emisorToken: new EmisorTokenFalso(), verificador: new VerificadorEstadoCuentaImpl(), politicaMensajes });
+    new AuthServiceImpl({ usuarioDAO: dao, hasher, emisorToken: new EmisorTokenFalso(), verificador: cuenta.verificador, politicaMensajes });
   const intentar = (s: AuthServiceImpl, email: string, password: string) => s.iniciarSesion({ email, password }).catch((e: unknown) => e);
 
   beforeEach(() => {
     dao = new UsuarioDAOMemoria();
+    cuenta = verificadorMemoria(dao);
     hasher = new HasherFalso();
     dao.agregar(aUsuario({ email: EMAIL, passwordHash: `hash:${PASSWORD}` }));
   });
@@ -65,7 +67,8 @@ describe('AuthServiceImpl.iniciarSesion (rubrica M1)', () => {
   });
 
   it('5. cuenta suspendida con la password correcta: CuentaSuspendida (403)', async () => {
-    dao.agregar(aUsuario({ email: 'susp@crowdradar.pe', passwordHash: `hash:${PASSWORD}`, status: EstadoCuenta.SUSPENDIDO }));
+    const susp = dao.agregar(aUsuario({ email: 'susp@crowdradar.pe', passwordHash: `hash:${PASSWORD}`, status: EstadoCuenta.SUSPENDIDO }));
+    await sancionVigente(cuenta.sancionDAO, susp.id);
     const error = await intentar(servicio('GENERICA'), 'susp@crowdradar.pe', PASSWORD);
     expect(error).toBeInstanceOf(CuentaSuspendidaException);
     expect((error as CuentaSuspendidaException).status).toBe(403);

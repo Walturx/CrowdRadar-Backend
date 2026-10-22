@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { EstadoCuenta } from '../../src/enum/EstadoCuenta.js';
 import { Rol } from '../../src/enum/Rol.js';
 import { crearAutenticar } from '../../src/middleware/autenticar.js';
-import { VerificadorEstadoCuentaImpl } from '../../src/service/impl/VerificadorEstadoCuentaImpl.js';
+import { sancionVigente, verificadorMemoria } from '../support/cuentaSuspendida.js';
 import { EmisorTokenFalso } from '../support/adapter/EmisorTokenFalso.js';
 import { UsuarioDAOMemoria } from '../support/dao/memoria/UsuarioDAOMemoria.js';
 import { aUsuario } from '../support/fabrica/datos.js';
@@ -17,6 +17,7 @@ const SEGUNDOS_BASE = Date.parse('2026-10-05T10:00:00Z') / 1000;
 
 describe('autenticar', () => {
   let dao: UsuarioDAOMemoria;
+  let verificador: ReturnType<typeof verificadorMemoria>;
   let emisor: EmisorTokenFalso;
   let app: Express;
 
@@ -32,8 +33,9 @@ describe('autenticar', () => {
 
   beforeEach(() => {
     dao = new UsuarioDAOMemoria();
+    verificador = verificadorMemoria(dao);
     emisor = new EmisorTokenFalso();
-    const autenticar = crearAutenticar({ emisorToken: emisor, usuarioDAO: dao, verificador: new VerificadorEstadoCuentaImpl() });
+    const autenticar = crearAutenticar({ emisorToken: emisor, usuarioDAO: dao, verificador: verificador.verificador });
     app = crearAppPrueba({
       montar: (a) => {
         a.get('/protegida', autenticar, (req, res) => {
@@ -140,10 +142,11 @@ describe('autenticar', () => {
 
     it('usuario SUSPENDIDO en la base (token aun valido) -> 403 CUENTA_SUSPENDIDA', async () => {
       const usuario = dao.agregar(aUsuario({ status: EstadoCuenta.SUSPENDIDO }));
+      await sancionVigente(verificador.sancionDAO, usuario.id);
       emisor.registrar('token-suspendido', claimsDe(usuario, { status: EstadoCuenta.ACTIVO }));
       const res = await request(app).get('/protegida').set('Authorization', 'Bearer token-suspendido');
       expect(res.status).toBe(403);
-      expect(res.body).toEqual({ message: 'Tu cuenta está suspendida.', code: 'CUENTA_SUSPENDIDA', errors: [] });
+      expect(res.body).toEqual({ message: expect.stringContaining('Tu cuenta está suspendida'), code: 'CUENTA_SUSPENDIDA', errors: [] });
     });
   });
 

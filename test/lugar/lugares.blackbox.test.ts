@@ -16,6 +16,7 @@ import { CategoriaLugar } from '../../src/enum/CategoriaLugar.js';
 import { EstadoCuenta } from '../../src/enum/EstadoCuenta.js';
 import { NivelSaturacion } from '../../src/enum/NivelSaturacion.js';
 import type { Lugar } from '../../src/entity/Lugar.js';
+import { sancionVigente } from '../support/cuentaSuspendida.js';
 import { crearContenedorPrueba } from '../support/crearContenedorPrueba.js';
 import { aUsuario } from '../support/fabrica/datos.js';
 
@@ -256,6 +257,7 @@ describe('GET /api/lugares: acceso', () => {
 
   it('cuenta suspendida -> 403 CUENTA_SUSPENDIDA', async () => {
     const suspendido = ctx.usuarioDAO.agregar(aUsuario({ email: 'sus@crowdradar.pe', status: EstadoCuenta.SUSPENDIDO }));
+    await sancionVigente(ctx.sancionDAO, suspendido.id);
     const token = `Bearer ${ctx.emisorToken.emitir(suspendido).token}`;
     const res = await request(app).get('/api/lugares').query({ bbox: MIRAFLORES }).set('Authorization', token);
     expect(res.status).toBe(403);

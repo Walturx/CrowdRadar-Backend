@@ -3,7 +3,9 @@ import type { EmisorToken } from '../adapter/seguridad/EmisorToken.js';
 import type { Hasher } from '../adapter/seguridad/Hasher.js';
 import type { ConfiguracionApp } from '../config/ConfiguracionApp.js';
 import type { LugarDAO } from '../dao/LugarDAO.js';
+import { SancionDAOSequelize } from '../dao/impl/sequelize/SancionDAOSequelize.js';
 import type { ReporteDAO } from '../dao/ReporteDAO.js';
+import type { SancionDAO } from '../dao/SancionDAO.js';
 import type { UsuarioDAO } from '../dao/UsuarioDAO.js';
 import type { ConexionBD } from '../datasource/ConexionBD.js';
 import { Rol } from '../enum/Rol.js';
@@ -31,6 +33,8 @@ export interface DependenciasInfraestructura {
   /** Built by the composition root: Sequelize in production, in memory in tests. */
   lugarDAO: LugarDAO;
   reporteDAO: ReporteDAO;
+  /** Sanctions read by the account-status check and written by M6; Sequelize when omitted (tests hand in the in-memory one). */
+  sancionDAO?: SancionDAO;
   hasher: Hasher;
   emisorToken: EmisorToken;
   /** Places-stream ports to replace (tests); omitted ones are built by `container/lugar.ts`. */
@@ -45,7 +49,8 @@ export interface DependenciasInfraestructura {
   subject?: SaturacionSubject;
 }
 
-export interface Infraestructura extends Omit<DependenciasInfraestructura, 'estado' | 'reloj' | 'subject'> {
+export interface Infraestructura extends Omit<DependenciasInfraestructura, 'estado' | 'reloj' | 'subject' | 'sancionDAO'> {
+  sancionDAO: SancionDAO;
   estado: EstadoServicio;
   reloj: Reloj;
   /** The one subject of level changes: M4 and M6 publish through it, M3 subscribes. */
@@ -58,7 +63,9 @@ export interface Infraestructura extends Omit<DependenciasInfraestructura, 'esta
 
 /** Shared pieces built once: clock, account-status check, `autenticar` and the role guard. */
 export function construirInfraestructura(dependencias: DependenciasInfraestructura): Infraestructura {
-  const verificador = new VerificadorEstadoCuentaImpl();
+  const reloj = dependencias.reloj ?? relojSistema;
+  const sancionDAO = dependencias.sancionDAO ?? new SancionDAOSequelize();
+  const verificador = new VerificadorEstadoCuentaImpl({ usuarioDAO: dependencias.usuarioDAO, sancionDAO, reloj });
   const autenticar = crearAutenticar({
     emisorToken: dependencias.emisorToken,
     usuarioDAO: dependencias.usuarioDAO,
@@ -67,7 +74,8 @@ export function construirInfraestructura(dependencias: DependenciasInfraestructu
   return {
     ...dependencias,
     estado: dependencias.estado ?? new EstadoServicio(),
-    reloj: dependencias.reloj ?? relojSistema,
+    reloj,
+    sancionDAO,
     subject: dependencias.subject ?? new PublicadorSaturacion(dependencias.logger),
     verificador,
     autenticar,

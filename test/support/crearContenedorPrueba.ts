@@ -22,6 +22,7 @@ import { DispositivoDAOMemoria } from './dao/memoria/DispositivoDAOMemoria.js';
 import { FavoritoDAOMemoria } from './dao/memoria/FavoritoDAOMemoria.js';
 import { LugarDAOMemoria } from './dao/memoria/LugarDAOMemoria.js';
 import { ReporteDAOMemoria } from './dao/memoria/ReporteDAOMemoria.js';
+import { SancionDAOMemoria } from './dao/memoria/SancionDAOMemoria.js';
 import { TokenRecuperacionDAOMemoria } from './dao/memoria/TokenRecuperacionDAOMemoria.js';
 import { UsuarioDAOMemoria } from './dao/memoria/UsuarioDAOMemoria.js';
 import { ValidacionDAOMemoria } from './dao/memoria/ValidacionDAOMemoria.js';
@@ -38,6 +39,7 @@ export interface OpcionesContenedorPrueba {
   reporteDAO?: ReporteDAOMemoria;
   validacionDAO?: ValidacionDAOMemoria;
   denunciaDAO?: DenunciaDAOMemoria;
+  sancionDAO?: SancionDAOMemoria;
   hasher?: Hasher;
   emisorToken?: EmisorToken;
   conexion?: ConexionFalsa;
@@ -60,6 +62,8 @@ export interface ContenedorPrueba {
   /** M5 stream: the in-memory vote and complaint DAOs the container was built with. */
   validacionDAO: ValidacionDAOMemoria;
   denunciaDAO: DenunciaDAOMemoria;
+  /** M6 stream: the in-memory sanction DAO behind the account-status check. */
+  sancionDAO: SancionDAOMemoria;
   hasher: Hasher;
   emisorToken: EmisorToken;
   conexion: ConexionFalsa;
@@ -84,6 +88,7 @@ export function crearContenedorPrueba(opciones: OpcionesContenedorPrueba = {}): 
   const validacionDAO = opciones.validacionDAO ?? new ValidacionDAOMemoria();
   const reporteDAO = opciones.reporteDAO ?? new ReporteDAOMemoria({ validaciones: validacionDAO });
   const denunciaDAO = opciones.denunciaDAO ?? new DenunciaDAOMemoria();
+  const sancionDAO = opciones.sancionDAO ?? new SancionDAOMemoria({ reloj: opciones.reloj });
   const hasher = opciones.hasher ?? new BcryptHasherAdapter(cfg.seguridad.bcryptCosto);
   const emisorToken = opciones.emisorToken ?? new JwtEmisorTokenAdapter(cfg.seguridad);
   const conexion = opciones.conexion ?? new ConexionFalsa();
@@ -111,6 +116,7 @@ export function crearContenedorPrueba(opciones: OpcionesContenedorPrueba = {}): 
       usuarioDAO,
       lugarDAO,
       reporteDAO,
+      sancionDAO,
       hasher,
       emisorToken,
       seguridad: { tokenDAO, dispositivoDAO, correo, generador: new GeneradorTokenFijo(opciones.tokensRecuperacion ?? Array.from({ length: 50 }, (_, i) => `token-recuperacion-${i + 1}`)) },
@@ -126,6 +132,7 @@ export function crearContenedorPrueba(opciones: OpcionesContenedorPrueba = {}): 
     reporteDAO,
     validacionDAO,
     denunciaDAO,
+    sancionDAO,
     hasher,
     emisorToken,
     conexion,

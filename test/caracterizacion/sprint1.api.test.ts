@@ -253,6 +253,12 @@ describe.skipIf(!urlBd)('API de cuentas (con base de datos)', () => {
     const login = await json('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
     const { consultar } = await import('../support/baseDatos.js');
     await consultar(urlBd as string, `UPDATE usuario SET status = 'SUSPENDIDO' WHERE email = $1`, [email]);
+    await consultar(
+      urlBd as string,
+      `INSERT INTO sancion_usuario (usuario_id, administrador_id, dias, motivo, fecha_inicio, fecha_fin)
+       SELECT id, id, 3, 'Reportes falsos reiterados', now() - interval '1 day', now() + interval '2 days' FROM usuario WHERE email = $1`,
+      [email],
+    );
     const res = await json('/api/users/profile', { headers: { Authorization: `Bearer ${login.body.data.token}` } });
     expect(res.status).toBe(403);
     expect(res.body.code).toBe('CUENTA_SUSPENDIDA');
