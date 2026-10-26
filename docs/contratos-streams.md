@@ -127,8 +127,8 @@ How to run tests: `npm test` for the service (fake `LugarDAOMemoria`, `FavoritoD
 
 Interfaces to implement:
 
-- `service/ExploracionService.ts`, `service/FavoritoService.ts`, `service/AlertaService.ts` (Pattern: Service layer)
-  -> `service/impl/{Exploracion,Favorito,Alerta}ServiceImpl.ts`.
+- `service/ExploracionService.ts`, `service/FavoritoService.ts`, `service/AlertaService.ts`, `service/DispositivoService.ts`
+  (Pattern: Service layer) -> `service/impl/{Exploracion,Favorito,Alerta,Dispositivo}ServiceImpl.ts`.
 - `pattern/observer/SaturacionObserver.ts` -> `pattern/observer/AlertaFavoritosObserver.ts` (Pattern: Observer;
   subscribes in `container/favoritoAlerta.ts`).
 - `adapter/push/NotificadorPush.ts` -> `adapter/push/impl/FcmNotificadorAdapter.ts` (`ConsolaNotificadorAdapter`

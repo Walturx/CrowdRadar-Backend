@@ -1,6 +1,9 @@
 import type { NotificadorPush } from '../adapter/push/NotificadorPush.js';
 import { ConsolaNotificadorAdapter } from '../adapter/push/impl/ConsolaNotificadorAdapter.js';
+import { FcmNotificadorAdapter } from '../adapter/push/impl/FcmNotificadorAdapter.js';
+import type { ConfiguracionApp } from '../config/ConfiguracionApp.js';
 import { AlertaController } from '../controller/AlertaController.js';
+import { DispositivoController } from '../controller/DispositivoController.js';
 import type { AlertaDAO } from '../dao/AlertaDAO.js';
 import type { DispositivoDAO } from '../dao/DispositivoDAO.js';
 import type { FavoritoDAO } from '../dao/FavoritoDAO.js';
@@ -13,6 +16,8 @@ import { AlertaFavoritosObserver } from '../pattern/observer/AlertaFavoritosObse
 import { crearAlertaRouter } from '../route/alerta.routes.js';
 import { crearFavoritoRouter } from '../route/favorito.routes.js';
 import { AlertaServiceImpl } from '../service/impl/AlertaServiceImpl.js';
+import { DispositivoServiceImpl } from '../service/impl/DispositivoServiceImpl.js';
+import type { Logger } from '../util/logger.js';
 import type { MontajeRuta } from './Contenedor.js';
 import type { Infraestructura } from './infraestructura.js';
 
@@ -35,20 +40,27 @@ export function crearDaosFavoritoAlertaSequelize(): DaosFavoritoAlerta {
   };
 }
 
+/** Push provider named by PUSH_PROVEEDOR: the console adapter by default, the FCM skeleton with `fcm`. */
+export function crearNotificadorPush({ proveedor, fcmCredencialesRuta }: ConfiguracionApp['push'], logger: Logger): NotificadorPush {
+  if (proveedor === 'fcm') return new FcmNotificadorAdapter({ proveedor, credencialesRuta: fcmCredencialesRuta });
+  return new ConsolaNotificadorAdapter(logger);
+}
+
 /**
  * Favourites and alerts stream (M3). Subscribes AlertaFavoritosObserver to the shared saturation subject so a
  * level change published after a report commit reaches the followers of the place.
  */
 export function construirFavoritoAlerta(
-  { guardas, logger, subject }: Infraestructura,
+  { cfg, guardas, logger, subject }: Infraestructura,
   daos: DaosFavoritoAlerta = crearDaosFavoritoAlertaSequelize(),
 ): MontajeRuta[] {
   const { favoritoDAO, alertaDAO, dispositivoDAO, nombresLugar } = daos;
-  const notificador = daos.notificador ?? new ConsolaNotificadorAdapter(logger);
+  const notificador = daos.notificador ?? crearNotificadorPush(cfg.push, logger);
   subject.suscribir(new AlertaFavoritosObserver({ favoritoDAO, alertaDAO, dispositivoDAO, notificador, nombresLugar, logger }));
   const alertas = new AlertaController(new AlertaServiceImpl({ alertaDAO, nombresLugar }));
+  const dispositivos = new DispositivoController(new DispositivoServiceImpl({ dispositivoDAO }));
   return [
     { modulo: 'favorito', ruta: '/api', router: crearFavoritoRouter(guardas) },
-    { modulo: 'alerta', ruta: '/api', router: crearAlertaRouter(guardas, { alertas }) },
+    { modulo: 'alerta', ruta: '/api', router: crearAlertaRouter(guardas, { alertas, dispositivos }) },
   ];
 }

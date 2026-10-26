@@ -43,8 +43,8 @@ export const TABLA_RUTAS: readonly FilaRuta[] = [
   auth('patch', '/api/favoritos/12/alertas', 'favorito.configurarAlertas'),
   authReal('get', '/api/alertas', 'alerta.listar'),
   authReal('patch', '/api/alertas/12/leida', 'alerta.marcarLeida'),
-  auth('post', '/api/dispositivos', 'alerta.registrarDispositivo'),
-  auth('delete', '/api/dispositivos/token-fcm', 'alerta.eliminarDispositivo'),
+  authReal('post', '/api/dispositivos', 'alerta.registrarDispositivo'),
+  authReal('delete', '/api/dispositivos/token-fcm', 'alerta.eliminarDispositivo'),
   // reporte (M4): /reportes/mios BEFORE /reportes/:id (validacion router, M5)
   auth('post', '/api/reportes', 'reporte.registrar'),
   auth('get', '/api/reportes/mios', 'reporte.listarMios'),
