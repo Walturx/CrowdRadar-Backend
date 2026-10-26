@@ -37,14 +37,52 @@ Las métricas del frontend están en el repositorio Flutter, en `docs/metricas-r
 | Estados con prueba de API: 400/401/403/404/409/429/503 + `Retry-After` | 503 + `Retry-After` sólo para `APAGANDO` | Todos, 503 `SERVICIO_NO_DISPONIBLE` con `Retry-After: 5` en 6 rutas | Todos | Cumplida |
 | 500 no manejados | Sin guardia | Guardia global `test/support/setupGuardiaErrorInterno.ts` (`setupFiles`); toda prueba con un 500 inesperado falla | Guardia activa, 0 500 no declarados | Cumplida |
 | Flakiness, `npm test` (3 corridas) | No medido | 3 de 3 idénticas: 1970 OK, 179 omitidas, 0 fallidas | 0 inestables | Cumplida |
-| Flakiness, `npm run test:db` | No medido | 5 de 6 corridas idénticas (2149 OK); 1 corrida con 1 suite fallida por `connect EADDRINUSE 127.0.0.1:54329` | 0 inestables | **No cumplida (parcial)** |
+| Flakiness, `npm run test:db` | No medido | Tras el fix de conexiones (2026-10-26): 3 de 3 corridas seguidas idénticas, 2153 OK, 0 fallidas, 0 errores no manejados. Antes del fix: 5 de 6 (1 suite fallida por `connect EADDRINUSE 127.0.0.1:54329`) | 0 inestables | Cumplida |
 
 Detalle de la corrida fallida de `test:db` (corrida 2): `test/seguridad/restablecerConcurrente.contract.test.ts` falló en su
 `beforeAll` porque el `sequelize-cli db:migrate` lanzado como proceso hijo no pudo abrir la conexión: Windows devolvió
 `EADDRINUSE` al asignar el puerto local efímero (había ~4700 sockets en `TIME_WAIT` tras las corridas seguidas). No es una
 aserción de la prueba la que falla, sino el entorno; las otras 5 corridas, antes y después, pasaron completas. Aun así no
-se puede afirmar "0 flaky" para la suite con BD. Opciones: reintentar la migración del `beforeAll` ante `EADDRINUSE`, o
-reutilizar una sola base migrada por archivo en vez de lanzar el CLI por suite.
+se podía afirmar "0 flaky" para la suite con BD.
+
+**Fix (2026-10-26).** Se midieron las conexiones a PostgreSQL de cada archivo con `log_connections` (activado sólo
+durante la medición). De 445 conexiones, 318 (71 %) venían de dos archivos: `test/database/migraciones.contract.test.ts`
+(229) y `test/lugar/migracionOsmTipo.contract.test.ts` (89). La causa era `consultar()` / `codigoDeError()` en
+`test/support/baseDatos.ts`, que abrían y cerraban un `pg.Client` por consulta. Cambios:
+
+- Un `pg.Pool` por URL de base y por worker, sin cierre por inactividad, reusado por `consultar`, `codigoDeError` y la
+  creación y el borrado de bases temporales. `eliminar()` cierra el pool de su base.
+- `pool.query` de `pg` descarta el cliente ante cualquier error, así que cada `codigoDeError` volvía a conectar. Ahora un
+  error de PostgreSQL (SQLSTATE) devuelve el cliente al pool; sólo un error de conexión lo descarta.
+- La primera corrida tras el pool mostró una carrera nueva: `pool.end()` resuelve antes de que el socket termine de
+  cerrarse, y el `DROP DATABASE ... WITH (FORCE)` posterior terminaba ese backend (`57P01`) en un cliente sin listener
+  de error, lo que dejaba un "Unhandled Error" con todas las pruebas en verde. Ahora `eliminar()` hace el `DROP` antes
+  de cerrar el pool, y el pool ignora los errores de clientes ociosos (las consultas en curso siguen rechazando).
+- Prueba nueva: `test/support/baseDatos.contract.test.ts` (4 casos: misma conexión entre consultas, misma conexión tras
+  un error SQL, `eliminar()` borra la base, y un backend terminado por el servidor no deja errores sin manejar).
+
+| Medición (una corrida de `test:db`) | Antes del fix | Después del fix |
+|---|---:|---:|
+| Conexiones a PostgreSQL, `migraciones.contract.test.ts` | 229 | 67 |
+| Conexiones a PostgreSQL, `migracionOsmTipo.contract.test.ts` | 89 | 25 |
+| Conexiones a PostgreSQL, suite completa | 445 (suma por archivo) | 196 (mediana de 3 corridas: 197 / 196 / 198) |
+| Sockets en `TIME_WAIT` hacia `:54329` al terminar una corrida | 391 | 129 |
+
+Las conexiones que quedan son, sobre todo, los procesos `sequelize-cli` que las pruebas de migraciones necesitan de
+verdad y el pool de Sequelize de cada archivo. El mayor volumen de `TIME_WAIT` ahora es HTTP en loopback (cada
+`request(app)` de supertest levanta un servidor efímero): unos 1200 por corrida, que no tocan PostgreSQL. Tras 3
+corridas seguidas había ~3800 sockets en `TIME_WAIT` en total y las 3 pasaron completas.
+
+| Corrida tras el fix (seguidas) | Pared | Vitest | Resultado |
+|---|---:|---:|---|
+| 1 | 37,1 s | 35,73 s | 160 archivos, 2153 OK, 0 errores |
+| 2 | 34,3 s | 32,96 s | 160 archivos, 2153 OK, 0 errores |
+| 3 | 33,5 s | 31,92 s | 160 archivos, 2153 OK, 0 errores |
+
+El tiempo de pared (mediana 34,3 s) es mayor que el 27,8 s de la tabla siguiente, medido el 2026-10-18. No es
+comparable directo: hoy Docker Desktop recién arrancado, la máquina no estaba en el mismo estado y una corrida sin el
+fix en la misma sesión tardó 46 s. El fix apunta a la estabilidad, no al tiempo. `npm test` (sin BD) después del fix:
+1970 OK, 183 omitidas, 0 fallidas.
 
 ### Tiempos y conteos de pruebas
 
@@ -135,16 +173,16 @@ una lectura del contexto (reporte, lugar y autor) para todos los ítems.
 ## Resumen
 
 Cumplidas: build y lint sin errores; cobertura sin BD y con BD sobre las metas; 37/37 `CodigoError` con prueba de API;
-400/401/403/404/409/429/503 con `Retry-After` a nivel API; guardia contra 500 no manejados; `npm test` sin inestabilidad
-(3/3); denunciados con 2 consultas por página y p95 −85 %; historial p95 −31 %; 0 % de errores en los 5 endpoints;
+400/401/403/404/409/429/503 con `Retry-After` a nivel API; guardia contra 500 no manejados; `npm test` y `test:db` sin
+inestabilidad (3/3 cada uno); denunciados con 2 consultas por página y p95 −85 %; historial p95 −31 %; 0 % de errores en los 5 endpoints;
 `npm test` −58 %; `npm run bench` disponible; 9 diagramas que compilan y están enlazados.
 
 No cumplidas:
 
 - **p95 < 200 ms en los 5 endpoints**: `POST /api/reportes` queda en 316,7 ms con el orden comparable (mejora de −39 %),
   por la espera en el bloqueo de karma de un único usuario y el proceso Node único (ver arriba).
-- **0 flaky en la suite con BD**: 1 de 6 corridas de `test:db` falló por `EADDRINUSE` del sistema operativo al abrir una
-  conexión, no por una aserción.
+
+La inestabilidad de `test:db` (`EADDRINUSE`, 1 de 6 corridas) quedó resuelta el 2026-10-26: ver "Fase 2: pruebas".
 
 ## Notas de comparabilidad
 

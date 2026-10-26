@@ -1,6 +1,9 @@
 /**
  * Helpers for the opt-in database tests (DATABASE_URL_TEST). They create throwaway
  * databases next to the configured one and run sequelize-cli as a child process.
+ *
+ * Queries go through one small pool per database URL and test worker. Opening a client per query left hundreds of
+ * sockets in TIME_WAIT per `test:db` run, and on Windows a run could fail with `connect EADDRINUSE`.
  */
 import { execFile } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
@@ -23,20 +26,41 @@ function conBd(url: string, nombre: string): string {
   return copia.toString();
 }
 
+const pools = new Map<string, pg.Pool>();
+
+/** The worker's pool for `url`. Idle clients stay open (no idle timeout) and never keep the worker alive. */
+function poolDe(url: string): pg.Pool {
+  let pool = pools.get(url);
+  if (!pool) {
+    pool = new pg.Pool({ connectionString: url, max: 4, idleTimeoutMillis: 0, allowExitOnIdle: true });
+    // An IDLE client killed by the server (`DROP DATABASE ... WITH (FORCE)`, a restart) is only discarded by the pool;
+    // without a listener that `error` event would crash the worker. Queries in flight still reject as usual.
+    pool.on('error', () => {});
+    pools.set(url, pool);
+  }
+  return pool;
+}
+
+async function cerrarPool(url: string): Promise<void> {
+  const pool = pools.get(url);
+  if (!pool) return;
+  pools.delete(url);
+  await pool.end();
+}
+
 /** Creates an empty database named crowdradar_tmp_<random> and returns how to drop it. */
 export async function crearBdTemporal(urlBase: string): Promise<BaseTemporal> {
   const nombre = `crowdradar_tmp_${randomBytes(4).toString('hex')}`;
-  const admin = new pg.Client({ connectionString: conBd(urlBase, 'postgres') });
-  await admin.connect();
+  const admin = poolDe(conBd(urlBase, 'postgres'));
   await admin.query(`CREATE DATABASE ${nombre}`);
-  await admin.end();
+  const url = conBd(urlBase, nombre);
   return {
-    url: conBd(urlBase, nombre),
+    url,
     async eliminar() {
-      const cliente = new pg.Client({ connectionString: conBd(urlBase, 'postgres') });
-      await cliente.connect();
-      await cliente.query(`DROP DATABASE IF EXISTS ${nombre} WITH (FORCE)`);
-      await cliente.end();
+      // Drop first: the pool still owns its clients when FORCE terminates them. Ending it first could leave a client
+      // half-closed and outside the pool, and FORCE's termination would then reach it with no error listener.
+      await admin.query(`DROP DATABASE IF EXISTS ${nombre} WITH (FORCE)`);
+      await cerrarPool(url);
     },
   };
 }
@@ -79,12 +103,17 @@ export async function consultar<T extends pg.QueryResultRow = pg.QueryResultRow>
   sql: string,
   parametros: unknown[] = [],
 ): Promise<T[]> {
-  const cliente = new pg.Client({ connectionString: url });
-  await cliente.connect();
+  // Not `pool.query`: it discards the client on ANY error, so every `codigoDeError` would open a new connection.
+  // A statement rejected by PostgreSQL leaves the connection usable; only connection-level errors discard it.
+  const cliente = await poolDe(url).connect();
+  let roto: Error | undefined;
   try {
     return (await cliente.query<T>(sql, parametros)).rows;
+  } catch (error) {
+    if (!(error instanceof pg.DatabaseError)) roto = error as Error;
+    throw error;
   } finally {
-    await cliente.end();
+    cliente.release(roto);
   }
 }
 
