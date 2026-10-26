@@ -24,6 +24,11 @@ const llamar = (fila: FilaRuta, token?: string) => {
   const req = request(app)[fila.metodo](fila.ruta).send(fila.metodo === 'get' || fila.metodo === 'delete' ? undefined : {});
   return token ? req.set('Authorization', token) : req;
 };
+const noEsStub = (res: request.Response) => {
+  expect(res.status).not.toBe(501);
+  expect(res.body.code).not.toBe('NO_IMPLEMENTADO');
+  expect(res.body.code).not.toBe('RUTA_NO_ENCONTRADA');
+};
 const esNoImplementado = (res: request.Response, fila: FilaRuta) => {
   expect(res.status).toBe(501);
   expect(res.body).toMatchObject({ code: 'NO_IMPLEMENTADO', errors: [] });
@@ -48,7 +53,11 @@ describe('tabla de rutas congelada', () => {
       });
     }
 
-    if (fila.acceso === 'auth') {
+    if (fila.acceso === 'auth' && fila.real) {
+      it('con token de USUARIO ya no responde 501: llega al handler real', async () => {
+        noEsStub(await llamar(fila, TOKEN_USUARIO));
+      });
+    } else if (fila.acceso === 'auth') {
       it('con token de USUARIO llega al 501 del handler correcto', async () => {
         esNoImplementado(await llamar(fila, TOKEN_USUARIO), fila);
       });

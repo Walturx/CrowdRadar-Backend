@@ -4,11 +4,18 @@ import { BcryptHasherAdapter } from '../../src/adapter/seguridad/impl/BcryptHash
 import { JwtEmisorTokenAdapter } from '../../src/adapter/seguridad/impl/JwtEmisorTokenAdapter.js';
 import type { ConfiguracionApp } from '../../src/config/ConfiguracionApp.js';
 import type { Contenedor } from '../../src/container/Contenedor.js';
+import type { DaosFavoritoAlerta } from '../../src/container/favoritoAlerta.js';
 import { ensamblar } from '../../src/container/index.js';
+import { resolverNombresDesde } from '../../src/dao/ResolverNombresLugar.js';
 import type { EstadoServicio } from '../../src/util/EstadoServicio.js';
 import type { Logger } from '../../src/util/logger.js';
 import { ConexionFalsa } from './ConexionFalsa.js';
 import { crearLoggerSilencioso } from './LoggerSilencioso.js';
+import { NotificadorEspia } from './adapter/NotificadorEspia.js';
+import { AlertaDAOMemoria } from './dao/memoria/AlertaDAOMemoria.js';
+import { DispositivoDAOMemoria } from './dao/memoria/DispositivoDAOMemoria.js';
+import { FavoritoDAOMemoria } from './dao/memoria/FavoritoDAOMemoria.js';
+import { LugarDAOMemoria } from './dao/memoria/LugarDAOMemoria.js';
 import { UsuarioDAOMemoria } from './dao/memoria/UsuarioDAOMemoria.js';
 import { configPrueba, type SobrescritosEntorno } from './configPrueba.js';
 
@@ -30,6 +37,13 @@ export interface ContenedorPrueba {
   hasher: Hasher;
   emisorToken: EmisorToken;
   conexion: ConexionFalsa;
+  /** M3 stream: in-memory DAOs and the push spy the container was built with. */
+  favoritoAlerta: DaosFavoritoAlerta & { notificador: NotificadorEspia };
+  favoritoDAO: FavoritoDAOMemoria;
+  alertaDAO: AlertaDAOMemoria;
+  dispositivoDAO: DispositivoDAOMemoria;
+  lugarDAO: LugarDAOMemoria;
+  notificador: NotificadorEspia;
 }
 
 /**
@@ -42,14 +56,42 @@ export function crearContenedorPrueba(opciones: OpcionesContenedorPrueba = {}): 
   const hasher = opciones.hasher ?? new BcryptHasherAdapter(cfg.seguridad.bcryptCosto);
   const emisorToken = opciones.emisorToken ?? new JwtEmisorTokenAdapter(cfg.seguridad);
   const conexion = opciones.conexion ?? new ConexionFalsa();
-  const contenedor = ensamblar({
+  const alertaDAO = new AlertaDAOMemoria();
+  const favoritoDAO = new FavoritoDAOMemoria({ alertas: alertaDAO });
+  const dispositivoDAO = new DispositivoDAOMemoria();
+  const lugarDAO = new LugarDAOMemoria();
+  const notificador = new NotificadorEspia();
+  const favoritoAlerta = {
+    favoritoDAO,
+    alertaDAO,
+    dispositivoDAO,
+    nombresLugar: resolverNombresDesde(lugarDAO),
+    notificador,
+  };
+  const contenedor = ensamblar(
+    {
+      cfg,
+      logger: opciones.logger ?? crearLoggerSilencioso(),
+      conexion,
+      estado: opciones.estado,
+      usuarioDAO,
+      hasher,
+      emisorToken,
+    },
+    { favoritoAlerta },
+  );
+  return {
+    contenedor,
     cfg,
-    logger: opciones.logger ?? crearLoggerSilencioso(),
-    conexion,
-    estado: opciones.estado,
     usuarioDAO,
     hasher,
     emisorToken,
-  });
-  return { contenedor, cfg, usuarioDAO, hasher, emisorToken, conexion };
+    conexion,
+    favoritoAlerta,
+    favoritoDAO,
+    alertaDAO,
+    dispositivoDAO,
+    lugarDAO,
+    notificador,
+  };
 }
