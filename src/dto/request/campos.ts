@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DISTRITOS } from '../../util/distritos.js';
 
 /**
  * Shared field schemas for request DTOs. Limits mirror migration 01 (usuario):
@@ -24,10 +25,11 @@ export const telefonoSchema = textoOpcional(20)
   .refine((valor) => valor == null || /^9\d{8}$/.test(valor), 'El teléfono debe tener 9 dígitos y empezar con 9.')
   .transform((valor) => valor ?? null);
 
-/** District name: at least 2 characters. Blank means "no value" (null). */
-export const distritoSchema = textoOpcional(60)
-  .refine((valor) => valor == null || valor.length >= 2, 'El distrito debe tener al menos 2 caracteres.')
-  .transform((valor) => valor ?? null);
+/** District: required, one of the 50 of Lima and Callao (`util/distritos.ts`), compared after trimming. */
+export const distritoSchema = z
+  .string({ error: 'Selecciona tu distrito.' })
+  .trim()
+  .refine((valor) => (DISTRITOS as readonly string[]).includes(valor), 'Selecciona un distrito de la lista.');
 
 /** Email normalised before it is validated: trimmed, lowercase, at most 120 characters. */
 export const emailSchema = z.string().trim().toLowerCase().pipe(z.email().max(120));

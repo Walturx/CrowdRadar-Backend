@@ -33,15 +33,30 @@ describe('registrarUsuarioSchema', () => {
     expect(r).toMatchObject({ nombre: 'Ana', email: 'ana@crowdradar.pe' });
   });
 
-  it('telefono y distrito vacios u omitidos quedan en null', () => {
-    expect(registrarUsuarioSchema.parse({ ...registroValido, telefono: '', distrito: '  ' })).toMatchObject({
-      telefono: null,
-      distrito: null,
-    });
+  it('telefono vacio u omitido queda en null', () => {
+    expect(registrarUsuarioSchema.parse({ ...registroValido, telefono: '' })).toMatchObject({ telefono: null });
     const sin: Partial<typeof registroValido> = { ...registroValido };
     delete sin.telefono;
+    expect(registrarUsuarioSchema.parse(sin)).toMatchObject({ telefono: null });
+  });
+
+  it('exige el distrito: omitido, vacio o null se rechaza sobre distrito', () => {
+    const sin: Partial<typeof registroValido> = { ...registroValido };
     delete sin.distrito;
-    expect(registrarUsuarioSchema.parse(sin)).toMatchObject({ telefono: null, distrito: null });
+    expect(campos(registrarUsuarioSchema.safeParse(sin))).toEqual(['distrito']);
+    expect(campos(registrarUsuarioSchema.safeParse({ ...registroValido, distrito: '  ' }))).toEqual(['distrito']);
+    expect(campos(registrarUsuarioSchema.safeParse({ ...registroValido, distrito: null }))).toEqual(['distrito']);
+  });
+
+  it('solo acepta un distrito de Lima o Callao, con su nombre oficial', () => {
+    expect(registrarUsuarioSchema.parse({ ...registroValido, distrito: ' Ventanilla ' })).toMatchObject({ distrito: 'Ventanilla' });
+    expect(registrarUsuarioSchema.parse({ ...registroValido, distrito: 'San Martín de Porres' })).toMatchObject({
+      distrito: 'San Martín de Porres',
+    });
+    const r = registrarUsuarioSchema.safeParse({ ...registroValido, distrito: 'Narnia' });
+    expect(campos(r)).toEqual(['distrito']);
+    expect(r.error?.issues[0]?.message).toBe('Selecciona un distrito de la lista.');
+    expect(campos(registrarUsuarioSchema.safeParse({ ...registroValido, distrito: 'miraflores' }))).toEqual(['distrito']);
   });
 
   it.each([
@@ -54,7 +69,6 @@ describe('registrarUsuarioSchema', () => {
     ['password', { password: 'a'.repeat(73) }],
     ['password', { password: 'ñ'.repeat(37) }],
     ['telefono', { telefono: '9'.repeat(21) }],
-    ['distrito', { distrito: 'D'.repeat(61) }],
   ])('rechaza %s fuera de los limites', (campo, cambio) => {
     const r = registrarUsuarioSchema.safeParse({ ...registroValido, ...cambio });
     expect(r.success).toBe(false);
@@ -94,8 +108,13 @@ describe('actualizarPerfilSchema', () => {
     expect(actualizarPerfilSchema.parse({ nombre: ' Anita ' })).toEqual({ nombre: 'Anita' });
   });
 
-  it('"" en telefono o distrito significa limpiar (null)', () => {
-    expect(actualizarPerfilSchema.parse({ telefono: '', distrito: '' })).toEqual({ telefono: null, distrito: null });
+  it('"" en telefono significa limpiar (null)', () => {
+    expect(actualizarPerfilSchema.parse({ telefono: '' })).toEqual({ telefono: null });
+  });
+
+  it('el distrito no se puede limpiar: "" o null se rechaza sobre distrito', () => {
+    expect(campos(actualizarPerfilSchema.safeParse({ distrito: '' }))).toEqual(['distrito']);
+    expect(campos(actualizarPerfilSchema.safeParse({ distrito: null }))).toEqual(['distrito']);
   });
 
   it('exige al menos un campo y rechaza claves desconocidas o limites excedidos', () => {
@@ -103,6 +122,7 @@ describe('actualizarPerfilSchema', () => {
     expect(actualizarPerfilSchema.safeParse({ email: 'x@y.pe' }).success).toBe(false);
     expect(actualizarPerfilSchema.safeParse({ nombre: 'N'.repeat(81) }).success).toBe(false);
     expect(actualizarPerfilSchema.safeParse({ distrito: 'D'.repeat(61) }).success).toBe(false);
+    expect(actualizarPerfilSchema.safeParse({ distrito: 'Narnia' }).success).toBe(false);
   });
 });
 
@@ -142,9 +162,13 @@ describe('actualizarPerfilSchema: telefono y distrito como en el registro (R3-13
     expect(actualizarPerfilSchema.parse({ telefono: '' })).toEqual({ telefono: null });
   });
 
-  it('rechaza un distrito de 1 caracter y acepta 2; lo vacio queda en null', () => {
-    expect(campos(actualizarPerfilSchema.safeParse({ distrito: 'A' }))).toEqual(['distrito']);
+  it('acepta un distrito de la lista y rechaza uno que no esta', () => {
     expect(actualizarPerfilSchema.parse({ distrito: 'Ate' })).toEqual({ distrito: 'Ate' });
-    expect(actualizarPerfilSchema.parse({ distrito: ' ' })).toEqual({ distrito: null });
+    expect(campos(actualizarPerfilSchema.safeParse({ distrito: 'A' }))).toEqual(['distrito']);
+    expect(campos(actualizarPerfilSchema.safeParse({ distrito: ' ' }))).toEqual(['distrito']);
+  });
+
+  it('omitir el distrito al editar otro campo sigue siendo valido', () => {
+    expect(actualizarPerfilSchema.parse({ nombre: 'Ana' })).toEqual({ nombre: 'Ana' });
   });
 });

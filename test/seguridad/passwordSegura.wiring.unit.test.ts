@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { registrarUsuarioSchema } from '../../src/dto/request/auth/RegistrarUsuarioRequestDTO.js';
 import { cambiarPasswordSchema } from '../../src/dto/request/usuario/CambiarPasswordRequestDTO.js';
 
-const registro = { nombre: 'Ana', apellido: 'Perez', email: 'ana@crowdradar.pe', password: 'Secreta123' };
+const registro = { nombre: 'Ana', apellido: 'Perez', email: 'ana@crowdradar.pe', password: 'Secreta123', distrito: 'Lince' };
 const cambio = (nueva: string) => ({ passwordActual: 'Vieja1234', nuevaPassword: nueva, confirmarPassword: nueva });
 const mensajesDe = (resultado: { success: boolean; error?: { issues: { path: PropertyKey[]; message: string }[] } }, campo: string) =>
   resultado.error?.issues.filter((i) => i.path.join('.') === campo).map((i) => i.message) ?? [];
