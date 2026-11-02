@@ -7,7 +7,7 @@
  *   - password: 8 a 64 caracteres con mayuscula y digito (7/8 y 64/65 de limite) | sin mayuscula | sin digito |
  *     <= 64 caracteres pero > 72 bytes (multibyte) | ausente
  *   - telefono: ^9\d{8}$ valido | "" u omitido (queda en null) | 8 y 10 digitos | no empieza con 9 | con letras
- *   - distrito: 2 a 60 caracteres (limites 1/2 y 60/61) | "" u omitido (queda en null)
+ *   - distrito: uno de los 50 de Lima y Callao (recortado) | fuera de la lista | otra capitalizacion | "" | null | ausente
  *   - ademas: un campo desconocido (rol) se rechaza y no crea la cuenta
  * Cada caso invalido debe responder 400 VALIDACION_FALLIDA nombrando el campo, sin crear la cuenta.
  */
@@ -169,23 +169,23 @@ describe('POST /api/auth/register (caja negra, 6 entradas)', () => {
 
   describe('distrito', () => {
     it.each([
-      ['2 caracteres (limite inferior valido)', 'Ate', 'Ate'],
-      ['60 caracteres (limite superior valido)', 'D'.repeat(60), 'D'.repeat(60)],
-      ['cadena vacia', '', null],
+      ['un distrito de Lima', 'Ate', 'Ate'],
+      ['un distrito del Callao con tilde', 'Mi Perú', 'Mi Perú'],
+      ['un distrito con espacios alrededor (se recorta)', '  Lince ', 'Lince'],
     ])('acepta %s', async (_caso, distrito, guardado) => {
       const res = await aceptado({ distrito });
       expect(res.body.data.user.distrito).toBe(guardado);
     });
 
-    it('omitido queda en null', async () => {
-      const res = await request(app).post('/api/auth/register').send(sin('distrito'));
-      expect(res.status).toBe(201);
-      expect(res.body.data.user.distrito).toBeNull();
+    it('omitido se rechaza y no crea la cuenta', async () => {
+      await rechazado('distrito', sin('distrito'));
     });
 
     it.each([
-      ['1 caracter (bajo el limite)', 'A'],
-      ['61 caracteres (sobre el limite)', 'D'.repeat(61)],
+      ['un distrito fuera de la lista', 'Narnia'],
+      ['otra capitalizacion', 'miraflores'],
+      ['cadena vacia', ''],
+      ['null', null],
     ])('rechaza %s', async (_caso, distrito) => {
       await rechazado('distrito', { ...VALIDO, distrito });
     });

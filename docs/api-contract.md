@@ -71,19 +71,21 @@ admin route answers `403`, and only then `501`. No frozen path ever answers `404
 
 | Method | Path | Access | Status | Notes |
 |---|---|---|---|---|
-| POST | /api/auth/register | public + limit | real | body `{ nombre, apellido, email, password, telefono?, distrito? }`; `201 { message, data: SesionResponseDTO }`; `409 EMAIL_DUPLICADO`; `400 VALIDACION_FALLIDA` (field `email`) for an address ending in `@sintetico.crowdradar.local`, reserved for the demo users |
+| POST | /api/auth/register | public + limit | real | body `{ nombre, apellido, email, password, telefono?, distrito }`; `201 { message, data: SesionResponseDTO }`; `409 EMAIL_DUPLICADO`; `400 VALIDACION_FALLIDA` (field `email`) for an address ending in `@sintetico.crowdradar.local`, reserved for the demo users |
 | POST | /api/auth/login | public + limit | real | body `{ email, password }`; `200 { message, data: SesionResponseDTO }`; `401 CREDENCIALES_INVALIDAS`; `403 CUENTA_SUSPENDIDA`; `404 CUENTA_NO_EXISTE` only with `POLITICA_MENSAJES_AUTH=DETALLADA` |
 | POST | /api/auth/recuperar | public + limit | real | body `{ email }`; `200 { message }` with the SAME neutral text whether or not the email is registered (the mail, with the link `URL_PUBLICA/recuperar/restablecer?token=...`, goes out after the answer's transaction and a mail failure does not change the answer); `400 VALIDACION_FALLIDA` for a malformed email; `404 CUENTA_NO_EXISTE` only with `POLITICA_MENSAJES_AUTH=DETALLADA`; `429 DEMASIADAS_SOLICITUDES` (per IP, and 3 requests per hour per email whatever the IP). A new request does NOT invalidate the links already mailed: each user keeps at most 3 live links, the oldest is dropped; a successful reset or password change also deletes the user's push devices |
 | GET | /api/auth/restablecer/validar | public + limit | real | query `token`; `200 { message }` when the token is live; `400 TOKEN_RECUPERACION_INVALIDO` (unknown or already used); `410 TOKEN_RECUPERACION_EXPIRADO` |
 | POST | /api/auth/restablecer | public + limit | real | body `{ token, nuevaPassword, confirmarPassword }`; `200 { message }`; `400 TOKEN_RECUPERACION_INVALIDO`; `410 TOKEN_RECUPERACION_EXPIRADO`; `400 VALIDACION_FALLIDA` with one `errors[]` entry per unmet password requirement or a mismatched confirmation; `422 PASSWORD_REPETIDA`; `429 DEMASIADAS_SOLICITUDES` |
 | GET | /recuperar/restablecer | public | real | HTML page of the emailed link (query `token`): `200` with the new-password form for a live token; `400` / `410` with the "El enlace ha caducado o no es válido" page and no form for an unknown, used or expired one. Not JSON: it is the one route outside the response envelope |
 | GET | /api/users/profile | auth | real | `200 { message, data: PerfilResponseDTO }` |
-| PUT | /api/users/profile | auth | real | body: any non-empty subset of `{ nombre, apellido, telefono, distrito }`; `""` clears `telefono`/`distrito`; `200 { message, data: PerfilResponseDTO }`; `{}` or unknown key `400` |
+| PUT | /api/users/profile | auth | real | body: any non-empty subset of `{ nombre, apellido, telefono, distrito }`; `""` clears `telefono`, `distrito` cannot be cleared; `200 { message, data: PerfilResponseDTO }`; `{}` or unknown key `400` |
 | PUT | /api/users/password | auth | real | body `{ passwordActual, nuevaPassword, confirmarPassword }`; `200 { message }`; `422 PASSWORD_ACTUAL_INCORRECTA`; `422 PASSWORD_REPETIDA` |
 
 Field limits (they match the `usuario` columns): `email` at most 120 characters, trimmed and lowercased;
 `nombre`/`apellido` 2-80; `telefono` empty or 9 digits starting with 9 (`^9\d{8}$`, empty is stored as null) on
-register; `distrito` empty or 2-60.
+register; `distrito` required on register, one of the 50 districts of Metropolitan Lima and Callao listed in
+`src/util/distritos.ts` (official names with accents, compared after trimming; any other value, `""` or `null` is
+`400 VALIDACION_FALLIDA` on `distrito`). Users created before this rule may still have `distrito: null`.
 
 Password policy (register, `POST /api/auth/restablecer` and `PUT /api/users/password`; one schema,
 `passwordSeguraSchema`): 8 to 64 characters, at most 72 UTF-8 bytes (bcrypt reads no more; multibyte characters can

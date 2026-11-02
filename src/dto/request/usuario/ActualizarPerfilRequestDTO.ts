@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { distritoSchema, telefonoSchema, textoRequerido } from '../campos.js';
 
-/** PUT /api/users/profile body: any subset of the profile fields, at least one; `""` clears telefono/distrito. */
+/** PUT /api/users/profile body: any subset of the profile fields, at least one; `""` clears telefono, distrito cannot be cleared. */
 export const actualizarPerfilSchema = z
   .strictObject({
     nombre: textoRequerido(2, 80).optional(),
