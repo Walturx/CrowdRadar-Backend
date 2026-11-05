@@ -9,7 +9,9 @@ import { join, relative, resolve, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const RAIZ = resolve(import.meta.dirname, '..', '..');
-const doc = readFileSync(resolve(RAIZ, 'docs/contratos-streams.md'), 'utf8');
+// Normalized to LF: a Windows checkout with core.autocrlf=true gets CRLF, and
+// the list patterns below only match LF.
+const doc = readFileSync(resolve(RAIZ, 'docs/contratos-streams.md'), 'utf8').replace(/\r\n/g, '\n');
 
 function archivos(dir: string, filtro: RegExp): string[] {
   const absoluto = resolve(RAIZ, dir);
