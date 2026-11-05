@@ -203,7 +203,14 @@ describe.skipIf(!urlBd)('API de cuentas (con base de datos)', () => {
   it('register con email repetido responde 409 EMAIL_DUPLICADO', async () => {
     const res = await json('/api/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ nombre: 'Ana', apellido: 'Perez', email: email.toUpperCase(), password }),
+      body: JSON.stringify({
+        nombre: 'Ana',
+        apellido: 'Perez',
+        email: email.toUpperCase(),
+        password,
+        telefono: '987654321',
+        distrito: 'Miraflores',
+      }),
     });
     expect(res.status).toBe(409);
     expect(res.body).toEqual({ message: 'El correo ya está registrado.', code: 'EMAIL_DUPLICADO', errors: [] });
