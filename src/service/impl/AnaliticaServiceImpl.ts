@@ -105,11 +105,12 @@ export class AnaliticaServiceImpl implements AnaliticaService {
       () => this.validarRango(desde, hasta, false),
       () => this.deps.reporteDAO.agregarPorHora(this.ventana(lugarId, desde, hasta, FiltroDias.TODOS)),
     );
-    // The DAO answers by day then hour, so the days come out chronological; the hours of day are sorted here.
+    // Every slot of the range comes back in order, the empty ones with valor 0 and muestras 0, so the client draws each
+    // point where it belongs (CRO-64). Since the slots are always there, `hayDatos` reads the reports, not the points.
     const puntos = diario
-      ? [...porDia(agregados)].map(([dia, celda]) => punto(dia, celda))
-      : [...porHoraDelDia(agregados)].sort(([a], [b]) => a - b).map(([hora, celda]) => punto(etiquetaHora(hora), celda));
-    return { hayDatos: puntos.length > 0, sintetico: haySinteticos(agregados), puntos };
+      ? this.diasDelRango(desde, hasta, porDia(agregados))
+      : this.franjasDelDia(porHoraDelDia(agregados)).map(({ hora, valor, muestras }) => ({ etiqueta: etiquetaHora(hora), valor, muestras }));
+    return { hayDatos: agregados.length > 0, sintetico: haySinteticos(agregados), puntos };
   }
 
   async compararPeriodos(lugarId: number, a: PeriodoComparacion, b: PeriodoComparacion): Promise<ResultadoComparacion> {
@@ -220,6 +221,14 @@ export class AnaliticaServiceImpl implements AnaliticaService {
     return Array.from({ length: HORAS_POR_DIA }, (_, hora) => {
       const celda = celdas.get(hora) ?? { suma: 0, muestras: 0 };
       return { hora, valor: redondear(promedioDe(celda)), muestras: celda.muestras };
+    });
+  }
+
+  /** One point per calendar day from `desde` to `hasta`, both included; a day without reports is empty. */
+  private diasDelRango(desde: string, hasta: string, celdas: Map<string, Celda>): PuntoHistorial[] {
+    return Array.from({ length: diasEntre(desde, hasta) + 1 }, (_, i) => {
+      const dia = sumarDias(desde, i);
+      return punto(dia, celdas.get(dia) ?? { suma: 0, muestras: 0 });
     });
   }
 
