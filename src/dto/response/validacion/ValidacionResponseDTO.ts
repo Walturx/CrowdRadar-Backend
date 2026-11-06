@@ -4,7 +4,7 @@ import type { NivelConfiabilidad } from '../../../enum/NivelConfiabilidad.js';
 import type { NivelSaturacion } from '../../../enum/NivelSaturacion.js';
 import type { TipoAccionValidacion } from '../../../enum/TipoAccionValidacion.js';
 
-/** The reliability block shared by every M5 response. Counts are raw votes; `porcentaje` is weighted. */
+/** The reliability block shared by every M5 response. Counts are raw votes; `porcentaje` is 100 x confirmaciones / votos. */
 export interface ConfiabilidadDTO {
   /** 0..100 with 2 decimals; null while the level is INSUFICIENTE. */
   porcentaje: number | null;

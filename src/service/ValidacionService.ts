@@ -17,7 +17,7 @@ export interface ConsultaPendientes {
   size: number;
 }
 
-/** A report's reliability, its raw (unweighted) vote counts and the validation progress derived from them. */
+/** A report's reliability, its raw vote counts and the validation progress derived from them. */
 export interface ConfiabilidadReporte extends ResultadoConfiabilidad {
   confirmaciones: number;
   rechazos: number;

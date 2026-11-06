@@ -1,12 +1,12 @@
-/** container/validacion.ts: strategy selection by CONFIABILIDAD_ESTRATEGIA and wiring of the M5 services. */
+/** container/validacion.ts: the reliability strategy (every vote weighs 1) and wiring of the M5 services. */
 import { describe, expect, it } from 'vitest';
 import { construirInfraestructura } from '../../src/container/infraestructura.js';
-import { construirServiciosValidacion, elegirEstrategiaConfiabilidad } from '../../src/container/validacion.js';
+import { construirServiciosValidacion, crearEstrategiaConfiabilidad } from '../../src/container/validacion.js';
 import { TipoAccionValidacion } from '../../src/enum/TipoAccionValidacion.js';
 import { EmisorTokenFalso } from '../support/adapter/EmisorTokenFalso.js';
 import { HasherFalso } from '../support/adapter/HasherFalso.js';
 import { ConexionFalsa } from '../support/ConexionFalsa.js';
-import { configPrueba } from '../support/configPrueba.js';
+import { configPrueba, type SobrescritosEntorno } from '../support/configPrueba.js';
 import { crearLoggerSilencioso } from '../support/LoggerSilencioso.js';
 import { DenunciaDAOMemoria } from '../support/dao/memoria/DenunciaDAOMemoria.js';
 import { LugarDAOMemoria } from '../support/dao/memoria/LugarDAOMemoria.js';
@@ -17,36 +17,26 @@ import { aReporte, aUsuario } from '../support/fabrica/datos.js';
 
 const C = TipoAccionValidacion.CONFIRMAR;
 const R = TipoAccionValidacion.RECHAZAR;
-/** One heavy confirmation (karma 900, weight 6 or 1) against three plain rejections. */
-const VOTOS = [
-  { tipoAccion: C, karmaVotante: 900 },
-  { tipoAccion: R, karmaVotante: 0 },
-  { tipoAccion: R, karmaVotante: 0 },
-  { tipoAccion: R, karmaVotante: 0 },
-];
+/** One confirmation against three rejections. */
+const VOTOS = [C, R, R, R].map((tipoAccion) => ({ tipoAccion }));
 
-describe('elegirEstrategiaConfiabilidad', () => {
-  it('PONDERADA_KARMA (por defecto) pesa el karma con su tope', () => {
-    expect(elegirEstrategiaConfiabilidad(configPrueba()).calcular(VOTOS).porcentaje).toBe(66.67);
-    expect(elegirEstrategiaConfiabilidad(configPrueba({ TOPE_KARMA_PESO: 0 })).calcular(VOTOS).porcentaje).toBe(25);
-  });
-
-  it('SIMPLE ignora el karma', () => {
-    expect(elegirEstrategiaConfiabilidad(configPrueba({ CONFIABILIDAD_ESTRATEGIA: 'SIMPLE' })).calcular(VOTOS).porcentaje).toBe(25);
+describe('crearEstrategiaConfiabilidad', () => {
+  it('cada voto pesa 1: una confirmacion contra tres rechazos es 25 BAJA', () => {
+    expect(crearEstrategiaConfiabilidad(configPrueba()).calcular(VOTOS)).toEqual({ nivel: 'BAJA', porcentaje: 25, votos: 4 });
   });
 
   it('usa el minimo de votos y los umbrales de la configuracion', () => {
-    const estrategia = elegirEstrategiaConfiabilidad(configPrueba({ CONFIABILIDAD_MIN_VOTOS: 5 }));
-    expect(estrategia.calcular(VOTOS).nivel).toBe('INSUFICIENTE');
+    expect(crearEstrategiaConfiabilidad(configPrueba({ CONFIABILIDAD_MIN_VOTOS: 5 })).calcular(VOTOS).nivel).toBe('INSUFICIENTE');
+    expect(crearEstrategiaConfiabilidad(configPrueba({ CONFIABILIDAD_UMBRAL_MEDIA: 20 })).calcular(VOTOS).nivel).toBe('MEDIA');
   });
 });
 
 describe('construirServiciosValidacion', () => {
-  it('arma servicios que trabajan con los DAOs entregados y CONFIABILIDAD_MIN_VOTOS_ESTADO', async () => {
+  function armar(sobrescritos: SobrescritosEntorno = {}) {
     const usuarioDAO = new UsuarioDAOMemoria();
     const reporteDAO = new ReporteDAOMemoria();
     const infra = construirInfraestructura({
-      cfg: configPrueba({ CONFIABILIDAD_MIN_VOTOS_ESTADO: 1, CONFIABILIDAD_MIN_VOTOS: 1 }),
+      cfg: configPrueba(sobrescritos),
       logger: crearLoggerSilencioso(),
       conexion: new ConexionFalsa(),
       usuarioDAO,
@@ -59,10 +49,34 @@ describe('construirServiciosValidacion', () => {
       validacionDAO: new ValidacionDAOMemoria(),
       denunciaDAO: new DenunciaDAOMemoria(),
     });
+    return { usuarioDAO, reporteDAO, validacionService };
+  }
+
+  it('arma servicios que trabajan con los DAOs entregados y CONFIABILIDAD_MIN_VOTOS_ESTADO', async () => {
+    const { usuarioDAO, reporteDAO, validacionService } = armar({ CONFIABILIDAD_MIN_VOTOS_ESTADO: 1, CONFIABILIDAD_MIN_VOTOS: 1 });
     const autor = usuarioDAO.agregar(aUsuario()).id;
     const votante = usuarioDAO.agregar(aUsuario()).id;
     const reporte = reporteDAO.agregar(aReporte({ usuarioId: autor })).id;
     const resultado = await validacionService.validar(votante, reporte, C);
     expect(resultado.confiabilidad).toMatchObject({ estado: 'VALIDADO', porcentaje: 100 });
+  });
+
+  it('dos votos validos de usuarios con distinto puntaje aportan lo mismo a la confiabilidad', async () => {
+    const { usuarioDAO, reporteDAO, validacionService } = armar();
+    const autor = usuarioDAO.agregar(aUsuario()).id;
+    const veterano = usuarioDAO.agregar(aUsuario({ puntosKarma: 900 })).id;
+    const novatos = [usuarioDAO.agregar(aUsuario()).id, usuarioDAO.agregar(aUsuario()).id];
+
+    // The veteran confirms and two newcomers reject: 1 of 3 whatever the veteran's score.
+    const confirmado = reporteDAO.agregar(aReporte({ usuarioId: autor })).id;
+    await validacionService.validar(veterano, confirmado, C);
+    for (const novato of novatos) await validacionService.validar(novato, confirmado, R);
+    expect(await validacionService.consultarConfiabilidad(confirmado)).toMatchObject({ porcentaje: 33.33, nivel: 'BAJA' });
+
+    // And the other way round: the veteran's rejection weighs the same as each newcomer's confirmation.
+    const rechazado = reporteDAO.agregar(aReporte({ usuarioId: autor })).id;
+    await validacionService.validar(veterano, rechazado, R);
+    for (const novato of novatos) await validacionService.validar(novato, rechazado, C);
+    expect(await validacionService.consultarConfiabilidad(rechazado)).toMatchObject({ porcentaje: 66.67, nivel: 'MEDIA' });
   });
 });

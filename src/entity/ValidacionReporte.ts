@@ -6,7 +6,7 @@ export interface ValidacionReporte {
   reporteId: number;
   usuarioId: number;
   tipoAccion: TipoAccionValidacion;
-  /** Voter's karma at vote time; weights the reliability computation. */
+  /** Voter's karma at vote time. Stored only: every vote weighs 1 in the reliability computation (CRO-73). */
   karmaVotante: number;
   puntosOtorgados: number;
   fechaHora: Date;
