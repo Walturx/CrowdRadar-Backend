@@ -13,6 +13,12 @@ import { crearSembradorMemoria, type SembradorMemoria } from '../support/dao/mem
 import { crearContenedorPrueba, type ContenedorPrueba } from '../support/crearContenedorPrueba.js';
 import { aReporte, aUsuario } from '../support/fabrica/datos.js';
 
+type Valores = { valor: number; muestras: number };
+const VACIA: Valores = { valor: 0, muestras: 0 };
+/** The 24 hourly slots `00:00`..`23:00` in order: the given hours filled in, the rest empty (CRO-64). */
+const franjas = (llenas: Record<number, Valores> = {}) =>
+  Array.from({ length: 24 }, (_, hora) => ({ etiqueta: `${String(hora).padStart(2, '0')}:00`, ...(llenas[hora] ?? VACIA) }));
+
 describe('API de analitica (contenedor de prueba)', () => {
   let ctx: ContenedorPrueba;
   let app: ReturnType<typeof createApp>;
@@ -47,38 +53,40 @@ describe('API de analitica (contenedor de prueba)', () => {
   });
 
   describe('GET historial', () => {
-    it('sin parametros: hoy por horas, cronologico, con promedio y muestras (S15)', async () => {
+    it('sin parametros: hoy en 24 franjas por hora, cronologico, con promedio y muestras (S15, CRO-64)', async () => {
       sembrar(2, '2026-10-07', 9, NivelSaturacion.MODERADO);
       sembrar(1, '2026-10-07', 14, NivelSaturacion.SATURADO);
       const res = await get('historial');
       expect(res.status).toBe(200);
       expect(res.body.data).toEqual({
-        puntos: [
-          { etiqueta: '09:00', valor: 2, muestras: 2 },
-          { etiqueta: '14:00', valor: 3, muestras: 1 },
-        ],
+        puntos: franjas({ 9: { valor: 2, muestras: 2 }, 14: { valor: 3, muestras: 1 } }),
         hayDatos: true,
         mensaje: null,
         sintetico: false,
       });
     });
 
-    it('agrupacion=DIA con desde y hasta: un punto por dia', async () => {
+    it('agrupacion=DIA con desde y hasta: un punto por cada dia del rango, tambien los vacios (CRO-64)', async () => {
       sembrar(1, '2026-10-05', 9, NivelSaturacion.TRANQUILO);
       sembrar(1, '2026-10-06', 9, NivelSaturacion.SATURADO);
       const res = await get('historial', { agrupacion: 'DIA', desde: '2026-10-01', hasta: '2026-10-07' });
       expect(res.status).toBe(200);
       expect(res.body.data.puntos).toEqual([
+        { etiqueta: '2026-10-01', ...VACIA },
+        { etiqueta: '2026-10-02', ...VACIA },
+        { etiqueta: '2026-10-03', ...VACIA },
+        { etiqueta: '2026-10-04', ...VACIA },
         { etiqueta: '2026-10-05', valor: 1, muestras: 1 },
         { etiqueta: '2026-10-06', valor: 3, muestras: 1 },
+        { etiqueta: '2026-10-07', ...VACIA },
       ]);
     });
 
-    it('sin datos: 200 con hayDatos=false y el mensaje (S16)', async () => {
+    it('sin datos: 200 con hayDatos=false, el mensaje y las franjas vacias (S16, CRO-64)', async () => {
       const res = await get('historial');
       expect(res.status).toBe(200);
       expect(res.body.data).toEqual({
-        puntos: [],
+        puntos: franjas(),
         hayDatos: false,
         mensaje: 'No existe información histórica disponible para este lugar.',
         sintetico: false,
@@ -104,7 +112,7 @@ describe('API de analitica (contenedor de prueba)', () => {
       sembrar(1, '2026-10-04', 15, NivelSaturacion.SATURADO);
       const res = await get('historial', { desde: '2026-10-05', hasta: '2026-10-05' });
       expect(res.status).toBe(200);
-      expect(res.body.data.puntos).toEqual([{ etiqueta: '09:00', valor: 2, muestras: 1 }]);
+      expect(res.body.data.puntos).toEqual(franjas({ 9: { valor: 2, muestras: 1 } }));
     });
 
     it.each([
