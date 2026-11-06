@@ -11,6 +11,7 @@ import {
   MENSAJE_DETALLE_REPORTE,
   MENSAJE_PENDIENTES,
   MENSAJE_SIN_PENDIENTES,
+  MENSAJE_VALIDACION_CREADA,
   ValidacionMapper,
 } from '../mapper/ValidacionMapper.js';
 import type { ValidacionService } from '../service/ValidacionService.js';
@@ -42,8 +43,7 @@ export class ValidacionController {
     const { id } = res.locals.params as ReporteIdParamsDTO;
     const { tipoAccion } = req.body as ValidarReporteRequestDTO;
     const resultado = await this.validacionService.validar(req.usuario!.id, id, tipoAccion);
-    const mensaje = `¡Gracias por validar! +${resultado.karma.puntosGanados} karma`;
-    res.status(201).json(respuesta(mensaje, ValidacionMapper.aCreada(resultado)));
+    res.status(201).json(respuesta(MENSAJE_VALIDACION_CREADA, ValidacionMapper.aCreada(resultado)));
   };
 
   consultarEstadoMisReportes: RequestHandler = async (req, res) => {

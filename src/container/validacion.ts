@@ -10,7 +10,6 @@ import { ConfiabilidadSimpleStrategy } from '../pattern/strategy/confiabilidad/i
 import { limitarIntentos } from '../middleware/limitarIntentos.js';
 import { crearValidacionRouter } from '../route/validacion.routes.js';
 import { DenunciaServiceImpl } from '../service/impl/DenunciaServiceImpl.js';
-import { KarmaServiceImpl } from '../service/impl/KarmaServiceImpl.js';
 import { ValidacionServiceImpl } from '../service/impl/ValidacionServiceImpl.js';
 import type { DenunciaService } from '../service/DenunciaService.js';
 import type { ValidacionService } from '../service/ValidacionService.js';
@@ -38,33 +37,19 @@ export interface ServiciosValidacion {
   denunciaService: DenunciaService;
 }
 
-/** Wires the validation and complaint services; the karma service adds the daily cap of validation karma. */
+/** Wires the validation and complaint services. A vote awards nothing: points are computed when read (CRO-72). */
 export function construirServiciosValidacion(infra: Infraestructura, daos: DaosValidacion): ServiciosValidacion {
   const { cfg, reloj, conexion, usuarioDAO, lugarDAO, reporteDAO } = infra;
-  const { reglas } = cfg;
-  const karmaService = new KarmaServiceImpl({
-    usuarioDAO,
-    reporteDAO,
-    reloj,
-    karmaPorReporte: reglas.karmaPorReporte,
-    karmaPorValidacion: reglas.karmaPorValidacion,
-    reportesPremiadosPorDia: reglas.karmaReportesPremiadosDia,
-    zonaHoraria: cfg.servidor.zonaHoraria,
-    validacionDAO: daos.validacionDAO,
-    karmaValidacionMaxDia: reglas.karmaValidacionMaxDia,
-  });
   return {
     validacionService: new ValidacionServiceImpl({
       ...daos,
       reporteDAO,
       lugarDAO,
       usuarioDAO,
-      karmaService,
       estrategia: crearEstrategiaConfiabilidad(cfg),
       conexion,
       reloj,
       minVotosEstado: reglaEstadoValidacion(cfg).minVotosEstado,
-      karmaPorValidacion: reglas.karmaPorValidacion,
       limiteLugares: cfg.lugares.limiteMax,
     }),
     denunciaService: new DenunciaServiceImpl({ reporteDAO, denunciaDAO: daos.denunciaDAO, reloj }),

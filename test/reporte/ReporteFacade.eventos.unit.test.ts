@@ -32,7 +32,6 @@ async function armar(subject: SaturacionSubject, presupuestoEventosMs: number) {
   const lugarId = lugarDAO.agregar().id;
   const espia = crearLoggerEspia();
   const facade = crearFacadePrueba({
-    usuarioDAO,
     lugarDAO,
     reporteDAO: new ReporteDAOMemoria(),
     conexion: new ConexionFalsa(),
@@ -94,7 +93,7 @@ describe('ReporteFacadeImpl.registrar: publicacion de eventos', () => {
     expect(lineas.find((l) => l.level === 50)).toMatchObject({ lugarId, msg: expect.stringContaining('publicacion') });
   });
 
-  it('registra una linea info por reporte con ids, nivel anterior y nuevo, y puntos', async () => {
+  it('registra una linea info por reporte con ids, nivel anterior y nuevo (sin puntos: se calculan al leer)', async () => {
     const { facade, usuarioId, lugarId, lineas } = await armar({ suscribir: () => {}, notificar: async () => {} }, 500);
     const { reporte } = await facade.registrar(usuarioId, lugarId, NivelSaturacion.MODERADO);
     const linea = lineas.find((l) => l.msg === 'Reporte registrado');
@@ -105,14 +104,7 @@ describe('ReporteFacadeImpl.registrar: publicacion de eventos', () => {
       lugarId,
       nivelAnterior: null,
       nivelNuevo: 'MODERADO',
-      puntos: 10,
     });
-  });
-
-  it('el tope diario se ve en la linea: puntos 0 cuando el reporte ya no premia', async () => {
-    const { facade, usuarioId, lugarId, lugarDAO, lineas } = await armar({ suscribir: () => {}, notificar: async () => {} }, 500);
-    const lugarIds = [lugarId, ...Array.from({ length: 5 }, (_, i) => lugarDAO.agregar({ id: lugarId + 1 + i }).id)];
-    for (const id of lugarIds) await facade.registrar(usuarioId, id, NivelSaturacion.MODERADO);
-    expect(lineas.filter((l) => l.msg === 'Reporte registrado').map((l) => l.puntos)).toEqual([10, 10, 10, 10, 10, 0]);
+    expect(linea).not.toHaveProperty('puntos');
   });
 });

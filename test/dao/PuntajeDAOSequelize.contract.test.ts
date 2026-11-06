@@ -34,7 +34,7 @@ ejecutarContratoDAO<EntornoPuntajeDAO>({
       usuario: () => sembrador.usuario(),
       reporte: (autorId) => sembrador.reporte(autorId, lugarId),
       votar: async (usuarioId, reporteId, tipoAccion) => {
-        await validaciones.crear({ reporteId, usuarioId, tipoAccion, karmaVotante: 0, puntosOtorgados: 0, fechaHora: new Date() });
+        await validaciones.crear({ reporteId, usuarioId, tipoAccion, fechaHora: new Date() });
       },
       eliminar: async (reporteId) => {
         await reportes.actualizarEstado(reporteId, EstadoReporte.ELIMINADO);

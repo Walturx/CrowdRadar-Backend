@@ -38,7 +38,6 @@ export function aEntidadUsuario(modelo: InferAttributes<UsuarioModel>): Usuario 
     distrito: modelo.distrito,
     rol: modelo.rol as Rol,
     status: modelo.status as EstadoCuenta,
-    puntosKarma: modelo.puntosKarma,
     passwordCambiadaEn: modelo.passwordCambiadaEn ?? null,
     createdAt: modelo.createdAt,
     updatedAt: modelo.updatedAt,
@@ -91,15 +90,6 @@ export class UsuarioDAOSequelize implements UsuarioDAO {
 
   actualizarStatus(id: number, status: EstadoCuenta, tx?: ContextoTx): Promise<Usuario | null> {
     return this.actualizar(id, { status }, tx);
-  }
-
-  async incrementarKarma(id: number, delta: number, tx?: ContextoTx): Promise<number | null> {
-    const filas = await UsuarioModel.sequelize!.query<{ puntos_karma: number }>(
-      `UPDATE usuario SET puntos_karma = GREATEST(puntos_karma + :delta, 0), updated_at = now()
-       WHERE id = :id RETURNING puntos_karma`,
-      { replacements: { id, delta }, type: QueryTypes.SELECT, transaction: aTransaccion(tx) },
-    );
-    return filas[0]?.puntos_karma ?? null;
   }
 
   async listar(filtro: FiltroUsuarios, paginacion: Paginacion, tx?: ContextoTx): Promise<Pagina<Usuario>> {

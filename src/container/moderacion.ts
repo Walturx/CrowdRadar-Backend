@@ -10,18 +10,17 @@ import { construirServiciosReporte } from './reporte.js';
 import { crearEnviadorCorreo } from './seguridad.js';
 
 /**
- * ModeracionFacade over the shared infrastructure. Karma and saturation come from the report stream's wiring (they
- * only revoke and recompute here); the mail goes through the same provider as the recovery links. Without a
+ * ModeracionFacade over the shared infrastructure. Saturation comes from the report stream's wiring (it only
+ * recomputes here) and the points from the infrastructure; the mail goes through the same provider as the recovery links. Without a
  * `contextoReporteDAO` (in-memory compositions) the facade composes it from the entity DAOs.
  */
 export function crearModeracionFacade(infra: Infraestructura, denunciaDAO: DenunciaDAO, contextoReporteDAO?: ContextoReporteDAO): ModeracionFacade {
   const { cfg, logger, conexion, reloj, usuarioDAO, sancionDAO, lugarDAO, reporteDAO, subject, puntajeService } = infra;
-  const { karmaService, saturacionService } = construirServiciosReporte({
+  const { saturacionService } = construirServiciosReporte({
     cfg,
     reloj,
     logger,
     conexion,
-    usuarioDAO,
     lugarDAO,
     reporteDAO,
     subject,
@@ -34,7 +33,6 @@ export function crearModeracionFacade(infra: Infraestructura, denunciaDAO: Denun
     reporteDAO,
     lugarDAO,
     contextoReporteDAO,
-    karmaService,
     puntajeService,
     saturacionService,
     subject,

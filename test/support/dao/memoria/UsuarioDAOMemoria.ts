@@ -64,7 +64,6 @@ export class UsuarioDAOMemoria implements UsuarioDAO {
       id: this.siguienteId++,
       rol: Rol.USUARIO,
       status: EstadoCuenta.ACTIVO,
-      puntosKarma: 0,
       passwordCambiadaEn: null,
       ...sellosNuevos(this.reloj),
     });
@@ -82,14 +81,6 @@ export class UsuarioDAOMemoria implements UsuarioDAO {
 
   async actualizarStatus(id: number, status: EstadoCuenta): Promise<Usuario | null> {
     return this.modificar(id, { status });
-  }
-
-  async incrementarKarma(id: number, delta: number): Promise<number | null> {
-    this.verificarFallo();
-    const actual = this.filas.get(id);
-    if (!actual) return null;
-    const total = Math.max(actual.puntosKarma + delta, 0);
-    return (await this.modificar(id, { puntosKarma: total }))?.puntosKarma ?? null;
   }
 
   async listar(filtro: FiltroUsuarios, paginacion: Paginacion): Promise<Pagina<Usuario>> {

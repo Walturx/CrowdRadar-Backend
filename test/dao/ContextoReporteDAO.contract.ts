@@ -66,7 +66,6 @@ export function contratoContextoReporteDAO(nombre: string, crearEntorno: () => P
       await entorno.reporteDAO.actualizarConfiabilidad(s.reporteId, 66.67);
       const [contexto] = await entorno.dao.buscarPorReportes([s.reporteId]);
       expect(contexto?.reporte.nivelConfiabilidad).toBe(66.67);
-      expect(contexto?.reporte.motivoSinPuntos).toBeNull();
       expect(contexto?.lugar.direccion).toBeNull();
       expect(Object.keys(contexto!.autor).sort()).toEqual(['apellido', 'email', 'id', 'nombre']);
     });

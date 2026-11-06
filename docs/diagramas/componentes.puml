@@ -46,7 +46,7 @@ package "facade" as facade {
 }
 
 package "service" as service {
-  interface "AuthService, ReporteService, SaturacionService,\nKarmaService, ValidacionService, ... (14)" as ISvc
+  interface "AuthService, ReporteService, SaturacionService,\nPuntajeService, ValidacionService, ... (14)" as ISvc
   component "impl/AuthServiceImpl, impl/ReporteServiceImpl,\nimpl/SaturacionServiceImpl, ..." as svcImpl
 }
 

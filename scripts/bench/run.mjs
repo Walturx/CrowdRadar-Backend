@@ -15,8 +15,8 @@
  * per-user-per-place cooldown is only reached if the run exhausts the pairs. By default consecutive requests come from
  * different users AND hit different places (request i: user i mod 100, place (i + 101 * floor(i / 100)) mod 200), as
  * real traffic does. `--reportes-un-usuario` restores the order of the baseline (docs/metricas-baseline.md): 200
- * consecutive requests of ONE user on different places, so the in-flight reports all queue on that user's karma lock
- * (pg_advisory_xact_lock(usuario, 0), which keeps the daily cap exact); it measures that lock, not the endpoint.
+ * consecutive requests of ONE user on different places. The baseline queued them on a per-user lock that kept a daily
+ * cap of points exact; cap and lock were removed in CRO-72, so the option now only reproduces the old order.
  * Leftover bench reports younger than 31 minutes (from a previous run) are deleted first.
  *
  * Latency percentiles are computed from every response time (autocannon's own histogram has no p95); 429 is counted

@@ -130,7 +130,7 @@ describe('ReporteServiceImpl', () => {
       reloj.avanzarMinutos(31);
       const pendiente = await reportar();
       for (let votante = 100; votante < 110; votante += 1) {
-        await validaciones.crear({ reporteId: validado.id, usuarioId: votante, tipoAccion: TipoAccionValidacion.CONFIRMAR, karmaVotante: 0, puntosOtorgados: 0, fechaHora: T0 });
+        await validaciones.crear({ reporteId: validado.id, usuarioId: votante, tipoAccion: TipoAccionValidacion.CONFIRMAR, fechaHora: T0 });
       }
       const pagina = await servicio.listarMios(USUARIO, PAGINA);
       expect(pagina.items.map((i) => [i.reporte.id, i.puntos])).toEqual([

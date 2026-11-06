@@ -88,14 +88,13 @@ async function insertarLugares(cliente) {
 async function insertarUsuarios(cliente) {
   const hash = await bcrypt.hash(PASSWORD_BENCH, Number(process.env.BCRYPT_COSTO ?? 10));
   const emails = Array.from({ length: TOTAL_USUARIOS_BENCH }, (_, i) => emailBench(i + 1));
-  const karma = emails.map(() => entero(400));
   const { rows } = await cliente.query(
-    `INSERT INTO usuario (nombre, apellido, email, password_hash, rol, status, puntos_karma)
-     SELECT 'Bench', 'Usuario ' || ord, e, $2, 'USUARIO', 'ACTIVO', k
-       FROM unnest($1::text[], $3::int[]) WITH ORDINALITY AS t(e, k, ord)
+    `INSERT INTO usuario (nombre, apellido, email, password_hash, rol, status)
+     SELECT 'Bench', 'Usuario ' || ord, e, $2, 'USUARIO', 'ACTIVO'
+       FROM unnest($1::text[]) WITH ORDINALITY AS t(e, ord)
      ORDER BY ord
      RETURNING id`,
-    [emails, hash, karma],
+    [emails, hash],
   );
   return rows.map((r) => r.id);
 }
@@ -106,21 +105,19 @@ async function insertarReportes(cliente, usuarioIds, lugarIds) {
   const lugares = [];
   const niveles = [];
   const fechas = [];
-  const puntos = [];
   for (let i = 0; i < TOTAL_REPORTES; i += 1) {
     usuarios.push(elegir(usuarioIds));
     lugares.push(elegir(lugarIds));
     niveles.push(elegir(NIVELES));
     fechas.push(new Date(ahora - MARGEN_COOLDOWN_MS - azar() * (VENTANA_MS - MARGEN_COOLDOWN_MS)).toISOString());
-    puntos.push(azar() < 0.7 ? 10 : 0);
   }
+  // Points are computed from votes when read (CRO-72): the bench writes no point columns.
   const { rows } = await cliente.query(
-    `INSERT INTO reporte_saturacion (usuario_id, lugar_id, nivel_saturacion, fecha_hora, nivel_confiabilidad, estado,
-                                     puntos_otorgados, motivo_sin_puntos)
-     SELECT u, l, n, f, NULL, 'ACTIVO', p, CASE WHEN p = 0 THEN 'TOPE_DIARIO' END
-       FROM unnest($1::int[], $2::int[], $3::text[], $4::timestamptz[], $5::smallint[]) AS t(u, l, n, f, p)
+    `INSERT INTO reporte_saturacion (usuario_id, lugar_id, nivel_saturacion, fecha_hora, nivel_confiabilidad, estado)
+     SELECT u, l, n, f, NULL, 'ACTIVO'
+       FROM unnest($1::int[], $2::int[], $3::text[], $4::timestamptz[]) AS t(u, l, n, f)
      RETURNING id, usuario_id`,
-    [usuarios, lugares, niveles, fechas, puntos],
+    [usuarios, lugares, niveles, fechas],
   );
   return rows;
 }

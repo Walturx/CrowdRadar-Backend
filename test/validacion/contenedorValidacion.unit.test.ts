@@ -10,6 +10,7 @@ import { configPrueba, type SobrescritosEntorno } from '../support/configPrueba.
 import { crearLoggerSilencioso } from '../support/LoggerSilencioso.js';
 import { DenunciaDAOMemoria } from '../support/dao/memoria/DenunciaDAOMemoria.js';
 import { LugarDAOMemoria } from '../support/dao/memoria/LugarDAOMemoria.js';
+import { PuntajeDAOMemoria } from '../support/dao/memoria/PuntajeDAOMemoria.js';
 import { ReporteDAOMemoria } from '../support/dao/memoria/ReporteDAOMemoria.js';
 import { UsuarioDAOMemoria } from '../support/dao/memoria/UsuarioDAOMemoria.js';
 import { ValidacionDAOMemoria } from '../support/dao/memoria/ValidacionDAOMemoria.js';
@@ -35,6 +36,7 @@ describe('construirServiciosValidacion', () => {
   function armar(sobrescritos: SobrescritosEntorno = {}) {
     const usuarioDAO = new UsuarioDAOMemoria();
     const reporteDAO = new ReporteDAOMemoria();
+    const validacionDAO = new ValidacionDAOMemoria();
     const infra = construirInfraestructura({
       cfg: configPrueba(sobrescritos),
       logger: crearLoggerSilencioso(),
@@ -42,14 +44,12 @@ describe('construirServiciosValidacion', () => {
       usuarioDAO,
       lugarDAO: new LugarDAOMemoria(),
       reporteDAO,
+      puntajeDAO: new PuntajeDAOMemoria({ reportes: reporteDAO, validaciones: validacionDAO }),
       hasher: new HasherFalso(),
       emisorToken: new EmisorTokenFalso(),
     });
-    const { validacionService } = construirServiciosValidacion(infra, {
-      validacionDAO: new ValidacionDAOMemoria(),
-      denunciaDAO: new DenunciaDAOMemoria(),
-    });
-    return { usuarioDAO, reporteDAO, validacionService };
+    const { validacionService } = construirServiciosValidacion(infra, { validacionDAO, denunciaDAO: new DenunciaDAOMemoria() });
+    return { usuarioDAO, reporteDAO, validacionDAO, validacionService, puntajeService: infra.puntajeService };
   }
 
   it('arma servicios que trabajan con los DAOs entregados y CONFIABILIDAD_MIN_VOTOS_ESTADO', async () => {
@@ -62,10 +62,19 @@ describe('construirServiciosValidacion', () => {
   });
 
   it('dos votos validos de usuarios con distinto puntaje aportan lo mismo a la confiabilidad', async () => {
-    const { usuarioDAO, reporteDAO, validacionService } = armar();
+    const { usuarioDAO, reporteDAO, validacionDAO, validacionService, puntajeService } = armar();
     const autor = usuarioDAO.agregar(aUsuario()).id;
-    const veterano = usuarioDAO.agregar(aUsuario({ puntosKarma: 900 })).id;
+    const veterano = usuarioDAO.agregar(aUsuario()).id;
     const novatos = [usuarioDAO.agregar(aUsuario()).id, usuarioDAO.agregar(aUsuario()).id];
+    // The veteran wrote five reports that ten other users confirmed: 50 points, Crowd Explorer; the newcomers have 0.
+    for (let i = 0; i < 5; i += 1) {
+      const suyo = reporteDAO.agregar(aReporte({ usuarioId: veterano })).id;
+      for (let j = 0; j < 10; j += 1) {
+        await validacionDAO.crear({ reporteId: suyo, usuarioId: usuarioDAO.agregar(aUsuario()).id, tipoAccion: C, fechaHora: new Date() });
+      }
+    }
+    expect(await puntajeService.obtener(veterano)).toEqual({ puntos: 50, tier: 'CROWD_EXPLORER' });
+    expect(await puntajeService.obtener(novatos[0]!)).toEqual({ puntos: 0, tier: 'CROWD_BABY' });
 
     // The veteran confirms and two newcomers reject: 1 of 3 whatever the veteran's score.
     const confirmado = reporteDAO.agregar(aReporte({ usuarioId: autor })).id;

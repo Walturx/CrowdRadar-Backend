@@ -12,7 +12,6 @@ export interface Usuario {
   distrito: string | null;
   rol: Rol;
   status: EstadoCuenta;
-  puntosKarma: number;
   /** Last password change; tokens issued before it are rejected. Null when it never changed. */
   passwordCambiadaEn: Date | null;
   createdAt: Date;

@@ -1,4 +1,4 @@
-import { Op, QueryTypes, UniqueConstraintError, type Order, type Transaction } from 'sequelize';
+import { Op, UniqueConstraintError, type Order, type Transaction } from 'sequelize';
 import type { ContextoTx } from '../../../datasource/ConexionBD.js';
 import type { ValidacionReporte } from '../../../entity/ValidacionReporte.js';
 import type { TipoAccionValidacion } from '../../../enum/TipoAccionValidacion.js';
@@ -20,8 +20,6 @@ function aEntidad(modelo: ValidacionModel): ValidacionReporte {
     reporteId: modelo.reporteId,
     usuarioId: modelo.usuarioId,
     tipoAccion: modelo.tipoAccion as TipoAccionValidacion,
-    karmaVotante: modelo.karmaVotante,
-    puntosOtorgados: modelo.puntosOtorgados,
     fechaHora: modelo.fechaHora,
     createdAt: modelo.createdAt,
     updatedAt: modelo.updatedAt,
@@ -40,8 +38,8 @@ export class ValidacionDAOSequelize implements ValidacionDAO {
           reporteId: datos.reporteId,
           usuarioId: datos.usuarioId,
           tipoAccion: datos.tipoAccion,
-          karmaVotante: datos.karmaVotante,
-          puntosOtorgados: datos.puntosOtorgados,
+          // karma_votante is NOT NULL without default (frozen migration 04) and unused since CRO-72.
+          karmaVotante: 0,
           fechaHora: datos.fechaHora,
         },
         { transaction: aTransaccion(tx) },
@@ -70,16 +68,5 @@ export class ValidacionDAOSequelize implements ValidacionDAO {
       transaction: aTransaccion(tx),
     });
     return modelos.map(aEntidad);
-  }
-
-  async sumarPuntosDelDiaDe(usuarioId: number, desde: Date, tx?: ContextoTx): Promise<number> {
-    const transaction = aTransaccion(tx);
-    await ValidacionModel.sequelize!.query('SELECT pg_advisory_xact_lock(:usuarioId, 0)', {
-      replacements: { usuarioId },
-      type: QueryTypes.SELECT,
-      transaction,
-    });
-    const suma = await ValidacionModel.sum('puntosOtorgados', { where: { usuarioId, fechaHora: { [Op.gte]: desde } }, transaction });
-    return Number(suma ?? 0);
   }
 }

@@ -23,7 +23,6 @@ import { ReporteNoEncontradoException } from '../../exception/reporte/ReporteNoE
 import { UsuarioNoEncontradoException } from '../../exception/usuario/UsuarioNoEncontradoException.js';
 import { crearEventoSaturacion } from '../../pattern/observer/SaturacionCambiadaEvento.js';
 import type { SaturacionSubject } from '../../pattern/observer/SaturacionSubject.js';
-import type { KarmaService } from '../../service/KarmaService.js';
 import type { PuntajeService } from '../../service/PuntajeService.js';
 import type { SaturacionService } from '../../service/SaturacionService.js';
 import type { Logger } from '../../util/logger.js';
@@ -47,7 +46,6 @@ export interface DependenciasModeracionFacade {
   lugarDAO: LugarDAO;
   /** Batch read of report, place and author for the review queue; defaults to composing the three DAOs above. */
   contextoReporteDAO?: ContextoReporteDAO;
-  karmaService: KarmaService;
   /** Points and tier of the directory: one read per page. */
   puntajeService: PuntajeService;
   saturacionService: SaturacionService;
@@ -194,7 +192,7 @@ export class ModeracionFacadeImpl implements ModeracionFacade {
   }
 
   async resolverDenuncias(adminId: number, reporteId: number, decision: DecisionModeracion, comentario: string | null): Promise<ResultadoResolucion> {
-    const { denunciaDAO, reporteDAO, lugarDAO, karmaService, saturacionService, conexion, reloj, logger } = this.deps;
+    const { denunciaDAO, reporteDAO, lugarDAO, saturacionService, conexion, reloj, logger } = this.deps;
     const { reporte } = await this.contextoDe(reporteId);
     const eliminar = decision === 'ELIMINAR';
     const ahora = reloj.ahora();
@@ -211,7 +209,6 @@ export class ModeracionFacadeImpl implements ModeracionFacade {
       if (total === 0) throw new SinDenunciasPendientesException();
       if (!eliminar) return { resueltas: total, cambio: null };
       await reporteDAO.actualizarEstado(reporteId, EstadoReporte.ELIMINADO, tx);
-      await karmaService.revocarPorReporteEliminado(reporteId, tx);
       return { resueltas: total, cambio: await saturacionService.recalcular(reporte.lugarId, tx, bloqueado ?? undefined) };
     });
 

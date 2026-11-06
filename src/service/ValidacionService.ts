@@ -44,7 +44,6 @@ export interface DetalleReporte {
 
 export interface ResultadoValidacion {
   validacion: ValidacionReporte;
-  karma: { puntosGanados: number; total: number };
   /** Recomputed with the new vote included. */
   confiabilidad: ConfiabilidadReporte;
 }
@@ -59,8 +58,8 @@ export interface EstadoMiReporte {
 /**
  * Pattern: Service layer + Strategy (context for EstrategiaConfiabilidad). Voting on other people's reports.
  * Owner: M5. Throws ReporteNoEncontradoException (404), AutovalidacionException (422) and
- * ValidacionDuplicadaException (409). `validar` runs in one transaction: vote, +KARMA_POR_VALIDACION, recompute
- * reliability and store it.
+ * ValidacionDuplicadaException (409). `validar` runs in one transaction: vote, recompute reliability and store it.
+ * A vote awards nothing by itself: points are computed from the report's state when read (PuntajeService).
  */
 export interface ValidacionService {
   /** ACTIVO reports of other users in the radius and time window the caller has not voted on: nearest place first, then newest. */
