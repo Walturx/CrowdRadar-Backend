@@ -147,6 +147,11 @@ una lectura del contexto (reporte, lugar y autor) para todos los ítems.
 
 ### Por qué `POST /api/reportes` sigue por encima de 200 ms
 
+> **Actualización (CRO-72, 06/11/2026):** el karma ya no existe. Los puntos se calculan con una consulta y no hay topes
+> diarios, así que el bloqueo `pg_advisory_xact_lock(usuario, 0)` descrito abajo se eliminó de la transacción de reporte
+> y de la de voto. El análisis siguiente describe la medición de esa fecha y queda como registro histórico; hay que
+> volver a medir para conocer el p95 actual.
+
 - Con el orden de la línea base, 50 conexiones envían 200 peticiones seguidas del **mismo usuario**, y todas esperan el
   mismo `pg_advisory_xact_lock(usuario, 0)` del karma. Ese bloqueo se mantiene a propósito para que el tope diario de
   karma sea exacto; la mayor parte del p95 es espera en ese bloqueo, no trabajo. Con la rotación por defecto (usuarios y
