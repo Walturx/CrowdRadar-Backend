@@ -67,7 +67,7 @@ describe('ConfiguracionApp', () => {
         confiabilidadMinVotos: 3,
         confiabilidadUmbralAlta: 70,
         confiabilidadUmbralMedia: 40,
-        topeKarmaPeso: 500,
+        confiabilidadMinVotosEstado: 10,
         radioBusquedaKm: 2,
         suspensionDiasPermitidos: [3, 7, 30],
       });

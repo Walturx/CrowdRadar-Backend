@@ -49,3 +49,16 @@ validation karma (`KARMA_VALIDACION_MAX_DIA`, 20 points, enforced under the per-
 counts for the reliability but earns 0) and a rate limit per user (`LIMITE_VALIDACIONES` votes and `LIMITE_DENUNCIAS` complaints
 per hour, `429 DEMASIADAS_SOLICITUDES`). The votes of one report are serialized with `SELECT ... FOR UPDATE` on its row, so each
 recomputation of `nivel_confiabilidad` sees every earlier vote.
+
+## D-CRO-73. Every valid vote weighs the same
+
+**Decision.** A report's reliability is `100 x confirmations / votes` (2 decimals, half up): every valid vote weighs 1,
+whoever casts it. The karma-weighted variant, the variable that chose it and its weight cap were removed; the
+`EstrategiaConfiabilidad` port stays with `ConfiabilidadSimpleStrategy` as its only implementation, so a new rule can be
+swapped in without touching `ValidacionServiceImpl`. The thresholds and minimum votes did not change.
+
+**Why.** The score now only describes participation (CRO-62); letting it buy weight would let a few active users decide what
+is VALIDADO, and VALIDADO is exactly what earns points, a loop that rewards the same people twice. The percentage is computed
+from the integer counts in one division, so it is exact and any SQL that derives the same state rounds the same way.
+
+**Accepted.** `validacion_reporte.karma_votante` stays in the schema (frozen migration 04) and no longer influences anything.

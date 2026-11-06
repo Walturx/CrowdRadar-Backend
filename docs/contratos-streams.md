@@ -272,8 +272,8 @@ Interfaces to implement:
 - `service/ValidacionService.ts`, `service/DenunciaService.ts` (Pattern: Service layer; Strategy context for
   reliability) -> `service/impl/{Validacion,Denuncia}ServiceImpl.ts`.
 - `pattern/strategy/confiabilidad/EstrategiaConfiabilidad.ts` (Pattern: Strategy) ->
-  `pattern/strategy/confiabilidad/impl/ConfiabilidadPonderadaKarmaStrategy.ts` and `ConfiabilidadSimpleStrategy.ts`,
-  chosen by `CONFIABILIDAD_ESTRATEGIA`.
+  `pattern/strategy/confiabilidad/impl/ConfiabilidadSimpleStrategy.ts` (every valid vote weighs 1 since CRO-73, which removed
+  the karma-weighted variant and its configuration).
 - `dao/ValidacionDAO.ts`, `dao/DenunciaDAO.ts` -> `dao/impl/sequelize/{Validacion,Denuncia}DAOSequelize.ts`.
 
 Owned files: `service/impl/{Validacion,Denuncia}ServiceImpl.ts`, `pattern/strategy/confiabilidad/impl/*`,
@@ -306,7 +306,7 @@ Delivered (M5-BE-01..03):
   `consultarEstadoMisReportes`); `ConfiabilidadReporte` adds raw counts and the derived `EstadoValidacion` to `ResultadoConfiabilidad`
   (`derivarEstadoValidacion`). New exceptions `ReporteNoEncontradoException`, `AutovalidacionException`,
   `ValidacionDuplicadaException`, `AutodenunciaException`, `DenunciaDuplicadaException` (codes were already frozen).
-  `container/validacion.ts` exports `elegirEstrategiaConfiabilidad`, `construirServiciosValidacion` and `DaosValidacion`; the karma
+  `container/validacion.ts` exports `crearEstrategiaConfiabilidad`, `construirServiciosValidacion` and `DaosValidacion`; the karma
   service is the one `construirServiciosReporte` builds.
 - Contract touch (M5-BE-03): `ensamblar` takes `opciones.validacion` (`DaosValidacion`, in memory in `crearContenedorPrueba`); the
   mount order is unchanged. `GET /reportes/mios/validacion` moved from `reporte.routes.ts` to `validacion.routes.ts` (declared before

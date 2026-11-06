@@ -5,7 +5,7 @@ import { EstadoValidacion } from '../../src/enum/EstadoValidacion.js';
 import { NivelConfiabilidad } from '../../src/enum/NivelConfiabilidad.js';
 import { TipoAccionValidacion } from '../../src/enum/TipoAccionValidacion.js';
 import { CodigoError } from '../../src/exception/CodigoError.js';
-import { ConfiabilidadPonderadaKarmaStrategy } from '../../src/pattern/strategy/confiabilidad/impl/ConfiabilidadPonderadaKarmaStrategy.js';
+import { ConfiabilidadSimpleStrategy } from '../../src/pattern/strategy/confiabilidad/impl/ConfiabilidadSimpleStrategy.js';
 import { KarmaServiceImpl } from '../../src/service/impl/KarmaServiceImpl.js';
 import { ValidacionServiceImpl } from '../../src/service/impl/ValidacionServiceImpl.js';
 import { distanciaMetros } from '../../src/util/geo.js';
@@ -44,7 +44,7 @@ describe('ValidacionServiceImpl', () => {
     reporteDAO.agregar(aReporte({ usuarioId, lugarId, fechaHora: haceMinutos(30), ...sobrescritos })).id;
   const votoDe = (usuarioId: number, reporte: number, tipoAccion: TipoAccionValidacion, karmaVotante = 0) =>
     validacionDAO.crear({ reporteId: reporte, usuarioId, tipoAccion, karmaVotante, puntosOtorgados: 2, fechaHora: AHORA });
-  /** Votes by fresh users (karma 0, weight 1). */
+  /** Votes by fresh users (every vote weighs 1). */
   const votosNuevos = async (reporte: number, confirman: number, rechazan: number) => {
     for (let i = 0; i < confirman + rechazan; i += 1) await votoDe(usuario(), reporte, i < confirman ? C : R);
   };
@@ -74,7 +74,7 @@ describe('ValidacionServiceImpl', () => {
         validacionDAO,
         karmaValidacionMaxDia: 4,
       }),
-      estrategia: new ConfiabilidadPonderadaKarmaStrategy({ minVotos: 3, umbralAlta: 70, umbralMedia: 40, topeKarmaPeso: 500 }),
+      estrategia: new ConfiabilidadSimpleStrategy({ minVotos: 3, umbralAlta: 70, umbralMedia: 40 }),
       conexion,
       reloj,
       minVotosEstado: 10,
@@ -106,9 +106,9 @@ describe('ValidacionServiceImpl', () => {
     it('recalcula y guarda nivel_confiabilidad cuando ya hay votos suficientes (S7)', async () => {
       await votosNuevos(reporteId, 1, 1);
       const resultado = await servicio.validar(votante, reporteId, C);
-      // pesos 1, 1 y 1.4 (karma 40): confirman 1 + 1.4 = 2.4 de 3.4
-      expect(resultado.confiabilidad).toMatchObject({ porcentaje: 70.59, nivel: NivelConfiabilidad.ALTA });
-      expect((await reporteDAO.buscarPorId(reporteId))?.nivelConfiabilidad).toBe(70.59);
+      // every vote weighs 1, the voter's karma 40 included: 2 of 3 confirm
+      expect(resultado.confiabilidad).toMatchObject({ porcentaje: 66.67, nivel: NivelConfiabilidad.MEDIA });
+      expect((await reporteDAO.buscarPorId(reporteId))?.nivelConfiabilidad).toBe(66.67);
     });
 
     it('no toca nivel_confiabilidad mientras es INSUFICIENTE', async () => {
