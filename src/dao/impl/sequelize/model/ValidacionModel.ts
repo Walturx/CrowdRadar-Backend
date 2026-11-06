@@ -7,8 +7,6 @@ export class ValidacionModel extends Model<InferAttributes<ValidacionModel>, Inf
   declare reporteId: number;
   declare usuarioId: number;
   declare tipoAccion: string;
-  /** NOT NULL without default in the frozen migration 04; unused since CRO-72, always written as 0. */
-  declare karmaVotante: number;
   declare fechaHora: Date;
   declare createdAt: CreationOptional<Date>;
   declare updatedAt: CreationOptional<Date>;
@@ -21,7 +19,6 @@ export function initValidacionModel(sequelize: Sequelize): void {
       reporteId: { type: DataTypes.INTEGER, allowNull: false },
       usuarioId: { type: DataTypes.INTEGER, allowNull: false },
       tipoAccion: { type: DataTypes.STRING(10), allowNull: false },
-      karmaVotante: { type: DataTypes.INTEGER, allowNull: false },
       fechaHora: { type: DataTypes.DATE, allowNull: false },
       createdAt: DataTypes.DATE,
       updatedAt: DataTypes.DATE,

@@ -62,8 +62,8 @@ swapped in without touching `ValidacionServiceImpl`. The thresholds and minimum 
 is VALIDADO, and VALIDADO is exactly what earns points, a loop that rewards the same people twice. The percentage is computed
 from the integer counts in one division, so it is exact and any SQL that derives the same state rounds the same way.
 
-**Accepted.** The voter's former score column in `validacion_reporte` stays in the schema (frozen migration 04) and no longer
-influences anything; new votes write 0 in it (it is NOT NULL).
+**Accepted.** The voter's former score column in `validacion_reporte` no longer influences anything; migration 15 drops it
+(D-CRO-72-COLUMNAS).
 
 ## D-CRO-72. Points and tiers are computed by a query, never stored
 
@@ -91,4 +91,23 @@ every boundary, so the two cannot disagree.
 
 **Cost accepted.** Each profile, login and admin page runs one aggregate query over the user's reports and votes (indexes
 `ix_reporte_usuario_lugar_fecha` and `ix_validacion_usuario`); a directory page reads the points of all its users in one query.
-The former point columns stay in the frozen migrations, unused (CRO-62: "se dejan de usar, no se borran").
+The former point columns were first left unused (CRO-62: "se dejan de usar, no se borran"); migration 15 drops them
+(D-CRO-72-COLUMNAS).
+
+## D-CRO-72-COLUMNAS. The former point columns are dropped (migration 15, 06/11/2026)
+
+**Decision.** Migration 15 (`database/migrations/20261106000015-retirar-columnas-karma.cjs`) drops `usuario.puntos_karma`,
+`reporte_saturacion.puntos_otorgados` and `motivo_sin_puntos`, `validacion_reporte.karma_votante` and `puntos_otorgados`, and
+their five CHECKs, in one transaction. It replaces the CRO-62 decision "Columnas de karma: se dejan de usar, no se borran": with
+points computed by a query (D-CRO-72) nothing reads them, and keeping them meant writing a meaningless 0 on every vote.
+
+**Accepted.** The stored values are gone for good (the CRO-62 history already comes from the query: "`puntos_karma` no se
+migra"). `down` restores the columns with their type, default, NOT NULL and CHECK, holding 0 (NULL for `motivo_sin_puntos`),
+not the old values.
+
+**Deploy order.** Deploy the code of this change first, then run migration 15 right after it. Older code still reads and writes
+those columns (before CRO-72 every user read maps `puntos_karma`), so migrating first breaks it. This code no longer writes
+`karma_votante`, which stays NOT NULL without a default until the migration drops it, so new votes fail between the deploy and
+the migration. With compose, `docker compose stop api` and then `docker compose up -d --build` (the one-shot `migrate` runs
+before the new `api` starts) trades that window for a few seconds without API. A rollback goes the other way: stop the API,
+undo migration 15 (`npm run db:migrate:undo`), then start the previous image.

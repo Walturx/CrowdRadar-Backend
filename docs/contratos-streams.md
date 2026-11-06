@@ -259,7 +259,7 @@ M4 notes (delivered in the BE-01..03 slices):
 - Contract touch (CRO-72): a report or a vote awards nothing when it is written; points are computed when read
   (`PuntajeService`, M5). The service that granted, capped and revoked points was removed with its configuration keys,
   `ReporteDAO` lost its points methods and the daily-cap lock, `ReporteRegistrado` lost its points block and the entities
-  no longer map the old point columns (they stay in the frozen migrations).
+  no longer map the old point columns (migration 15 drops them, D-CRO-72-COLUMNAS in `docs/decisiones.md`).
 - `SembradorSequelize` has a single owner: the shared test support, `test/support/dao/sequelize/SembradorSequelize.ts`
   (the M3 and M4 copies were merged at the integration; `usuarioSintetico()` and the idempotent `favorito()` live there).
   A stream that needs another seeded row adds it there through a contract PR instead of keeping its own copy.

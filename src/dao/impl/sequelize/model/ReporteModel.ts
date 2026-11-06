@@ -1,10 +1,7 @@
 import { DataTypes, Model } from 'sequelize';
 import type { CreationOptional, InferAttributes, InferCreationAttributes, Sequelize } from 'sequelize';
 
-/**
- * Sequelize model of the `reporte_saturacion` table (migration 03). Only dao/impl/sequelize sees it. `puntos_otorgados`
- * and `motivo_sin_puntos` stay in the table (defaults 0 and null) but are no longer mapped: points are computed (CRO-72).
- */
+/** Sequelize model of the `reporte_saturacion` table (migration 03). Only dao/impl/sequelize sees it. */
 export class ReporteModel extends Model<InferAttributes<ReporteModel>, InferCreationAttributes<ReporteModel>> {
   declare id: CreationOptional<number>;
   declare usuarioId: number;
