@@ -21,7 +21,7 @@ export interface DatosPerfil {
   distrito?: string | null;
 }
 
-export type OrdenUsuarios = 'RECIENTES' | 'NOMBRE' | 'KARMA';
+export type OrdenUsuarios = 'RECIENTES' | 'NOMBRE';
 
 /** Admin listing filter (M6): free text over nombre, apellido and email, plus account status. */
 export interface FiltroUsuarios {

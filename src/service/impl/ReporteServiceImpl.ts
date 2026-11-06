@@ -7,6 +7,7 @@ import type { NivelSaturacion } from '../../enum/NivelSaturacion.js';
 import { ReporteEnEsperaException } from '../../exception/reporte/ReporteEnEsperaException.js';
 import type { Reloj } from '../../util/Reloj.js';
 import { MS_POR_MINUTO } from '../../util/tiempo.js';
+import type { PuntajeService } from '../PuntajeService.js';
 import type { ReporteDeUsuario, ReporteService } from '../ReporteService.js';
 
 export interface DependenciasReporteService {
@@ -14,6 +15,8 @@ export interface DependenciasReporteService {
   lugarDAO: LugarDAO;
   reloj: Reloj;
   cooldownMin: number;
+  /** Points of each listed report (one read per page). */
+  puntajeService: PuntajeService;
 }
 
 /** Pattern: Service layer. Report rules (cooldown, creation); the facade orchestrates them in one transaction. */
@@ -40,8 +43,18 @@ export class ReporteServiceImpl implements ReporteService {
 
   async listarMios(usuarioId: number, paginacion: Paginacion): Promise<Pagina<ReporteDeUsuario>> {
     const pagina = await this.deps.reporteDAO.listarPorUsuario(usuarioId, paginacion);
-    const lugares = await this.deps.lugarDAO.buscarPorIds(pagina.items.map((r) => r.lugarId));
+    const [lugares, puntos] = await Promise.all([
+      this.deps.lugarDAO.buscarPorIds(pagina.items.map((r) => r.lugarId)),
+      this.deps.puntajeService.puntosDeReportes(pagina.items.map((r) => r.id)),
+    ]);
     const nombres = new Map(lugares.map((l) => [l.id, l.nombre]));
-    return { ...pagina, items: pagina.items.map((reporte) => ({ reporte, lugarNombre: nombres.get(reporte.lugarId) ?? '' })) };
+    return {
+      ...pagina,
+      items: pagina.items.map((reporte) => ({
+        reporte,
+        lugarNombre: nombres.get(reporte.lugarId) ?? '',
+        puntos: puntos.get(reporte.id) ?? 0,
+      })),
+    };
   }
 }

@@ -8,6 +8,7 @@ import { UsuarioServiceImpl } from '../../src/service/impl/UsuarioServiceImpl.js
 import { HasherFalso } from '../support/adapter/HasherFalso.js';
 import { DispositivoDAOMemoria } from '../support/dao/memoria/DispositivoDAOMemoria.js';
 import { UsuarioDAOMemoria } from '../support/dao/memoria/UsuarioDAOMemoria.js';
+import { puntajeEnMemoria } from '../support/puntajePrueba.js';
 
 describe('UsuarioServiceImpl', () => {
   let dao: UsuarioDAOMemoria;
@@ -18,7 +19,7 @@ describe('UsuarioServiceImpl', () => {
   beforeEach(async () => {
     dao = new UsuarioDAOMemoria();
     dispositivoDAO = new DispositivoDAOMemoria();
-    servicio = new UsuarioServiceImpl({ usuarioDAO: dao, hasher: new HasherFalso(), dispositivoDAO });
+    servicio = new UsuarioServiceImpl({ usuarioDAO: dao, hasher: new HasherFalso(), dispositivoDAO, puntajeService: puntajeEnMemoria() });
     const ana = await dao.crear({
       nombre: 'Ana',
       apellido: 'Perez',

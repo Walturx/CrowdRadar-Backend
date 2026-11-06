@@ -18,6 +18,7 @@ import { KarmaServiceImpl } from '../service/impl/KarmaServiceImpl.js';
 import { ReporteServiceImpl } from '../service/impl/ReporteServiceImpl.js';
 import { SaturacionServiceImpl } from '../service/impl/SaturacionServiceImpl.js';
 import type { KarmaService } from '../service/KarmaService.js';
+import type { PuntajeService } from '../service/PuntajeService.js';
 import type { ReporteService } from '../service/ReporteService.js';
 import type { SaturacionService } from '../service/SaturacionService.js';
 import type { Logger } from '../util/logger.js';
@@ -50,6 +51,8 @@ export interface DependenciasServiciosReporte {
   reporteDAO: ReporteDAO;
   /** Shared with the other streams that publish or subscribe (built once by the composition root). */
   subject: SaturacionSubject;
+  /** Points of the listed reports (built once by the infrastructure). */
+  puntajeService: PuntajeService;
 }
 
 export interface ServiciosReporte {
@@ -62,9 +65,9 @@ export interface ServiciosReporte {
 
 /** Wires the report services and facade from the configuration; a pure function so tests can feed it in-memory DAOs. */
 export function construirServiciosReporte(deps: DependenciasServiciosReporte): ServiciosReporte {
-  const { cfg, reloj, logger, conexion, usuarioDAO, lugarDAO, reporteDAO, subject } = deps;
+  const { cfg, reloj, logger, conexion, usuarioDAO, lugarDAO, reporteDAO, subject, puntajeService } = deps;
   const reglas = cfg.reglas;
-  const reporteService = new ReporteServiceImpl({ reporteDAO, lugarDAO, reloj, cooldownMin: reglas.cooldownReporteMin });
+  const reporteService = new ReporteServiceImpl({ reporteDAO, lugarDAO, reloj, cooldownMin: reglas.cooldownReporteMin, puntajeService });
   const karmaService = new KarmaServiceImpl({
     usuarioDAO,
     reporteDAO,
@@ -108,6 +111,7 @@ export function construirReporte({
   reporteDAO,
   subject,
   guardas,
+  puntajeService,
 }: Infraestructura): MontajeRuta[] {
   const { reporteFacade, reporteService } = construirServiciosReporte({
     cfg,
@@ -118,6 +122,7 @@ export function construirReporte({
     lugarDAO,
     reporteDAO,
     subject,
+    puntajeService,
   });
   const { reglas } = cfg;
   const analiticaService = new AnaliticaServiceImpl({

@@ -16,6 +16,7 @@ import { RelojFijo } from '../RelojFijo.js';
 import { LugarDAOMemoria } from '../dao/memoria/LugarDAOMemoria.js';
 import { ReporteDAOMemoria } from '../dao/memoria/ReporteDAOMemoria.js';
 import { UsuarioDAOMemoria } from '../dao/memoria/UsuarioDAOMemoria.js';
+import { puntajeEnMemoria } from '../puntajePrueba.js';
 
 export const INSTANTE_PRUEBA = new Date('2026-10-05T15:00:00Z');
 
@@ -36,7 +37,8 @@ export function crearFacadePrueba(deps: DependenciasFacadePrueba): ReporteFacade
   return new ReporteFacadeImpl({
     lugarDAO,
     conexion,
-    reporteService: new ReporteServiceImpl({ reporteDAO, lugarDAO, reloj, cooldownMin: 30 }),
+    // The facade never lists reports, so the points service of the report service reads its own empty store.
+    reporteService: new ReporteServiceImpl({ reporteDAO, lugarDAO, reloj, cooldownMin: 30, puntajeService: puntajeEnMemoria() }),
     karmaService: new KarmaServiceImpl({
       usuarioDAO,
       reporteDAO,

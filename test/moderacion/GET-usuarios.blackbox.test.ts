@@ -28,8 +28,8 @@ describe('GET /api/admin/usuarios (caja negra)', () => {
     ctx = crearContenedorPrueba({ reloj: new RelojFijo(AHORA) });
     app = createApp(ctx.contenedor);
     cabeceraAdmin = cabeceraDe(ctx.usuarioDAO.agregar(aUsuario({ rol: Rol.ADMIN, nombre: 'Admin', apellido: 'Root', email: 'admin@crowdradar.pe' })));
-    ctx.usuarioDAO.agregar(aUsuario({ nombre: 'Lucia', apellido: 'Ramos', email: 'lucia@crowdradar.pe', puntosKarma: 10 }));
-    ctx.usuarioDAO.agregar(aUsuario({ nombre: 'Pedro', apellido: 'Lucero', email: 'pedro@crowdradar.pe', puntosKarma: 50 }));
+    ctx.usuarioDAO.agregar(aUsuario({ nombre: 'Lucia', apellido: 'Ramos', email: 'lucia@crowdradar.pe' }));
+    ctx.usuarioDAO.agregar(aUsuario({ nombre: 'Pedro', apellido: 'Lucero', email: 'pedro@crowdradar.pe' }));
   });
 
   it('200 con los campos del contrato y sin el hash de la password', async () => {
@@ -43,7 +43,8 @@ describe('GET /api/admin/usuarios (caja negra)', () => {
       email: 'lucia@crowdradar.pe',
       rol: 'USUARIO',
       status: 'ACTIVO',
-      puntosKarma: 10,
+      puntos: 0,
+      tier: 'CROWD_BABY',
       sancionVigente: null,
     });
     expect(JSON.stringify(res.body)).not.toMatch(/password|hash/i);
@@ -95,15 +96,14 @@ describe('GET /api/admin/usuarios (caja negra)', () => {
   });
 
   describe('orden', () => {
-    it('NOMBRE ordena alfabeticamente, KARMA de mayor a menor', async () => {
+    it('NOMBRE ordena alfabeticamente', async () => {
       expect(nombres(await pedir('orden=NOMBRE'))).toEqual(['Admin', 'Lucia', 'Pedro']);
-      expect(nombres(await pedir('orden=KARMA'))).toEqual(['Pedro', 'Lucia', 'Admin']);
     });
     it('RECIENTES es el valor por defecto', async () => {
       expect(nombres(await pedir())).toEqual(nombres(await pedir('orden=RECIENTES')));
     });
-    it('400 con un orden desconocido', async () => {
-      expect((await pedir('orden=EDAD')).status).toBe(400);
+    it.each(['EDAD', 'KARMA'])('400 con un orden desconocido (%s; KARMA ya no existe)', async (orden) => {
+      expect((await pedir(`orden=${orden}`)).status).toBe(400);
     });
   });
 

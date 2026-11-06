@@ -18,14 +18,20 @@ export interface UmbralesConfiabilidad {
  * matches the same rounding done in SQL. The level is computed from the rounded value so the percentage a client sees
  * never contradicts the level next to it.
  */
-export function clasificarConfiabilidad(
-  votos: readonly VotoConfiabilidad[],
+export function clasificarConfiabilidad(votos: readonly VotoConfiabilidad[], umbrales: UmbralesConfiabilidad): ResultadoConfiabilidad {
+  const confirmaciones = votos.filter((voto) => voto.tipoAccion === TipoAccionValidacion.CONFIRMAR).length;
+  return clasificarConteo(confirmaciones, votos.length, umbrales);
+}
+
+/** The same rule from the counts alone (`confirmaciones` of `votos`). */
+export function clasificarConteo(
+  confirmaciones: number,
+  votos: number,
   { minVotos, umbralAlta, umbralMedia }: UmbralesConfiabilidad,
 ): ResultadoConfiabilidad {
-  if (votos.length < minVotos) return { nivel: NivelConfiabilidad.INSUFICIENTE, porcentaje: null, votos: votos.length };
-  const confirmaciones = votos.filter((voto) => voto.tipoAccion === TipoAccionValidacion.CONFIRMAR).length;
-  const porcentaje = Math.round((10000 * confirmaciones) / votos.length) / 100;
+  if (votos < minVotos) return { nivel: NivelConfiabilidad.INSUFICIENTE, porcentaje: null, votos };
+  const porcentaje = Math.round((10000 * confirmaciones) / votos) / 100;
   const nivel =
     porcentaje >= umbralAlta ? NivelConfiabilidad.ALTA : porcentaje >= umbralMedia ? NivelConfiabilidad.MEDIA : NivelConfiabilidad.BAJA;
-  return { nivel, porcentaje, votos: votos.length };
+  return { nivel, porcentaje, votos };
 }

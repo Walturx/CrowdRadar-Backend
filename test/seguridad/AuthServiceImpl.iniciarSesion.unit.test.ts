@@ -14,6 +14,7 @@ import { EmisorTokenFalso } from '../support/adapter/EmisorTokenFalso.js';
 import { HasherFalso } from '../support/adapter/HasherFalso.js';
 import { UsuarioDAOMemoria } from '../support/dao/memoria/UsuarioDAOMemoria.js';
 import { aUsuario } from '../support/fabrica/datos.js';
+import { puntajeEnMemoria } from '../support/puntajePrueba.js';
 
 const EMAIL = 'ana.ruiz@crowdradar.pe';
 const PASSWORD = 'Secreta123';
@@ -23,7 +24,14 @@ describe('AuthServiceImpl.iniciarSesion (rubrica M1)', () => {
   let hasher: HasherFalso;
   let cuenta: ReturnType<typeof verificadorMemoria>;
   const servicio = (politicaMensajes: 'GENERICA' | 'DETALLADA') =>
-    new AuthServiceImpl({ usuarioDAO: dao, hasher, emisorToken: new EmisorTokenFalso(), verificador: cuenta.verificador, politicaMensajes });
+    new AuthServiceImpl({
+      usuarioDAO: dao,
+      hasher,
+      emisorToken: new EmisorTokenFalso(),
+      verificador: cuenta.verificador,
+      puntajeService: puntajeEnMemoria(),
+      politicaMensajes,
+    });
   const intentar = (s: AuthServiceImpl, email: string, password: string) => s.iniciarSesion({ email, password }).catch((e: unknown) => e);
 
   beforeEach(() => {

@@ -45,6 +45,7 @@ function armar(sequelize: Sequelize): Entorno {
     lugarDAO: new LugarDAOSequelize({ limiteMax: 500 }),
     contextoReporteDAO: new ContextoReporteDAOSequelize(),
     karmaService: {} as never,
+    puntajeService: {} as never,
     saturacionService: {} as never,
     subject: {} as never,
     correo: {} as never,

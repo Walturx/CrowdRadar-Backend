@@ -275,8 +275,11 @@ Interfaces to implement:
   `pattern/strategy/confiabilidad/impl/ConfiabilidadSimpleStrategy.ts` (every valid vote weighs 1 since CRO-73, which removed
   the karma-weighted variant and its configuration).
 - `dao/ValidacionDAO.ts`, `dao/DenunciaDAO.ts` -> `dao/impl/sequelize/{Validacion,Denuncia}DAOSequelize.ts`.
+- `service/PuntajeService.ts` (Pattern: Service layer) -> `service/impl/PuntajeServiceImpl.ts`, and its read model
+  `dao/PuntajeDAO.ts` (Pattern: DAO) -> `dao/impl/sequelize/PuntajeDAOSequelize.ts` (CRO-72: points and tier).
 
-Owned files: `service/impl/{Validacion,Denuncia}ServiceImpl.ts`, `pattern/strategy/confiabilidad/impl/*`,
+Owned files: `service/impl/{Validacion,Denuncia,Puntaje}ServiceImpl.ts`, `dao/impl/sequelize/PuntajeDAOSequelize.ts`, `entity/puntaje.ts`,
+`enum/Tier.ts`, `pattern/strategy/confiabilidad/impl/*`,
 `controller/{Validacion,Denuncia}Controller.ts`, `mapper/{Validacion,Denuncia}Mapper.ts`,
 `dao/impl/sequelize/{Validacion,Denuncia}DAOSequelize.ts`, `route/validacion.routes.ts`, `container/validacion.ts`
 (receives M4's `KarmaService`), `exception/validacion/*`, `dto/**/validacion/*`, `enum/EstadoValidacion.ts`.
@@ -314,6 +317,13 @@ Delivered (M5-BE-01..03):
 - The `tipoAccion` body key is kept from the design (not `veredicto`). `listarPendientes` loads the newest 500 candidates of the nearby places
   and orders them by distance in the service (the distance lives on the place); no `LugarDAO` change.
 - Tests: `test/validacion/` (strategies white box, services unit, `pendientes.blackbox`, `validaciones.api`, container wiring).
+- Contract touch (CRO-72): points and tier are computed, never stored. `PuntajeDAO.contarAportes(usuarioIds, regla)` counts, in one
+  statement, the own ACTIVO reports that are VALIDADO and the votes whose `tipo_accion` matches the state of an ACTIVO report;
+  `listarValidados(reporteIds, regla)` gives the points of `GET /api/reportes/mios`. The SQL state rule is `sqlEstadoValidacion`, the twin
+  of `estadoValidacionPorConteo`; `test/dao/PuntajeDAO.contract.ts` runs on memory (the TS rule) and PostgreSQL, so both agree.
+  `PuntajeService` is built once by `construirInfraestructura` (`infra.puntajeService`) from `reglaEstadoValidacion(cfg)`, the only
+  reader of the `CONFIABILIDAD_*` keys, and is read by the account (M1), report (M4) and admin (M6) streams. Tier thresholds live in
+  `entity/puntaje.ts` (`UMBRALES_TIER`).
 
 How to run tests: `npm test` (strategies and services with `ValidacionDAOMemoria`, `DenunciaDAOMemoria`);
 `npm run test:db` with `DATABASE_URL_TEST` runs both Sequelize DAOs through `ejecutarContratoDAO`; the denuncia

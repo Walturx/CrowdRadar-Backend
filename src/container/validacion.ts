@@ -16,7 +16,7 @@ import type { DenunciaService } from '../service/DenunciaService.js';
 import type { ValidacionService } from '../service/ValidacionService.js';
 import { MS_POR_HORA } from '../util/tiempo.js';
 import type { MontajeRuta } from './Contenedor.js';
-import type { Infraestructura } from './infraestructura.js';
+import { reglaEstadoValidacion, type Infraestructura } from './infraestructura.js';
 
 /** DAOs of the validation stream; tests hand in the in-memory ones, production builds the Sequelize ones. */
 export interface DaosValidacion {
@@ -28,14 +28,9 @@ export function crearDaosValidacionSequelize(): DaosValidacion {
   return { validacionDAO: new ValidacionDAOSequelize(), denunciaDAO: new DenunciaDAOSequelize() };
 }
 
-/** The reliability strategy (every vote weighs 1) with the thresholds of the configuration. */
+/** The reliability strategy (every vote weighs 1) with the thresholds of the configuration (`reglaEstadoValidacion`). */
 export function crearEstrategiaConfiabilidad(cfg: ConfiguracionApp): EstrategiaConfiabilidad {
-  const { confiabilidadMinVotos, confiabilidadUmbralAlta, confiabilidadUmbralMedia } = cfg.reglas;
-  return new ConfiabilidadSimpleStrategy({
-    minVotos: confiabilidadMinVotos,
-    umbralAlta: confiabilidadUmbralAlta,
-    umbralMedia: confiabilidadUmbralMedia,
-  });
+  return new ConfiabilidadSimpleStrategy(reglaEstadoValidacion(cfg));
 }
 
 export interface ServiciosValidacion {
@@ -68,7 +63,7 @@ export function construirServiciosValidacion(infra: Infraestructura, daos: DaosV
       estrategia: crearEstrategiaConfiabilidad(cfg),
       conexion,
       reloj,
-      minVotosEstado: reglas.confiabilidadMinVotosEstado,
+      minVotosEstado: reglaEstadoValidacion(cfg).minVotosEstado,
       karmaPorValidacion: reglas.karmaPorValidacion,
       limiteLugares: cfg.lugares.limiteMax,
     }),

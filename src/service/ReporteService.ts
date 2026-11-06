@@ -3,10 +3,14 @@ import type { ContextoTx } from '../datasource/ConexionBD.js';
 import type { ReporteSaturacion } from '../entity/ReporteSaturacion.js';
 import type { NivelSaturacion } from '../enum/NivelSaturacion.js';
 
-/** A report of the caller together with the name of its place (empty when the place no longer exists). */
+/**
+ * A report of the caller together with the name of its place (empty when the place no longer exists) and the points
+ * it gives its author right now (PUNTOS_POR_REPORTE_VALIDADO while ACTIVO and VALIDADO, else 0).
+ */
 export interface ReporteDeUsuario {
   reporte: ReporteSaturacion;
   lugarNombre: string;
+  puntos: number;
 }
 
 /**
