@@ -16,14 +16,19 @@ export interface PeriodoComparacion {
   dias: FiltroDias;
 }
 
-/** Average level (1..3) of the reports of a slot. `etiqueta` is `HH:00` by hour and YYYY-MM-DD by day. */
+/**
+ * Average level (1..3) of the reports of a slot; a slot without reports has `valor` 0 and `muestras` 0. `etiqueta` is
+ * `HH:00` by hour and YYYY-MM-DD by day.
+ */
 export interface PuntoHistorial {
   etiqueta: string;
   valor: number;
   muestras: number;
 }
 
+/** `puntos` holds every slot of the range: the 24 hours by hour, every day from `desde` to `hasta` by day. */
 export interface ResultadoHistorial {
+  /** True when the range has at least one report; the empty slots alone do not count. */
   hayDatos: boolean;
   /** True when some report of the range comes from a demo user. */
   sintetico: boolean;
