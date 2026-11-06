@@ -304,9 +304,9 @@ The `tier` is a pure function of the points, informational only (it gives no ext
 | `CROWD_ROYALTY` (Crowd Royalty) | 300 or more |
 
 Login, register, the profile and the admin directory return `puntos` and `tier`; `GET /api/reportes/mios` returns the
-`puntos` each report gives (10 or 0). The former per-user and per-report point columns of `usuario`, `reporte_saturacion`
-and `validacion_reporte` stay in the schema (frozen migrations) but are no longer read; new votes write 0 where such a
-column is NOT NULL.
+`puntos` each report gives (10 or 0). Migration 15 drops the former per-user and per-report point columns of `usuario`,
+`reporte_saturacion` and `validacion_reporte`: deploy this code first and run the migration right after it (deploy order and
+rollback in `docs/decisiones.md`, D-CRO-72-COLUMNAS).
 
 ## Environment variables
 
@@ -419,12 +419,14 @@ Migrations 01-10 and 12 are frozen once released; fixes go forward as new migrat
 3. **Undo one step at a time**: `npm run db:migrate:undo` reverts only the latest migration. Check `\d usuario` (or the
    table the migration touched) and the `SequelizeMeta` rows, then repeat only if the release added several migrations.
 4. **Roll the image back** to the previous tag (the previous version must run on the older schema; every migration so
-   far is additive, so it does) and start it. Verify `GET /api/salud` and a login.
+   far is additive except 15, which drops point columns the code before it still uses, so undo 15 in step 3 before
+   starting an image older than it) and start it. Verify `GET /api/salud` and a login.
 5. **Do NOT use `db:migrate:undo:all` or `db:reset` outside a disposable database.** They drop every table
    (`undo:all`) and then re-seed (`reset`): all users, reports and votes are lost. They are for local and test databases.
 6. **Verify `down` safety before shipping a migration**: run `db:migrate`, `db:migrate:undo` and `db:migrate` again on a
    copy of production-like data (the contract tests do this on an empty database; they cannot prove a `down` keeps data).
    Migration 12 (`password_cambiada_en`) loses only the timestamp; token invalidation by password change is lost with it.
+   Migration 15 cannot give back the point values it dropped: its `down` restores the columns holding 0.
 
 ## Decisiones
 

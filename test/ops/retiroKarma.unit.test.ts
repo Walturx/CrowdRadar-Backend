@@ -1,6 +1,7 @@
 /**
  * Karma is retired (CRO-62): every valid vote weighs the same (CRO-73), so the karma-weighted reliability variant and its
- * cap must not survive anywhere a developer or an operator would read them.
+ * cap must not survive anywhere a developer or an operator would read them. Migration 15 drops the old point columns
+ * (S22), so the code and the ER diagram must not name them either.
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
@@ -56,12 +57,17 @@ describe('puntos y tiers en lugar de karma (CRO-72)', () => {
     expect(Object.keys(esquemaEntorno.shape).filter((clave) => clave.startsWith('KARMA_'))).toEqual([]);
   });
 
-  it('el codigo fuente solo nombra karma en las columnas congeladas que se dejan de usar', () => {
+});
+
+describe('columnas de karma y puntos retiradas por la migracion 15 (S22)', () => {
+  it('el codigo fuente ya no nombra karma', () => {
     const conKarma = archivos('src').filter((ruta) => /karma/i.test(readFileSync(resolve(RAIZ, ruta), 'utf8')));
-    expect(conKarma.sort()).toEqual([
-      'src/dao/impl/sequelize/ValidacionDAOSequelize.ts',
-      'src/dao/impl/sequelize/model/UsuarioModel.ts',
-      'src/dao/impl/sequelize/model/ValidacionModel.ts',
-    ]);
+    expect(conKarma).toEqual([]);
+  });
+
+  it('ni src/ ni el diagrama entidad-relacion nombran las cinco columnas retiradas', () => {
+    const columnas = /puntos_karma|karma_votante|puntos_otorgados|motivo_sin_puntos|puntosOtorgados|motivoSinPuntos/;
+    const revisados = [...archivos('src'), 'docs/diagramas/er.puml', 'docs/diagramas/er.svg'];
+    expect(revisados.filter((ruta) => columnas.test(readFileSync(resolve(RAIZ, ruta), 'utf8')))).toEqual([]);
   });
 });

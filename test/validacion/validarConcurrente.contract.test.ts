@@ -73,7 +73,7 @@ describe.skipIf(!URL_BD_TEST)('validar concurrente (PostgreSQL real)', () => {
     expect(Number(fila?.nivel_confiabilidad)).toBe(50);
   });
 
-  it('el mismo usuario vota dos veces a la vez: un 201, un 409 y un solo voto guardado (karma_votante 0)', async () => {
+  it('el mismo usuario vota dos veces a la vez: un 201, un 409 y un solo voto guardado', async () => {
     const reporteId = await nuevoReporte();
     const votante = await sembrador.usuario();
     const resultados = await Promise.allSettled([
@@ -83,11 +83,8 @@ describe.skipIf(!URL_BD_TEST)('validar concurrente (PostgreSQL real)', () => {
     expect(resultados.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
     const rechazo = resultados.find((r): r is PromiseRejectedResult => r.status === 'rejected');
     expect(rechazo?.reason).toMatchObject({ status: 409, code: CodigoError.VALIDACION_DUPLICADA });
-    const votos = await consultar(bd.url, 'SELECT karma_votante, puntos_otorgados FROM validacion_reporte WHERE reporte_id = $1', [reporteId]);
+    const votos = await consultar(bd.url, 'SELECT usuario_id, tipo_accion FROM validacion_reporte WHERE reporte_id = $1', [reporteId]);
     expect(votos).toHaveLength(1);
-    // The unused columns keep their frozen NOT NULL constraints with neutral values (CRO-72).
-    expect(votos[0]).toMatchObject({ karma_votante: 0, puntos_otorgados: 0 });
-    const [usuario] = await consultar(bd.url, 'SELECT puntos_karma FROM usuario WHERE id = $1', [votante]);
-    expect(Number(usuario?.puntos_karma)).toBe(0);
+    expect(votos[0]).toMatchObject({ usuario_id: votante, tipo_accion: TipoAccionValidacion.CONFIRMAR });
   });
 });

@@ -38,8 +38,6 @@ export class ValidacionDAOSequelize implements ValidacionDAO {
           reporteId: datos.reporteId,
           usuarioId: datos.usuarioId,
           tipoAccion: datos.tipoAccion,
-          // karma_votante is NOT NULL without default (frozen migration 04) and unused since CRO-72.
-          karmaVotante: 0,
           fechaHora: datos.fechaHora,
         },
         { transaction: aTransaccion(tx) },
