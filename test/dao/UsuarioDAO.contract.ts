@@ -158,16 +158,6 @@ export function contratoUsuarioDAO(nombre: string, crearEntorno: () => Promise<E
         expect((await dao.listar({ q: `${p}_na` }, { page: 1, size: 10 })).total).toBe(0);
         expect((await dao.listar({ q: `${p}Ana` }, { page: 1, size: 10 })).total).toBe(1);
       });
-
-      it('ordena por karma descendente', async () => {
-        const p = prefijo();
-        const bajo = await dao.crear(nuevo({ nombre: `${p}Bajo`, email: `${p}.1@crowdradar.pe` }));
-        const alto = await dao.crear(nuevo({ nombre: `${p}Alto`, email: `${p}.2@crowdradar.pe` }));
-        await dao.incrementarKarma(bajo.id, 3);
-        await dao.incrementarKarma(alto.id, 9);
-        const pagina = await dao.listar({ q: p, orden: 'KARMA' }, { page: 1, size: 10 });
-        expect(pagina.items.map((u) => u.id)).toEqual([alto.id, bajo.id]);
-      });
     });
   });
 }

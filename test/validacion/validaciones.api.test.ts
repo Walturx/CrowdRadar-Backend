@@ -282,7 +282,7 @@ describe('API de validacion y denuncias (contenedor de prueba)', () => {
   it('GET /api/reportes/mios sigue siendo el listado de M4 (el orden de montaje se respeta)', async () => {
     const res = await request(app).get('/api/reportes/mios').set(autor.cabecera);
     expect(res.status).toBe(200);
-    expect(res.body.data.items[0]).toHaveProperty('puntosOtorgados');
+    expect(res.body.data.items[0]).toHaveProperty('puntos');
   });
 
   describe('limite por usuario (R1-1402, R3-1403)', () => {

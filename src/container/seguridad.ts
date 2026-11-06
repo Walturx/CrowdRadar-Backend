@@ -74,14 +74,16 @@ const UNA_HORA_MS = 60 * 60_000;
  * login also locks an email after LIMITE_LOGIN failed attempts (any IP) for the rest of the window.
  */
 export function construirSeguridad(infra: Infraestructura): MontajeRuta[] {
-  const { cfg, usuarioDAO, hasher, emisorToken, verificador, autenticar } = infra;
+  const { cfg, usuarioDAO, hasher, emisorToken, verificador, autenticar, puntajeService } = infra;
   const { limites, politicaMensajesAuth } = cfg.seguridad;
   const { ventanaMs } = limites;
 
   const authController = new AuthController(
-    new AuthServiceImpl({ usuarioDAO, hasher, emisorToken, verificador, politicaMensajes: politicaMensajesAuth }),
+    new AuthServiceImpl({ usuarioDAO, hasher, emisorToken, verificador, puntajeService, politicaMensajes: politicaMensajesAuth }),
   );
-  const usuarioController = new UsuarioController(new UsuarioServiceImpl({ usuarioDAO, hasher, dispositivoDAO: infra.seguridad?.dispositivoDAO ?? new DispositivoDAOSequelize() }));
+  const usuarioController = new UsuarioController(
+    new UsuarioServiceImpl({ usuarioDAO, hasher, puntajeService, dispositivoDAO: infra.seguridad?.dispositivoDAO ?? new DispositivoDAOSequelize() }),
+  );
 
   // The paths /api/auth and /api/users are frozen by the Sprint 1 frontend contract (the app already calls them);
   // every other resource uses Spanish paths. Do not "fix" the inconsistency without a coordinated frontend change.

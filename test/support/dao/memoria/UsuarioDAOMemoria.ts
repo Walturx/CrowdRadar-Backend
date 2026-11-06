@@ -16,7 +16,6 @@ import { copia, sellosNuevos, type OpcionesMemoria } from './comun.js';
 const comparadores: Record<OrdenUsuarios, (a: Usuario, b: Usuario) => number> = {
   RECIENTES: (a, b) => b.createdAt.getTime() - a.createdAt.getTime() || b.id - a.id,
   NOMBRE: (a, b) => a.nombre.localeCompare(b.nombre) || a.apellido.localeCompare(b.apellido) || a.id - b.id,
-  KARMA: (a, b) => b.puntosKarma - a.puntosKarma || a.id - b.id,
 };
 
 /** In-memory UsuarioDAO for tests; behaves like the Sequelize one (shared contract test). */

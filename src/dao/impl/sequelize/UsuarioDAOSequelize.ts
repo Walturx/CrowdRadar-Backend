@@ -19,10 +19,6 @@ const ORDENES: Record<OrdenUsuarios, Order> = {
     ['apellido', 'ASC'],
     ['id', 'ASC'],
   ],
-  KARMA: [
-    ['puntosKarma', 'DESC'],
-    ['id', 'ASC'],
-  ],
 };
 
 const aTransaccion = (tx?: ContextoTx) => tx as unknown as Transaction | undefined;

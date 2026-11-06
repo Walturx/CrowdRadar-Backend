@@ -9,6 +9,7 @@ import { CredencialesInvalidasException } from '../../exception/usuario/Credenci
 import { CuentaNoExisteException } from '../../exception/usuario/CuentaNoExisteException.js';
 import { UsuarioMapper } from '../../mapper/UsuarioMapper.js';
 import type { AuthService } from '../AuthService.js';
+import type { PuntajeService } from '../PuntajeService.js';
 import type { VerificadorEstadoCuenta } from '../VerificadorEstadoCuenta.js';
 
 export interface DependenciasAuthService {
@@ -16,6 +17,8 @@ export interface DependenciasAuthService {
   hasher: Hasher;
   emisorToken: EmisorToken;
   verificador: VerificadorEstadoCuenta;
+  /** Points and tier shown with the account. */
+  puntajeService: PuntajeService;
   /** GENERICA: unknown email and wrong password look identical; DETALLADA tells them apart (404). */
   politicaMensajes: 'GENERICA' | 'DETALLADA';
 }
@@ -30,14 +33,14 @@ export class AuthServiceImpl implements AuthService {
   }
 
   async registrar(dto: RegistrarUsuarioRequestDTO): Promise<SesionResponseDTO> {
-    const { usuarioDAO, hasher, emisorToken } = this.deps;
+    const { usuarioDAO, hasher, emisorToken, puntajeService } = this.deps;
     const { password, ...perfil } = dto;
     const usuario = await usuarioDAO.crear({ ...perfil, passwordHash: await hasher.generar(password) });
-    return UsuarioMapper.aSesion(usuario, emisorToken.emitir(usuario));
+    return UsuarioMapper.aSesion(usuario, emisorToken.emitir(usuario), await puntajeService.obtener(usuario.id));
   }
 
   async iniciarSesion({ email, password }: IniciarSesionRequestDTO): Promise<SesionResponseDTO> {
-    const { usuarioDAO, hasher, emisorToken, verificador, politicaMensajes } = this.deps;
+    const { usuarioDAO, hasher, emisorToken, verificador, politicaMensajes, puntajeService } = this.deps;
     const usuario = await usuarioDAO.buscarPorEmail(email);
 
     // Always compare, against a decoy hash when there is nothing to compare with, so the
@@ -50,6 +53,6 @@ export class AuthServiceImpl implements AuthService {
     if (!coincide || !usuario.passwordHash) throw new CredencialesInvalidasException();
 
     await verificador.verificar(usuario);
-    return UsuarioMapper.aSesion(usuario, emisorToken.emitir(usuario));
+    return UsuarioMapper.aSesion(usuario, emisorToken.emitir(usuario), await puntajeService.obtener(usuario.id));
   }
 }

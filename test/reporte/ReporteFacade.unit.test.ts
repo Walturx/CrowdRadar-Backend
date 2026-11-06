@@ -17,6 +17,7 @@ import type { SaturacionSubject } from '../../src/pattern/observer/SaturacionSub
 import { SaturacionUltimoReporteStrategy } from '../../src/pattern/strategy/saturacion/impl/SaturacionUltimoReporteStrategy.js';
 import { KarmaServiceImpl } from '../../src/service/impl/KarmaServiceImpl.js';
 import { ReporteServiceImpl } from '../../src/service/impl/ReporteServiceImpl.js';
+import { puntajeEnMemoria } from '../support/puntajePrueba.js';
 import { SaturacionServiceImpl } from '../../src/service/impl/SaturacionServiceImpl.js';
 import { ConexionFalsa } from '../support/ConexionFalsa.js';
 import { crearLoggerEspia } from '../support/LoggerEspia.js';
@@ -64,7 +65,7 @@ describe('ReporteFacadeImpl.registrar', () => {
 
   const armar = (subject: SaturacionSubject = sujeto) => {
     const { logger } = crearLoggerEspia();
-    const reporteServiceBase = new ReporteServiceImpl({ reporteDAO, lugarDAO, reloj, cooldownMin: 30 });
+    const reporteServiceBase = new ReporteServiceImpl({ reporteDAO, lugarDAO, reloj, cooldownMin: 30, puntajeService: puntajeEnMemoria(reporteDAO) });
     const reporteService = {
       validarCooldown: (...a: Parameters<ReporteServiceImpl['validarCooldown']>) => {
         llamadas.push('cooldown');

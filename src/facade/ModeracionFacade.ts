@@ -5,6 +5,7 @@ import type { FiltroUsuarios } from '../dao/UsuarioDAO.js';
 import type { Lugar } from '../entity/Lugar.js';
 import type { ReporteSaturacion } from '../entity/ReporteSaturacion.js';
 import type { DiasSuspension, SancionUsuario } from '../entity/SancionUsuario.js';
+import type { Puntaje } from '../entity/puntaje.js';
 import type { Usuario } from '../entity/Usuario.js';
 import type { EstadoReporte } from '../enum/EstadoReporte.js';
 
@@ -38,6 +39,8 @@ export interface ResultadoResolucion {
 /** A user of the admin directory; `sancionVigente` is set only while suspended (its `fechaFin` feeds "faltan N días"). */
 export interface UsuarioModerado {
   usuario: Usuario;
+  /** Points and tier, computed (PuntajeService). */
+  puntaje: Puntaje;
   sancionVigente: SancionUsuario | null;
 }
 

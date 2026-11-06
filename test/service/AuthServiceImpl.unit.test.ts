@@ -14,6 +14,7 @@ import { sancionVigente, verificadorMemoria } from '../support/cuentaSuspendida.
 import { EmisorTokenFalso } from '../support/adapter/EmisorTokenFalso.js';
 import { HasherFalso } from '../support/adapter/HasherFalso.js';
 import { UsuarioDAOMemoria } from '../support/dao/memoria/UsuarioDAOMemoria.js';
+import { puntajeEnMemoria } from '../support/puntajePrueba.js';
 
 const registro = {
   nombre: 'Ana',
@@ -34,6 +35,7 @@ describe('AuthServiceImpl', () => {
       hasher,
       emisorToken: new EmisorTokenFalso(),
       verificador: cuenta.verificador,
+      puntajeService: puntajeEnMemoria(),
       politicaMensajes,
     });
 

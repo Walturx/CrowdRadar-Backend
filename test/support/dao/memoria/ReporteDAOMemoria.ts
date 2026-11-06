@@ -77,6 +77,11 @@ export class ReporteDAOMemoria implements ReporteDAO {
     return copia(reporte);
   }
 
+  /** Snapshot of every report, for in-memory DAOs that stand in for a SQL join over reports (points). */
+  instantanea(): ReporteSaturacion[] {
+    return copia(this.todos());
+  }
+
   /** Synchronous peek at the state of a report, for in-memory DAOs that stand in for a SQL join (complaints queue). */
   estadoDe(id: number): ReporteSaturacion['estado'] | undefined {
     return this.filas.get(id)?.estado;

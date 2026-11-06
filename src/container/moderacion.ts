@@ -15,8 +15,18 @@ import { crearEnviadorCorreo } from './seguridad.js';
  * `contextoReporteDAO` (in-memory compositions) the facade composes it from the entity DAOs.
  */
 export function crearModeracionFacade(infra: Infraestructura, denunciaDAO: DenunciaDAO, contextoReporteDAO?: ContextoReporteDAO): ModeracionFacade {
-  const { cfg, logger, conexion, reloj, usuarioDAO, sancionDAO, lugarDAO, reporteDAO, subject } = infra;
-  const { karmaService, saturacionService } = construirServiciosReporte({ cfg, reloj, logger, conexion, usuarioDAO, lugarDAO, reporteDAO, subject });
+  const { cfg, logger, conexion, reloj, usuarioDAO, sancionDAO, lugarDAO, reporteDAO, subject, puntajeService } = infra;
+  const { karmaService, saturacionService } = construirServiciosReporte({
+    cfg,
+    reloj,
+    logger,
+    conexion,
+    usuarioDAO,
+    lugarDAO,
+    reporteDAO,
+    subject,
+    puntajeService,
+  });
   return new ModeracionFacadeImpl({
     usuarioDAO,
     sancionDAO,
@@ -25,6 +35,7 @@ export function crearModeracionFacade(infra: Infraestructura, denunciaDAO: Denun
     lugarDAO,
     contextoReporteDAO,
     karmaService,
+    puntajeService,
     saturacionService,
     subject,
     correo: infra.seguridad?.correo ?? crearEnviadorCorreo(cfg, logger),

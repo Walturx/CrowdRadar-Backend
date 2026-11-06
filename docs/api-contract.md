@@ -51,8 +51,18 @@ admin route answers `403`, and only then `501`. No frozen path ever answers `404
 
 ```json
 { "id": 7, "nombre": "Ana", "apellido": "Perez", "email": "ana@crowdradar.pe", "telefono": "987654321",
-  "distrito": "Miraflores", "rol": "USUARIO", "status": "ACTIVO", "puntosKarma": 0 }
+  "distrito": "Miraflores", "rol": "USUARIO", "status": "ACTIVO", "puntos": 120, "tier": "CROWD_EXPLORER" }
 ```
+
+`puntos` (integer >= 0) and `tier` are computed on every read, never stored and never capped per day (CRO-72):
+
+- +10 for each own ACTIVO report whose `estadoValidacion` is `VALIDADO`;
+- +2 for each vote whose `tipoAccion` matches the state of an ACTIVO report: `CONFIRMAR` with `VALIDADO`, `RECHAZAR` with `RECHAZADO`;
+- a report that is `EN_VALIDACION`, `SIN_VALIDACIONES` or removed (`ELIMINADO`) gives nothing to its author or its voters, so a report
+  that stops being `VALIDADO` (new votes, or moderation removes it) takes its points back automatically.
+
+`tier` is `CROWD_BABY` (0-49), `CROWD_EXPLORER` (50-149), `CROWD_COLLABORATOR` (150-299) or `CROWD_ROYALTY` (300 or more); it is
+informational and gives no extra weight to the user's votes.
 
 `SesionResponseDTO` (`data` of register and login): `{ "token": "<jwt>", "expiraEn": "2026-10-05T12:00:00.000Z", "user": UsuarioResponseDTO }`.
 
@@ -182,7 +192,7 @@ anything else `No hay lugares cercanos que cumplan con los filtros seleccionados
 | Method | Path | Access | Status | Notes |
 |---|---|---|---|---|
 | POST | /api/reportes | auth | real | M4: body `{ lugarId, nivel }` (`nivel`: `TRANQUILO` \| `MODERADO` \| `SATURADO`); `201 { message, data: { reporte: { id, lugarId, nivel, fechaHora }, karma: { puntosGanados, total, motivoSinPuntos }, saturacionLugar: { nivel, actualizadoEn } } }` (`motivoSinPuntos`: `TOPE_DIARIO` or null; `saturacionLugar.nivel` null while there is not enough information); `400 VALIDACION_FALLIDA`; `404 LUGAR_NO_ENCONTRADO`; `422 REPORTE_EN_ESPERA` ("Ya reportaste este lugar. Vuelve a intentarlo en N minutos.") |
-| GET | /api/reportes/mios | auth | real | M4: `page`, `size`; `200 { message, data: { items: [{ id, lugar: { id, nombre }, nivel, fechaHora, estado, puntosOtorgados, motivoSinPuntos }], page, size, total, totalPaginas } }`, newest first, own reports only; with no reports `message` is "Aún no tienes reportes" and `items` is `[]`; `400` when `page` < 1 or `size` outside 1-50 |
+| GET | /api/reportes/mios | auth | real | M4: `page`, `size`; `200 { message, data: { items: [{ id, lugar: { id, nombre }, nivel, fechaHora, estado, puntos }], page, size, total, totalPaginas } }`, newest first, own reports only; `puntos` is what the report gives its author now: 10 while it is ACTIVO and `VALIDADO`, else 0; with no reports `message` is "Aún no tienes reportes" and `items` is `[]`; `400` when `page` < 1 or `size` outside 1-50 |
 | GET | /api/reportes/mios/validacion | auth | real | M5: `page`, `size` (1-50, default 20); `200 { message, data: { items: [{ reporteId, lugar: { id, nombre }, nivel, fechaHora, confiabilidad, estadoValidacion }], page, size, total, totalPaginas } }`, own reports newest first; none: message "Aún no tienes reportes"; reports nobody voted on: "Todavía no existen validaciones registradas." and `estadoValidacion` `SIN_VALIDACIONES`; `400` bad `page`/`size` |
 | GET | /api/validaciones/pendientes | auth | real | M5: query `lat` (-90..90) and `lng` (-180..180) required, `radioKm` 0.1-20 (default `RADIO_PENDIENTES_KM` 5), `horas` 1-24 (default `VENTANA_PENDIENTES_HORAS` 3), `page` >= 1, `size` 1-50 (20); `200 { message, data: { items: [{ id, lugar: { id, nombre, categoria }, nivel, fechaHora, distanciaMetros, confiabilidad }], page, size, total, totalPaginas } }`: ACTIVO reports of other users whose place is within `radioKm` (inclusive) of the point, written in the last `horas` (inclusive), not yet voted by the caller; nearest place first, then newest. Window: the newest 500 candidates of the nearby places are loaded and only then sorted by distance, so `total` never exceeds 500 and a page past it is empty (a 24 h window in one radius stays far below that); empty: `200` with `items: []`; `400 VALIDACION_FALLIDA` otherwise |
 | GET | /api/reportes/:id | auth | real | M5: `200 { message, data: { id, lugar: { id, nombre, categoria }, nivel, fechaHora, confiabilidad, estadoValidacion, miValidacion, yaDenunciado, esPropio } }` (`miValidacion`: `CONFIRMAR` | `RECHAZAR` | null; the author is never exposed); `404 REPORTE_NO_ENCONTRADO` (missing or removed); `400` when `id` is not a positive integer |
@@ -204,8 +214,8 @@ otherwise `ALTA` from `CONFIABILIDAD_UMBRAL_ALTA` (70), `MEDIA` from `CONFIABILI
 | GET | /api/admin/reportes-denunciados | admin | delivered | |
 | GET | /api/admin/reportes-denunciados/:reporteId | admin | delivered | |
 | POST | /api/admin/reportes-denunciados/:reporteId/resolucion | admin | delivered | body `{ decision: MANTENER\|ELIMINAR, comentario? }`; `409 SIN_DENUNCIAS_PENDIENTES`, `404 REPORTE_NO_ENCONTRADO` |
-| GET | /api/admin/usuarios | admin | delivered | `q` (2-80), `status` (ACTIVO\|SUSPENDIDO), `orden` (RECIENTES\|NOMBRE\|KARMA), `page`, `size` (1-50); each item has `sancionVigente` (with `fechaFin`) while suspended |
-| GET | /api/admin/usuarios/:id | admin | delivered | |
+| GET | /api/admin/usuarios | admin | delivered | `q` (2-80), `status` (ACTIVO\|SUSPENDIDO), `orden` (RECIENTES\|NOMBRE; any other value is `400 VALIDACION_FALLIDA`), `page`, `size` (1-50); each item is `{ id, nombre, apellido, email, rol, status, puntos, tier, sancionVigente }`, with `sancionVigente` (with `fechaFin`) while suspended; the points of a page come from one query |
+| GET | /api/admin/usuarios/:id | admin | delivered | the item fields plus `reportesPublicados` and `reportesDenunciados` |
 | POST | /api/admin/usuarios/:id/suspension | admin | delivered | body `{ dias, motivo }` with `dias` one of 3, 7 or 30 and `motivo` 10-280; `201` with the sanction, `409 USUARIO_YA_SUSPENDIDO`, `422 OPERACION_NO_PERMITIDA` (self or another ADMIN) |
 | POST | /api/admin/usuarios/:id/reactivacion | admin | delivered | `409 USUARIO_NO_SUSPENDIDO` |
 

@@ -54,6 +54,11 @@ export class ValidacionDAOMemoria implements ValidacionDAO {
     return this.filas.filter((v) => v.usuarioId === usuarioId && v.fechaHora >= desde).reduce((suma, v) => suma + v.puntosOtorgados, 0);
   }
 
+  /** Snapshot of every vote, for in-memory DAOs that stand in for a SQL join over votes (points). */
+  instantanea(): ValidacionReporte[] {
+    return copia(this.filas);
+  }
+
   yaVoto(usuarioId: number, reporteId: number): boolean {
     return this.filas.some((v) => v.usuarioId === usuarioId && v.reporteId === reporteId);
   }

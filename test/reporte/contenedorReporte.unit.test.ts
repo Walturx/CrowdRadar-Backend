@@ -14,6 +14,7 @@ import { UsuarioDAOMemoria } from '../support/dao/memoria/UsuarioDAOMemoria.js';
 import { configPrueba, type SobrescritosEntorno } from '../support/configPrueba.js';
 import { aReporte } from '../support/fabrica/datos.js';
 import { relojVirtual } from '../support/relojVirtual.js';
+import { puntajeEnMemoria } from '../support/puntajePrueba.js';
 
 const AHORA = new Date('2026-10-05T15:00:00Z');
 
@@ -55,6 +56,7 @@ describe('construirServiciosReporte', () => {
       lugarDAO,
       reporteDAO: new ReporteDAOMemoria(),
       subject,
+      puntajeService: puntajeEnMemoria(),
     });
     const usuario = await usuarioDAO.crear({ nombre: 'Ana', apellido: 'Perez', email: 'ana@crowdradar.pe', passwordHash: 'h', telefono: null, distrito: null });
     return { servicios, reloj, usuarioId: usuario.id, lugarId: lugarDAO.agregar().id };

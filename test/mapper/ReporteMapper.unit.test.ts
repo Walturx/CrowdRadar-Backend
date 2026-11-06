@@ -10,38 +10,30 @@ const FECHA = new Date('2026-10-05T15:30:00Z');
 
 describe('ReporteMapper', () => {
   describe('aResumen', () => {
-    it('lists the report with the place {id, nombre}, ISO date and the points it earned', () => {
+    it('lists the report with the place {id, nombre}, ISO date and the points it gives now', () => {
       const reporte = aReporte({
         id: 9,
         usuarioId: 3,
         lugarId: 7,
         nivelSaturacion: NivelSaturacion.SATURADO,
         fechaHora: FECHA,
-        puntosOtorgados: 10,
         nivelConfiabilidad: 80,
       });
-      expect(ReporteMapper.aResumen(reporte, 'Parque Kennedy')).toEqual({
+      expect(ReporteMapper.aResumen({ reporte, lugarNombre: 'Parque Kennedy', puntos: 10 })).toEqual({
         id: 9,
         lugar: { id: 7, nombre: 'Parque Kennedy' },
         nivel: 'SATURADO',
         fechaHora: '2026-10-05T15:30:00.000Z',
         estado: 'ACTIVO',
-        puntosOtorgados: 10,
-        motivoSinPuntos: null,
+        puntos: 10,
       });
     });
 
-    it('carries the reason when no points were given and the estado of a removed report', () => {
-      const reporte = aReporte({
-        estado: EstadoReporte.ELIMINADO,
-        puntosOtorgados: 0,
-        motivoSinPuntos: MotivoSinPuntos.TOPE_DIARIO,
-      });
-      expect(ReporteMapper.aResumen(reporte, 'Plaza')).toMatchObject({
-        estado: 'ELIMINADO',
-        puntosOtorgados: 0,
-        motivoSinPuntos: 'TOPE_DIARIO',
-      });
+    it('carries the estado of a removed report and its 0 points', () => {
+      const reporte = aReporte({ estado: EstadoReporte.ELIMINADO });
+      expect(ReporteMapper.aResumen({ reporte, lugarNombre: 'Plaza', puntos: 0 })).toEqual(
+        expect.objectContaining({ estado: 'ELIMINADO', puntos: 0 }),
+      );
     });
   });
 
@@ -83,8 +75,8 @@ describe('ReporteMapper', () => {
       const b = aReporte({ id: 2, lugarId: 8 });
       const dto = ReporteMapper.aPagina({
         items: [
-          { reporte: a, lugarNombre: 'A' },
-          { reporte: b, lugarNombre: 'B' },
+          { reporte: a, lugarNombre: 'A', puntos: 10 },
+          { reporte: b, lugarNombre: 'B', puntos: 0 },
         ],
         page: 2,
         size: 2,
@@ -92,9 +84,9 @@ describe('ReporteMapper', () => {
         totalPaginas: 3,
       });
       expect(dto).toMatchObject({ page: 2, size: 2, total: 5, totalPaginas: 3 });
-      expect(dto.items.map((i) => [i.id, i.lugar])).toEqual([
-        [1, { id: 7, nombre: 'A' }],
-        [2, { id: 8, nombre: 'B' }],
+      expect(dto.items.map((i) => [i.id, i.lugar, i.puntos])).toEqual([
+        [1, { id: 7, nombre: 'A' }, 10],
+        [2, { id: 8, nombre: 'B' }, 0],
       ]);
     });
   });
