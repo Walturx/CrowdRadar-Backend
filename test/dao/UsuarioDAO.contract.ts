@@ -36,7 +36,7 @@ export function contratoUsuarioDAO(nombre: string, crearEntorno: () => Promise<E
     });
 
     describe('crear', () => {
-      it('persiste con defaults de dominio (USUARIO, ACTIVO, 0 karma) y asigna id', async () => {
+      it('persiste con defaults de dominio (USUARIO, ACTIVO) y asigna id; la entidad no lleva karma (CRO-72)', async () => {
         const creado = await dao.crear(nuevo({ nombre: 'Luz', telefono: '987654321', distrito: 'Miraflores' }));
         expect(creado).toMatchObject({
           nombre: 'Luz',
@@ -44,8 +44,8 @@ export function contratoUsuarioDAO(nombre: string, crearEntorno: () => Promise<E
           distrito: 'Miraflores',
           rol: Rol.USUARIO,
           status: EstadoCuenta.ACTIVO,
-          puntosKarma: 0,
         });
+        expect(creado).not.toHaveProperty('puntosKarma');
         expect(creado.id).toBeGreaterThan(0);
         expect(creado.createdAt).toBeInstanceOf(Date);
         expect(await dao.buscarPorId(creado.id)).toEqual(creado);
@@ -115,16 +115,6 @@ export function contratoUsuarioDAO(nombre: string, crearEntorno: () => Promise<E
         expect((await dao.actualizarStatus(creado.id, EstadoCuenta.SUSPENDIDO))?.status).toBe(EstadoCuenta.SUSPENDIDO);
         expect((await dao.actualizarStatus(creado.id, EstadoCuenta.ACTIVO))?.status).toBe(EstadoCuenta.ACTIVO);
         expect(await dao.actualizarStatus(987654, EstadoCuenta.SUSPENDIDO)).toBeNull();
-      });
-    });
-
-    describe('incrementarKarma', () => {
-      it('suma y devuelve el total; nunca baja de 0', async () => {
-        const creado = await dao.crear(nuevo());
-        expect(await dao.incrementarKarma(creado.id, 10)).toBe(10);
-        expect(await dao.incrementarKarma(creado.id, 2)).toBe(12);
-        expect(await dao.incrementarKarma(creado.id, -50)).toBe(0);
-        expect(await dao.incrementarKarma(987654, 1)).toBeNull();
       });
     });
 

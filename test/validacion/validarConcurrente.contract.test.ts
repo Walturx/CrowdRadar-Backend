@@ -16,7 +16,6 @@ import { NivelSaturacion } from '../../src/enum/NivelSaturacion.js';
 import { TipoAccionValidacion } from '../../src/enum/TipoAccionValidacion.js';
 import { CodigoError } from '../../src/exception/CodigoError.js';
 import { ConfiabilidadSimpleStrategy } from '../../src/pattern/strategy/confiabilidad/impl/ConfiabilidadSimpleStrategy.js';
-import { KarmaServiceImpl } from '../../src/service/impl/KarmaServiceImpl.js';
 import { ValidacionServiceImpl } from '../../src/service/impl/ValidacionServiceImpl.js';
 import { relojSistema } from '../../src/util/Reloj.js';
 import { URL_BD_TEST, consultar, crearBdTemporal, ejecutarCli, type BaseTemporal } from '../support/baseDatos.js';
@@ -44,22 +43,10 @@ describe.skipIf(!URL_BD_TEST)('validar concurrente (PostgreSQL real)', () => {
       validacionDAO,
       denunciaDAO: new DenunciaDAOSequelize(),
       usuarioDAO,
-      karmaService: new KarmaServiceImpl({
-        usuarioDAO,
-        reporteDAO,
-        reloj: relojSistema,
-        karmaPorReporte: 10,
-        karmaPorValidacion: 2,
-        reportesPremiadosPorDia: 5,
-        zonaHoraria: 'America/Lima',
-        validacionDAO,
-        karmaValidacionMaxDia: 20,
-      }),
       estrategia: new ConfiabilidadSimpleStrategy({ minVotos: 1, umbralAlta: 70, umbralMedia: 40 }),
       conexion: new ConexionSequelize(sequelize),
       reloj: relojSistema,
       minVotosEstado: 10,
-      karmaPorValidacion: 2,
       limiteLugares: 200,
     });
   });
@@ -86,7 +73,7 @@ describe.skipIf(!URL_BD_TEST)('validar concurrente (PostgreSQL real)', () => {
     expect(Number(fila?.nivel_confiabilidad)).toBe(50);
   });
 
-  it('el mismo usuario vota dos veces a la vez: un 201, un 409 y +2 de karma una sola vez', async () => {
+  it('el mismo usuario vota dos veces a la vez: un 201, un 409 y un solo voto guardado (karma_votante 0)', async () => {
     const reporteId = await nuevoReporte();
     const votante = await sembrador.usuario();
     const resultados = await Promise.allSettled([
@@ -96,8 +83,11 @@ describe.skipIf(!URL_BD_TEST)('validar concurrente (PostgreSQL real)', () => {
     expect(resultados.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
     const rechazo = resultados.find((r): r is PromiseRejectedResult => r.status === 'rejected');
     expect(rechazo?.reason).toMatchObject({ status: 409, code: CodigoError.VALIDACION_DUPLICADA });
-    const [karma] = await consultar(bd.url, 'SELECT puntos_karma FROM usuario WHERE id = $1', [votante]);
-    expect(Number(karma?.puntos_karma)).toBe(2);
-    expect(await consultar(bd.url, 'SELECT id FROM validacion_reporte WHERE reporte_id = $1', [reporteId])).toHaveLength(1);
+    const votos = await consultar(bd.url, 'SELECT karma_votante, puntos_otorgados FROM validacion_reporte WHERE reporte_id = $1', [reporteId]);
+    expect(votos).toHaveLength(1);
+    // The unused columns keep their frozen NOT NULL constraints with neutral values (CRO-72).
+    expect(votos[0]).toMatchObject({ karma_votante: 0, puntos_otorgados: 0 });
+    const [usuario] = await consultar(bd.url, 'SELECT puntos_karma FROM usuario WHERE id = $1', [votante]);
+    expect(Number(usuario?.puntos_karma)).toBe(0);
   });
 });

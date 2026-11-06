@@ -4,7 +4,6 @@ import type { NivelSaturacion } from '../../enum/NivelSaturacion.js';
 import { LugarNoEncontradoException } from '../../exception/lugar/LugarNoEncontradoException.js';
 import { crearEventoSaturacion } from '../../pattern/observer/SaturacionCambiadaEvento.js';
 import type { SaturacionSubject } from '../../pattern/observer/SaturacionSubject.js';
-import type { KarmaService } from '../../service/KarmaService.js';
 import type { ReporteService } from '../../service/ReporteService.js';
 import type { SaturacionService } from '../../service/SaturacionService.js';
 import type { Logger } from '../../util/logger.js';
@@ -13,7 +12,6 @@ import type { ReporteFacade, ReporteRegistrado } from '../ReporteFacade.js';
 export interface DependenciasReporteFacade {
   lugarDAO: LugarDAO;
   reporteService: ReporteService;
-  karmaService: KarmaService;
   saturacionService: SaturacionService;
   subject: SaturacionSubject;
   conexion: ConexionBD;
@@ -28,8 +26,8 @@ export const PRESUPUESTO_EVENTOS_MS = 500;
 /**
  * Pattern: Facade (it also publishes to the Observer subject; owner: M4). One transaction per report: cooldown check
  * (serialized per user and place by the DAO lock), then the row lock of the place (`FOR UPDATE`, so reports of
- * different users on one place recompute the saturation one at a time), insert, saturation recompute and karma
- * (serialized per user by the DAO; last, so that lock is held for as few statements as possible). The level-change event goes out only after the commit and only when the level
+ * different users on one place recompute the saturation one at a time), insert and saturation recompute. Nothing is
+ * awarded here: points are computed from the votes when they are read (CRO-72). The level-change event goes out only after the commit and only when the level
  * changed; a failing subscriber never undoes the report, and a slow one never delays the answer beyond
  * `presupuestoEventosMs` (the delivery continues in the background). It adds no business calculation of its own.
  */
@@ -37,20 +35,17 @@ export class ReporteFacadeImpl implements ReporteFacade {
   constructor(private readonly deps: DependenciasReporteFacade) {}
 
   async registrar(usuarioId: number, lugarId: number, nivel: NivelSaturacion): Promise<ReporteRegistrado> {
-    const { lugarDAO, reporteService, karmaService, saturacionService, conexion } = this.deps;
+    const { lugarDAO, reporteService, saturacionService, conexion } = this.deps;
     const lugar = await lugarDAO.buscarPorId(lugarId);
     if (!lugar) throw new LugarNoEncontradoException();
 
-    const { creado, karma, cambio } = await conexion.transaccion(async (tx) => {
+    const { creado, cambio } = await conexion.transaccion(async (tx) => {
       await reporteService.validarCooldown(usuarioId, lugarId, tx);
       const bloqueado = await lugarDAO.buscarPorIdParaActualizar(lugarId, tx);
       const nuevo = await reporteService.crear(usuarioId, lugarId, nivel, tx);
       // The locked row is the current level: the recompute does not read the place again.
       const cambioSaturacion = await saturacionService.recalcular(lugarId, tx, bloqueado ?? undefined);
-      // Karma last: its per-user lock is held until COMMIT, so the fewer statements after it, the less the reports of
-      // one user wait for each other. The lock order (user-place, place row, user) is the same as before.
-      const resultadoKarma = await karmaService.otorgarPorReporte(usuarioId, nuevo.id, tx);
-      return { creado: nuevo, karma: resultadoKarma, cambio: cambioSaturacion };
+      return { creado: nuevo, cambio: cambioSaturacion };
     });
 
     if (cambio.anterior !== cambio.nuevo) {
@@ -65,12 +60,11 @@ export class ReporteFacadeImpl implements ReporteFacade {
       );
     }
     this.deps.logger.info(
-      { reporteId: creado.id, usuarioId, lugarId, nivelAnterior: cambio.anterior, nivelNuevo: cambio.nuevo, puntos: karma.puntosGanados },
+      { reporteId: creado.id, usuarioId, lugarId, nivelAnterior: cambio.anterior, nivelNuevo: cambio.nuevo },
       'Reporte registrado',
     );
     return {
-      reporte: { ...creado, puntosOtorgados: karma.puntosGanados, motivoSinPuntos: karma.motivoSinPuntos },
-      karma,
+      reporte: creado,
       lugar: { ...lugar, saturacionActual: cambio.nuevo, saturacionActualizadaEn: cambio.actualizadoEn },
     };
   }

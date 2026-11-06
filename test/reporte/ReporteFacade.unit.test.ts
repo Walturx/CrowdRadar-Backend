@@ -15,7 +15,6 @@ import type { SaturacionCambiadaEvento } from '../../src/pattern/observer/Satura
 import type { SaturacionObserver } from '../../src/pattern/observer/SaturacionObserver.js';
 import type { SaturacionSubject } from '../../src/pattern/observer/SaturacionSubject.js';
 import { SaturacionUltimoReporteStrategy } from '../../src/pattern/strategy/saturacion/impl/SaturacionUltimoReporteStrategy.js';
-import { KarmaServiceImpl } from '../../src/service/impl/KarmaServiceImpl.js';
 import { ReporteServiceImpl } from '../../src/service/impl/ReporteServiceImpl.js';
 import { puntajeEnMemoria } from '../support/puntajePrueba.js';
 import { SaturacionServiceImpl } from '../../src/service/impl/SaturacionServiceImpl.js';
@@ -77,15 +76,6 @@ describe('ReporteFacadeImpl.registrar', () => {
       },
       listarMios: (...a: Parameters<ReporteServiceImpl['listarMios']>) => reporteServiceBase.listarMios(...a),
     };
-    const karmaService = new KarmaServiceImpl({
-      usuarioDAO,
-      reporteDAO,
-      reloj,
-      karmaPorReporte: 10,
-      karmaPorValidacion: 2,
-      reportesPremiadosPorDia: 5,
-      zonaHoraria: 'America/Lima',
-    });
     const saturacionService = new SaturacionServiceImpl({
       lugarDAO,
       reporteDAO,
@@ -93,7 +83,7 @@ describe('ReporteFacadeImpl.registrar', () => {
       reloj,
       ventanaMin: 60,
     });
-    return new ReporteFacadeImpl({ lugarDAO, reporteService, karmaService, saturacionService, subject, conexion, logger });
+    return new ReporteFacadeImpl({ lugarDAO, reporteService, saturacionService, subject, conexion, logger });
   };
 
   const crearUsuario = async (email: string) =>
@@ -113,13 +103,12 @@ describe('ReporteFacadeImpl.registrar', () => {
   });
 
   describe('cambio de nivel', () => {
-    it('crea el reporte, da +10 de karma, guarda el nivel del lugar y devuelve todo', async () => {
+    it('crea el reporte, guarda el nivel del lugar y devuelve reporte y lugar, sin otorgar nada (CRO-72)', async () => {
       const resultado = await facade.registrar(usuarioId, lugarId, MODERADO);
-      expect(resultado.reporte).toMatchObject({ usuarioId, lugarId, nivelSaturacion: 'MODERADO', puntosOtorgados: 10 });
-      expect(resultado.karma).toEqual({ puntosGanados: 10, total: 10, motivoSinPuntos: null });
+      expect(Object.keys(resultado).sort()).toEqual(['lugar', 'reporte']);
+      expect(resultado.reporte).toMatchObject({ usuarioId, lugarId, nivelSaturacion: 'MODERADO', estado: 'ACTIVO' });
       expect(resultado.lugar).toMatchObject({ id: lugarId, saturacionActual: 'MODERADO', saturacionActualizadaEn: T0 });
       expect(await lugarDAO.buscarPorId(lugarId)).toMatchObject({ saturacionActual: 'MODERADO', saturacionActualizadaEn: T0 });
-      expect((await usuarioDAO.buscarPorId(usuarioId))?.puntosKarma).toBe(10);
     });
 
     it('notifica una sola vez con lugar, niveles, autor y hora', async () => {
@@ -143,13 +132,13 @@ describe('ReporteFacadeImpl.registrar', () => {
   });
 
   describe('mismo nivel', () => {
-    it('no notifica cuando el nivel del lugar no cambia (pero el reporte y el karma si se guardan)', async () => {
+    it('no notifica cuando el nivel del lugar no cambia (pero el reporte si se guarda)', async () => {
       const otro = await crearUsuario('luis@crowdradar.pe');
       await facade.registrar(otro, lugarId, MODERADO);
       sujeto.eventos = [];
       const resultado = await facade.registrar(usuarioId, lugarId, MODERADO);
       expect(sujeto.eventos).toEqual([]);
-      expect(resultado.karma.puntosGanados).toBe(10);
+      expect(resultado.reporte).toMatchObject({ usuarioId, lugarId });
       expect((await reporteDAO.listarPorUsuario(usuarioId, { page: 1, size: 10 })).total).toBe(1);
     });
 
@@ -164,18 +153,17 @@ describe('ReporteFacadeImpl.registrar', () => {
   });
 
   describe('rechazos', () => {
-    it('lugar inexistente: 404 LUGAR_NO_ENCONTRADO sin escribir nada ni dar karma', async () => {
+    it('lugar inexistente: 404 LUGAR_NO_ENCONTRADO sin escribir nada', async () => {
       await expect(facade.registrar(usuarioId, 424242, MODERADO)).rejects.toMatchObject({
         status: 404,
         code: CodigoError.LUGAR_NO_ENCONTRADO,
       });
       expect((await reporteDAO.listarPorUsuario(usuarioId, { page: 1, size: 10 })).total).toBe(0);
-      expect((await usuarioDAO.buscarPorId(usuarioId))?.puntosKarma).toBe(0);
       expect(conexion.transacciones).toBe(0);
       expect(sujeto.eventos).toEqual([]);
     });
 
-    it('cooldown: 422 REPORTE_EN_ESPERA sin fila nueva, sin karma y sin evento', async () => {
+    it('cooldown: 422 REPORTE_EN_ESPERA sin fila nueva y sin evento', async () => {
       await facade.registrar(usuarioId, lugarId, MODERADO);
       sujeto.eventos = [];
       reloj.avanzarMinutos(10);
@@ -185,24 +173,25 @@ describe('ReporteFacadeImpl.registrar', () => {
         message: 'Ya reportaste este lugar. Vuelve a intentarlo en 20 minutos.',
       });
       expect((await reporteDAO.listarPorUsuario(usuarioId, { page: 1, size: 10 })).total).toBe(1);
-      expect((await usuarioDAO.buscarPorId(usuarioId))?.puntosKarma).toBe(10);
       expect(sujeto.eventos).toEqual([]);
     });
 
     it('tras el cooldown (30 min) el mismo usuario puede volver a reportar el lugar', async () => {
-      await facade.registrar(usuarioId, lugarId, MODERADO);
+      const primero = await facade.registrar(usuarioId, lugarId, MODERADO);
       reloj.avanzarMinutos(30);
       const segundo = await facade.registrar(usuarioId, lugarId, MODERADO);
-      expect(segundo.karma.total).toBe(20);
+      expect(segundo.reporte.id).not.toBe(primero.reporte.id);
+      expect((await reporteDAO.listarPorUsuario(usuarioId, { page: 1, size: 10 })).total).toBe(2);
     });
   });
 
-  describe('tope diario de karma', () => {
-    it('el sexto reporte del dia se acepta con 0 puntos y motivo TOPE_DIARIO', async () => {
+  describe('sin tope diario (CRO-72)', () => {
+    it('el sexto reporte del dia se registra igual que los cinco anteriores', async () => {
       for (let i = 0; i < 5; i += 1) await facade.registrar(usuarioId, lugarDAO.agregar().id, MODERADO);
       const sexto = await facade.registrar(usuarioId, lugarId, MODERADO);
-      expect(sexto.karma).toEqual({ puntosGanados: 0, total: 50, motivoSinPuntos: 'TOPE_DIARIO' });
-      expect(sexto.reporte).toMatchObject({ puntosOtorgados: 0, motivoSinPuntos: 'TOPE_DIARIO' });
+      expect(Object.keys(sexto).sort()).toEqual(['lugar', 'reporte']);
+      expect(sexto.reporte).toMatchObject({ usuarioId, lugarId, estado: 'ACTIVO' });
+      expect((await reporteDAO.listarPorUsuario(usuarioId, { page: 1, size: 10 })).total).toBe(6);
     });
   });
 
@@ -216,7 +205,7 @@ describe('ReporteFacadeImpl.registrar', () => {
       publicador.suscribir(roto);
       publicador.suscribir(sano);
       const resultado = await armar(publicador).registrar(usuarioId, lugarId, SATURADO);
-      expect(resultado.karma.puntosGanados).toBe(10);
+      expect(resultado.reporte).toMatchObject({ nivelSaturacion: 'SATURADO' });
       expect(recibidos).toHaveLength(1);
       expect(recibidos[0]).toMatchObject({ lugarId, nivelNuevo: 'SATURADO' });
     });
@@ -251,25 +240,6 @@ describe('ReporteFacadeImpl.registrar', () => {
       // The recompute reuses the locked row: no 'lugar-en-tx' read after 'crear' (phase 3, one round trip less).
       expect(llamadas).toEqual(['lugar', 'cooldown', 'bloqueo-lugar', 'crear']);
       expect(conexion.transacciones).toBe(1);
-    });
-
-    it('el karma (cerrojo por usuario hasta el COMMIT) es el ultimo paso, despues del recalculo de saturacion', async () => {
-      const pasos: string[] = [];
-      const reportes: ReporteDAO = reporteDAO;
-      const contar = reportes.contarPremiadosDeUsuarioDesde.bind(reporteDAO);
-      reportes.contarPremiadosDeUsuarioDesde = (u, d, tx) => {
-        pasos.push('karma');
-        return contar(u, d, tx);
-      };
-      const lugares: LugarDAO = lugarDAO;
-      const actualizar = lugares.actualizarSaturacion.bind(lugarDAO);
-      lugares.actualizarSaturacion = (id, n, en, tx) => {
-        pasos.push('saturacion');
-        return actualizar(id, n, en, tx);
-      };
-      const { karma } = await facade.registrar(usuarioId, lugarId, SATURADO);
-      expect(pasos).toEqual(['saturacion', 'karma']);
-      expect(karma.puntosGanados).toBe(10);
     });
 
     it('el cooldown corre dentro de la transaccion: recibe el mismo tx que el insert', async () => {

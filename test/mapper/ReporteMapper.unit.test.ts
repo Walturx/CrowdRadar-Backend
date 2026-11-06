@@ -1,7 +1,6 @@
 /** Mapper: report entities -> response DTOs (spec M4 R1, R7). Fields are listed explicitly, nothing else leaks. */
 import { describe, expect, it } from 'vitest';
 import { EstadoReporte } from '../../src/enum/EstadoReporte.js';
-import { MotivoSinPuntos } from '../../src/enum/MotivoSinPuntos.js';
 import { NivelSaturacion } from '../../src/enum/NivelSaturacion.js';
 import { ReporteMapper } from '../../src/mapper/ReporteMapper.js';
 import { aLugar, aReporte } from '../support/fabrica/datos.js';
@@ -38,33 +37,23 @@ describe('ReporteMapper', () => {
   });
 
   describe('aCreado', () => {
-    it('shapes {reporte, karma{puntosGanados,total,motivoSinPuntos}, saturacionLugar{nivel,actualizadoEn}}', () => {
+    it('shapes {reporte, saturacionLugar{nivel,actualizadoEn}} and nothing else (no karma block, CRO-72)', () => {
       const lugar = aLugar({
         id: 7,
         saturacionActual: NivelSaturacion.MODERADO,
         saturacionActualizadaEn: FECHA,
       });
       const reporte = aReporte({ id: 4, usuarioId: 3, lugarId: 7, nivelSaturacion: NivelSaturacion.MODERADO, fechaHora: FECHA });
-      const dto = ReporteMapper.aCreado({
-        reporte,
-        karma: { puntosGanados: 10, total: 140, motivoSinPuntos: null },
-        lugar,
-      });
+      const dto = ReporteMapper.aCreado({ reporte, lugar });
       expect(dto).toEqual({
         reporte: { id: 4, lugarId: 7, nivel: 'MODERADO', fechaHora: '2026-10-05T15:30:00.000Z' },
-        karma: { puntosGanados: 10, total: 140, motivoSinPuntos: null },
         saturacionLugar: { nivel: 'MODERADO', actualizadoEn: '2026-10-05T15:30:00.000Z' },
       });
     });
 
     it('a place with no reading yet reports a null level and date', () => {
       const lugar = aLugar({ id: 8, saturacionActual: null, saturacionActualizadaEn: null });
-      const dto = ReporteMapper.aCreado({
-        reporte: aReporte({ lugarId: 8 }),
-        karma: { puntosGanados: 0, total: 50, motivoSinPuntos: MotivoSinPuntos.TOPE_DIARIO },
-        lugar,
-      });
-      expect(dto.karma).toEqual({ puntosGanados: 0, total: 50, motivoSinPuntos: 'TOPE_DIARIO' });
+      const dto = ReporteMapper.aCreado({ reporte: aReporte({ lugarId: 8 }), lugar });
       expect(dto.saturacionLugar).toEqual({ nivel: null, actualizadoEn: null });
     });
   });

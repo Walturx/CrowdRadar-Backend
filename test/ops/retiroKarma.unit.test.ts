@@ -39,3 +39,29 @@ describe('peso uniforme de los votos (CRO-73)', () => {
     expect(Object.keys(esquemaEntorno.shape)).not.toContain('TOPE_KARMA_PESO');
   });
 });
+
+describe('puntos y tiers en lugar de karma (CRO-72)', () => {
+  it.each(['docs/api-contract.md', 'README.md', '.env.example'])('%s ya no menciona karma', (ruta) => {
+    expect(readFileSync(resolve(RAIZ, ruta), 'utf8')).not.toMatch(/karma/i);
+  });
+
+  it.each(['docs/api-contract.md', 'README.md'])('%s describe las reglas nuevas: +10, +2, los cuatro tiers y sus umbrales', (ruta) => {
+    const texto = readFileSync(resolve(RAIZ, ruta), 'utf8');
+    for (const termino of ['+10', '+2', 'CROWD_BABY', 'CROWD_EXPLORER', 'CROWD_COLLABORATOR', 'CROWD_ROYALTY', '0-49', '50-149', '150-299', '300']) {
+      expect(texto, termino).toContain(termino);
+    }
+  });
+
+  it('el entorno ya no tiene topes diarios ni puntos por accion', () => {
+    expect(Object.keys(esquemaEntorno.shape).filter((clave) => clave.startsWith('KARMA_'))).toEqual([]);
+  });
+
+  it('el codigo fuente solo nombra karma en las columnas congeladas que se dejan de usar', () => {
+    const conKarma = archivos('src').filter((ruta) => /karma/i.test(readFileSync(resolve(RAIZ, ruta), 'utf8')));
+    expect(conKarma.sort()).toEqual([
+      'src/dao/impl/sequelize/ValidacionDAOSequelize.ts',
+      'src/dao/impl/sequelize/model/UsuarioModel.ts',
+      'src/dao/impl/sequelize/model/ValidacionModel.ts',
+    ]);
+  });
+});

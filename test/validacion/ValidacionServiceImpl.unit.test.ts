@@ -6,7 +6,6 @@ import { NivelConfiabilidad } from '../../src/enum/NivelConfiabilidad.js';
 import { TipoAccionValidacion } from '../../src/enum/TipoAccionValidacion.js';
 import { CodigoError } from '../../src/exception/CodigoError.js';
 import { ConfiabilidadSimpleStrategy } from '../../src/pattern/strategy/confiabilidad/impl/ConfiabilidadSimpleStrategy.js';
-import { KarmaServiceImpl } from '../../src/service/impl/KarmaServiceImpl.js';
 import { ValidacionServiceImpl } from '../../src/service/impl/ValidacionServiceImpl.js';
 import { distanciaMetros } from '../../src/util/geo.js';
 import { ConexionFalsa } from '../support/ConexionFalsa.js';
@@ -39,11 +38,11 @@ describe('ValidacionServiceImpl', () => {
   let lugarId: number;
   let reporteId: number;
 
-  const usuario = (karma = 0) => usuarioDAO.agregar(aUsuario({ puntosKarma: karma })).id;
+  const usuario = () => usuarioDAO.agregar(aUsuario()).id;
   const reporteDe = (usuarioId: number, sobrescritos = {}) =>
     reporteDAO.agregar(aReporte({ usuarioId, lugarId, fechaHora: haceMinutos(30), ...sobrescritos })).id;
-  const votoDe = (usuarioId: number, reporte: number, tipoAccion: TipoAccionValidacion, karmaVotante = 0) =>
-    validacionDAO.crear({ reporteId: reporte, usuarioId, tipoAccion, karmaVotante, puntosOtorgados: 2, fechaHora: AHORA });
+  const votoDe = (usuarioId: number, reporte: number, tipoAccion: TipoAccionValidacion) =>
+    validacionDAO.crear({ reporteId: reporte, usuarioId, tipoAccion, fechaHora: AHORA });
   /** Votes by fresh users (every vote weighs 1). */
   const votosNuevos = async (reporte: number, confirman: number, rechazan: number) => {
     for (let i = 0; i < confirman + rechazan; i += 1) await votoDe(usuario(), reporte, i < confirman ? C : R);
@@ -63,36 +62,31 @@ describe('ValidacionServiceImpl', () => {
       validacionDAO,
       denunciaDAO,
       usuarioDAO,
-      karmaService: new KarmaServiceImpl({
-        usuarioDAO,
-        reporteDAO,
-        reloj,
-        karmaPorReporte: 10,
-        karmaPorValidacion: 2,
-        reportesPremiadosPorDia: 5,
-        zonaHoraria: 'America/Lima',
-        validacionDAO,
-        karmaValidacionMaxDia: 4,
-      }),
       estrategia: new ConfiabilidadSimpleStrategy({ minVotos: 3, umbralAlta: 70, umbralMedia: 40 }),
       conexion,
       reloj,
       minVotosEstado: 10,
-      karmaPorValidacion: 2,
       limiteLugares: 200,
     });
     autor = usuario();
-    votante = usuario(40);
+    votante = usuario();
     lugarId = lugarDAO.agregar(alNorte(0)).id;
     reporteId = reporteDe(autor);
   });
 
   describe('validar', () => {
-    it('guarda el voto con el karma del votante, suma +2 y devuelve la confiabilidad (S1)', async () => {
+    it('guarda el voto y devuelve la confiabilidad, sin otorgar nada (S1, CRO-72)', async () => {
       const resultado = await servicio.validar(votante, reporteId, C);
-      expect(resultado.validacion).toMatchObject({ reporteId, usuarioId: votante, tipoAccion: C, karmaVotante: 40, puntosOtorgados: 2 });
-      expect(resultado.karma).toEqual({ puntosGanados: 2, total: 42 });
-      expect((await usuarioDAO.buscarPorId(votante))?.puntosKarma).toBe(42);
+      expect(Object.keys(resultado).sort()).toEqual(['confiabilidad', 'validacion']);
+      expect(resultado.validacion).toEqual({
+        id: expect.any(Number),
+        reporteId,
+        usuarioId: votante,
+        tipoAccion: C,
+        fechaHora: AHORA,
+        createdAt: expect.any(Date),
+        updatedAt: expect.any(Date),
+      });
       expect(resultado.confiabilidad).toMatchObject({
         nivel: NivelConfiabilidad.INSUFICIENTE,
         porcentaje: null,
@@ -106,7 +100,7 @@ describe('ValidacionServiceImpl', () => {
     it('recalcula y guarda nivel_confiabilidad cuando ya hay votos suficientes (S7)', async () => {
       await votosNuevos(reporteId, 1, 1);
       const resultado = await servicio.validar(votante, reporteId, C);
-      // every vote weighs 1, the voter's karma 40 included: 2 of 3 confirm
+      // every vote weighs 1: 2 of 3 confirm
       expect(resultado.confiabilidad).toMatchObject({ porcentaje: 66.67, nivel: NivelConfiabilidad.MEDIA });
       expect((await reporteDAO.buscarPorId(reporteId))?.nivelConfiabilidad).toBe(66.67);
     });
@@ -142,34 +136,31 @@ describe('ValidacionServiceImpl', () => {
       expect(await validacionDAO.listarVotos(reporteId)).toHaveLength(0);
     });
 
-    it('con el tope diario de karma alcanzado el voto cuenta pero guarda 0 puntos y no suma karma (R1-1402)', async () => {
+    it('sin tope diario: el tercer voto del dia cuenta igual que los anteriores (CRO-72)', async () => {
       const otro = reporteDe(autor);
       await servicio.validar(votante, reporteId, C);
       await servicio.validar(votante, otro, C);
       const tercero = reporteDe(autor);
       const resultado = await servicio.validar(votante, tercero, C);
-      expect(resultado.karma).toEqual({ puntosGanados: 0, total: 44 });
-      expect(resultado.validacion.puntosOtorgados).toBe(0);
+      expect(resultado.validacion).toMatchObject({ reporteId: tercero, usuarioId: votante, tipoAccion: C });
       expect(resultado.confiabilidad.confirmaciones).toBe(1);
     });
 
-    it('un voto repetido es 409 VALIDACION_DUPLICADA y no cambia el karma (S3)', async () => {
+    it('un voto repetido es 409 VALIDACION_DUPLICADA y se conserva el primero (S3)', async () => {
       await servicio.validar(votante, reporteId, C);
       await expect(servicio.validar(votante, reporteId, R)).rejects.toMatchObject({
         status: 409,
         code: CodigoError.VALIDACION_DUPLICADA,
       });
-      expect((await usuarioDAO.buscarPorId(votante))?.puntosKarma).toBe(42);
-      expect(await validacionDAO.listarVotos(reporteId)).toHaveLength(1);
+      expect((await validacionDAO.listarVotos(reporteId)).map((v) => v.tipoAccion)).toEqual([C]);
     });
 
-    it('votar el propio reporte es 422 AUTOVALIDACION_NO_PERMITIDA sin voto ni karma (S4)', async () => {
+    it('votar el propio reporte es 422 AUTOVALIDACION_NO_PERMITIDA sin voto (S4)', async () => {
       await expect(servicio.validar(autor, reporteId, C)).rejects.toMatchObject({
         status: 422,
         code: CodigoError.AUTOVALIDACION_NO_PERMITIDA,
       });
       expect(await validacionDAO.listarVotos(reporteId)).toHaveLength(0);
-      expect((await usuarioDAO.buscarPorId(autor))?.puntosKarma).toBe(0);
     });
 
     it('un reporte inexistente o eliminado es 404 REPORTE_NO_ENCONTRADO, antes que cualquier otra regla', async () => {
@@ -178,7 +169,7 @@ describe('ValidacionServiceImpl', () => {
       await expect(servicio.validar(autor, eliminado, C)).rejects.toMatchObject({ status: 404 });
     });
 
-    it('un voto simultaneo que pierde la carrera tambien es 409 (la transaccion deshace el karma; ver validarConcurrente)', async () => {
+    it('un voto simultaneo que pierde la carrera tambien es 409 (ver validarConcurrente)', async () => {
       await votoDe(votante, reporteId, C);
       validacionDAO.buscarPorUsuarioYReporte = async () => null; // the second request passed the check before the first saved
       await expect(servicio.validar(votante, reporteId, C)).rejects.toMatchObject({ code: CodigoError.VALIDACION_DUPLICADA });

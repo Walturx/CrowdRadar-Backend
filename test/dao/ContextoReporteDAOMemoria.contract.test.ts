@@ -20,7 +20,7 @@ function armar() {
   const sembrar = async () => {
     const autor = usuarioDAO.agregar(aUsuario());
     const lugar = lugarDAO.agregar({ direccion: null });
-    const reporte = reporteDAO.agregar(aReporte({ usuarioId: autor.id, lugarId: lugar.id, nivelConfiabilidad: null, motivoSinPuntos: null }));
+    const reporte = reporteDAO.agregar(aReporte({ usuarioId: autor.id, lugarId: lugar.id, nivelConfiabilidad: null }));
     return { reporteId: reporte.id, lugarId: lugar.id, autorId: autor.id };
   };
   return {

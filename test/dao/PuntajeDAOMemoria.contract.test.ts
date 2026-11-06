@@ -15,7 +15,7 @@ contratoPuntajeDAO('memoria', async () => {
     reporte: async (autorId) =>
       (await reportes.crear({ usuarioId: autorId, lugarId: 1, nivelSaturacion: NivelSaturacion.MODERADO, fechaHora: new Date() })).id,
     votar: async (usuarioId, reporteId, tipoAccion) => {
-      await validaciones.crear({ reporteId, usuarioId, tipoAccion, karmaVotante: 0, puntosOtorgados: 0, fechaHora: new Date() });
+      await validaciones.crear({ reporteId, usuarioId, tipoAccion, fechaHora: new Date() });
     },
     eliminar: async (reporteId) => {
       await reportes.actualizarEstado(reporteId, EstadoReporte.ELIMINADO);

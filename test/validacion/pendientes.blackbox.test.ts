@@ -81,8 +81,6 @@ describe('GET /api/validaciones/pendientes (caja negra)', () => {
       reporteId: votado,
       usuarioId: miId,
       tipoAccion: TipoAccionValidacion.CONFIRMAR,
-      karmaVotante: 0,
-      puntosOtorgados: 2,
       fechaHora: AHORA,
     });
     expect(ids(await pedir(BASE))).toEqual([cercaViejo, lejosNuevo, lejosViejo]);

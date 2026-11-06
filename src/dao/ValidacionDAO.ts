@@ -6,9 +6,6 @@ export interface NuevaValidacion {
   reporteId: number;
   usuarioId: number;
   tipoAccion: TipoAccionValidacion;
-  /** The voter's karma at vote time. */
-  karmaVotante: number;
-  puntosOtorgados: number;
   fechaHora: Date;
 }
 
@@ -24,10 +21,4 @@ export interface ValidacionDAO {
   listarVotos(reporteId: number, tx?: ContextoTx): Promise<ValidacionReporte[]>;
   /** Every vote on any of the reports, oldest first (one query for a whole page of reports). */
   listarVotosDeReportes(reporteIds: readonly number[], tx?: ContextoTx): Promise<ValidacionReporte[]>;
-  /**
-   * Points (`puntosOtorgados`) of the votes of the user with fechaHora >= desde (daily validation karma cap). The
-   * Sequelize impl takes pg_advisory_xact_lock(usuarioId, 0) first, the same per-user lock as
-   * `ReporteDAO.contarPremiadosDeUsuarioDesde`, so cap checks of one user serialize.
-   */
-  sumarPuntosDelDiaDe(usuarioId: number, desde: Date, tx?: ContextoTx): Promise<number>;
 }

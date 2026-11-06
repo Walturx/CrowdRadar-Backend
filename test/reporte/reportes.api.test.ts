@@ -31,28 +31,28 @@ describe('API de reportes (contenedor de prueba)', () => {
   });
 
   describe('POST /api/reportes', () => {
-    it('201 {message, data:{reporte, karma, saturacionLugar}} y persiste el reporte (S1)', async () => {
+    it('201 {message, data:{reporte, saturacionLugar}} sin bloque karma, y persiste el reporte (S1, CRO-72)', async () => {
       const { usuario, cabecera } = nuevoUsuario();
       const res = await reportar(cabecera, { lugarId, nivel: 'MODERADO' });
       expect(res.status).toBe(201);
-      expect(res.body.message).toEqual(expect.any(String));
-      expect(res.body.data).toMatchObject({
-        reporte: { lugarId, nivel: 'MODERADO' },
-        karma: { puntosGanados: 10, total: 10, motivoSinPuntos: null },
-      });
+      expect(res.body.message).toBe('Reporte registrado correctamente.');
+      expect(Object.keys(res.body.data).sort()).toEqual(['reporte', 'saturacionLugar']);
+      expect(res.body.data.reporte).toEqual({ id: expect.any(Number), lugarId, nivel: 'MODERADO', fechaHora: expect.any(String) });
+      expect(JSON.stringify(res.body)).not.toMatch(/karma/i);
       expect(res.body.data.reporte.id).toEqual(expect.any(Number));
       expect(Date.parse(res.body.data.reporte.fechaHora)).not.toBeNaN();
       expect(res.body.data.saturacionLugar).toEqual({ nivel: null, actualizadoEn: expect.any(String) });
       expect(await ctx.reporteDAO.buscarPorId(res.body.data.reporte.id)).toMatchObject({ usuarioId: usuario.id, lugarId });
     });
 
-    it('el karma total acumula entre reportes de lugares distintos', async () => {
+    it('reportar varios lugares seguidos sigue recalculando la saturacion de cada uno', async () => {
       const { cabecera } = nuevoUsuario();
       const otro = ctx.lugarDAO.agregar({ nombre: 'Larcomar' }).id;
       await reportar(cabecera, { lugarId, nivel: 'TRANQUILO' });
       const res = await reportar(cabecera, { lugarId: otro, nivel: 'SATURADO' });
       expect(res.status).toBe(201);
-      expect(res.body.data.karma).toMatchObject({ puntosGanados: 10, total: 20 });
+      expect(res.body.data.saturacionLugar).toEqual({ nivel: null, actualizadoEn: expect.any(String) });
+      expect((await ctx.lugarDAO.buscarPorId(otro))?.saturacionActualizadaEn).toEqual(expect.any(Date));
     });
 
     it.each([
@@ -92,7 +92,7 @@ describe('API de reportes (contenedor de prueba)', () => {
       expect(res.body.code).toBe('CUENTA_SUSPENDIDA');
     });
 
-    it('422 REPORTE_EN_ESPERA con los minutos restantes, sin fila ni karma extra (S4)', async () => {
+    it('422 REPORTE_EN_ESPERA con los minutos restantes y sin fila extra (S4)', async () => {
       const { usuario, cabecera } = nuevoUsuario();
       await reportar(cabecera, { lugarId, nivel: 'MODERADO' });
       const res = await reportar(cabecera, { lugarId, nivel: 'SATURADO' });
@@ -100,7 +100,6 @@ describe('API de reportes (contenedor de prueba)', () => {
       expect(res.body.code).toBe('REPORTE_EN_ESPERA');
       expect(res.body.message).toBe('Ya reportaste este lugar. Vuelve a intentarlo en 30 minutos.');
       expect((await ctx.reporteDAO.listarPorUsuario(usuario.id, { page: 1, size: 10 })).total).toBe(1);
-      expect((await ctx.usuarioDAO.buscarPorId(usuario.id))?.puntosKarma).toBe(10);
     });
 
     it('otro usuario en el mismo lugar no esta en espera (S5)', async () => {

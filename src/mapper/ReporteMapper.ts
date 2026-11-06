@@ -17,7 +17,7 @@ export const ReporteMapper = {
     };
   },
 
-  aCreado({ reporte, karma, lugar }: ReporteRegistrado): ReporteCreadoResponseDTO {
+  aCreado({ reporte, lugar }: ReporteRegistrado): ReporteCreadoResponseDTO {
     return {
       reporte: {
         id: reporte.id,
@@ -25,7 +25,6 @@ export const ReporteMapper = {
         nivel: reporte.nivelSaturacion,
         fechaHora: reporte.fechaHora.toISOString(),
       },
-      karma: { puntosGanados: karma.puntosGanados, total: karma.total, motivoSinPuntos: karma.motivoSinPuntos },
       saturacionLugar: {
         nivel: lugar.saturacionActual,
         actualizadoEn: lugar.saturacionActualizadaEn?.toISOString() ?? null,

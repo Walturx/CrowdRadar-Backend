@@ -21,12 +21,12 @@ describe('API de validacion y denuncias (contenedor de prueba)', () => {
   let autor: ReturnType<typeof nuevoUsuario>;
   let reporteId: number;
 
-  const nuevoUsuario = (karma = 0) => {
-    const usuario = ctx.usuarioDAO.agregar(aUsuario({ puntosKarma: karma }));
+  const nuevoUsuario = () => {
+    const usuario = ctx.usuarioDAO.agregar(aUsuario());
     return { usuario, cabecera: { Authorization: `Bearer ${ctx.emisorToken.emitir(usuario).token}` } };
   };
   const votoDe = (usuarioId: number, reporte: number, tipoAccion: TipoAccionValidacion) =>
-    ctx.validacionDAO.crear({ reporteId: reporte, usuarioId, tipoAccion, karmaVotante: 0, puntosOtorgados: 2, fechaHora: new Date() });
+    ctx.validacionDAO.crear({ reporteId: reporte, usuarioId, tipoAccion, fechaHora: new Date() });
   const votar = (cabecera: Record<string, string>, id: number | string, cuerpo: unknown) =>
     request(app).post(`/api/reportes/${id}/validaciones`).set(cabecera).send(cuerpo as object);
   const denunciar = (cabecera: Record<string, string>, id: number | string, cuerpo: unknown) =>
@@ -41,28 +41,29 @@ describe('API de validacion y denuncias (contenedor de prueba)', () => {
   });
 
   describe('POST /api/reportes/:id/validaciones', () => {
-    it('201 con karma, confiabilidad y estado, y persiste el voto (S1)', async () => {
-      const { usuario, cabecera } = nuevoUsuario(10);
+    it('201 "¡Gracias por validar!" con validacion, confiabilidad y estado, sin bloque karma, y persiste el voto (S1, CRO-72)', async () => {
+      const { usuario, cabecera } = nuevoUsuario();
       const res = await votar(cabecera, reporteId, { tipoAccion: 'CONFIRMAR' });
       expect(res.status).toBe(201);
-      expect(res.body.message).toContain('+2 karma');
-      expect(res.body.data).toMatchObject({
-        validacion: { reporteId, tipoAccion: 'CONFIRMAR' },
-        karma: { puntosGanados: 2, total: 12 },
+      expect(res.body.message).toBe('¡Gracias por validar!');
+      expect(Object.keys(res.body.data).sort()).toEqual(['confiabilidad', 'estadoValidacion', 'validacion']);
+      expect(res.body.data).toEqual({
+        validacion: { id: expect.any(Number), reporteId, tipoAccion: 'CONFIRMAR', fechaHora: expect.any(String) },
         confiabilidad: { porcentaje: null, nivel: 'INSUFICIENTE', confirmaciones: 1, rechazos: 0, advertencia: null },
         estadoValidacion: 'EN_VALIDACION',
       });
       expect(Date.parse(res.body.data.validacion.fechaHora)).not.toBeNaN();
-      expect(await ctx.validacionDAO.buscarPorUsuarioYReporte(usuario.id, reporteId)).toMatchObject({ karmaVotante: 10 });
+      expect(JSON.stringify(res.body)).not.toMatch(/karma/i);
+      expect(await ctx.validacionDAO.buscarPorUsuarioYReporte(usuario.id, reporteId)).toMatchObject({ tipoAccion: 'CONFIRMAR' });
     });
 
-    it('un voto repetido es 409 VALIDACION_DUPLICADA sin tocar el karma (S3)', async () => {
+    it('un voto repetido es 409 VALIDACION_DUPLICADA y el primero se conserva (S3)', async () => {
       const { usuario, cabecera } = nuevoUsuario();
       await votar(cabecera, reporteId, { tipoAccion: 'RECHAZAR' });
       const res = await votar(cabecera, reporteId, { tipoAccion: 'CONFIRMAR' });
       expect(res.status).toBe(409);
       expect(res.body.code).toBe('VALIDACION_DUPLICADA');
-      expect((await ctx.usuarioDAO.buscarPorId(usuario.id))?.puntosKarma).toBe(2);
+      expect(await ctx.validacionDAO.buscarPorUsuarioYReporte(usuario.id, reporteId)).toMatchObject({ tipoAccion: 'RECHAZAR' });
     });
 
     it('dos votos simultaneos que pasan el chequeo previo: el indice unico gana y el segundo es 409 VALIDACION_DUPLICADA', async () => {

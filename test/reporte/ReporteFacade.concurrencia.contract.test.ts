@@ -101,25 +101,22 @@ ejecutarContratoDAO<EntornoFacadeBD>({
         const usadas = sentencias().slice(antes);
         expect(usadas.length).toBeGreaterThan(0);
         expect(usadas.length).toBeLessThanOrEqual(MAX_SENTENCIAS_REGISTRAR);
-        expect(reporte).toMatchObject({ usuarioId, lugarId, puntosOtorgados: 10, motivoSinPuntos: null });
+        expect(reporte).toMatchObject({ usuarioId, lugarId, estado: 'ACTIVO' });
         expect(lugar).toMatchObject({ id: lugarId, saturacionActual: NivelSaturacion.SATURADO });
       });
 
-      it('la transaccion de un reporte toma los cerrojos en orden y suma el karma al final', async () => {
+      it('la transaccion de un reporte toma los cerrojos en orden y no escribe puntos ni toma un cerrojo por usuario', async () => {
         const { facade, usuarioId, lugarId, sentencias } = await crearEntorno();
         const antes = sentencias().length;
         await facade.registrar(usuarioId, lugarId, NivelSaturacion.MODERADO);
         const usadas = sentencias().slice(antes);
         // Each step must come after the previous one: cooldown lock of the pair, then the place row lock, then the
-        // insert, then the per-user lock of the daily cap, and the karma UPDATE of the user last (shortest hold).
+        // insert and the commit. Points are computed when read (CRO-72): no daily-cap lock, no karma or points UPDATE.
         const pasos: [string, RegExp][] = [
           ['BEGIN', /^START TRANSACTION|^BEGIN/i],
           ['advisory(usuario, lugar)', new RegExp(`pg_advisory_xact_lock\\(${usuarioId}, ${lugarId}\\)`)],
           ['lugar FOR UPDATE', /FROM "?lugar"?.*FOR UPDATE/is],
           ['INSERT reporte', /^INSERT INTO "?reporte_saturacion"?/i],
-          ['advisory(usuario, 0)', new RegExp(`pg_advisory_xact_lock\\(${usuarioId}, 0\\)`)],
-          ['tope diario', /COUNT\(\*\).*puntos_otorgados > 0/is],
-          ['UPDATE karma', /^UPDATE "?usuario"? SET.*puntos_karma/is],
           ['COMMIT', /^COMMIT/i],
         ];
         let desde = 0;
@@ -129,22 +126,16 @@ ejecutarContratoDAO<EntornoFacadeBD>({
           return [paso, i];
         });
         expect(orden.filter(([, i]) => i === -1), usadas.join('\n')).toEqual([]);
-        // After the karma UPDATE only the report's own points are written before COMMIT: the user's row lock (taken by
-        // that UPDATE) is held for two round trips, with no other lock or read in between.
-        const karma = orden.find(([paso]) => paso === 'UPDATE karma')![1];
-        const despues = usadas.slice(karma + 1);
-        expect(despues, usadas.join('\n')).toHaveLength(2);
-        expect(despues[0]).toMatch(/^UPDATE reporte_saturacion SET "puntos_otorgados"/);
-        expect(despues[1]).toMatch(/^COMMIT/);
+        expect(usadas.filter((sql) => new RegExp(`pg_advisory_xact_lock\\(${usuarioId}, 0\\)`).test(sql)), usadas.join('\n')).toEqual([]);
+        expect(usadas.filter((sql) => /puntos_karma|puntos_otorgados|motivo_sin_puntos/i.test(sql)), usadas.join('\n')).toEqual([]);
       });
 
-      it('un usuario reportando en 8 lugares a la vez no supera el tope diario de karma', async () => {
-        const { facade, reporteDAO, usuarioDAO, usuarioId, lugarId, nuevoLugar } = await crearEntorno();
+      it('un usuario reportando en 8 lugares a la vez: se registran los 8 (sin tope diario)', async () => {
+        const { facade, reporteDAO, usuarioId, lugarId, nuevoLugar } = await crearEntorno();
         const lugarIds = [lugarId, ...(await Promise.all(Array.from({ length: 7 }, nuevoLugar)))];
         const resultados = await Promise.all(lugarIds.map((id) => facade.registrar(usuarioId, id, NivelSaturacion.MODERADO)));
-        expect(resultados.filter((r) => r.karma.puntosGanados > 0)).toHaveLength(5);
-        expect(await reporteDAO.contarPremiadosDeUsuarioDesde(usuarioId, new Date(0))).toBe(5);
-        expect((await usuarioDAO.buscarPorId(usuarioId))?.puntosKarma).toBe(50);
+        expect(resultados.map((r) => r.reporte.lugarId).sort((a, b) => a - b)).toEqual([...lugarIds].sort((a, b) => a - b));
+        expect((await reporteDAO.listarPorUsuario(usuarioId, { page: 1, size: 20 })).total).toBe(8);
       });
     });
   },
@@ -165,7 +156,6 @@ ejecutarContratoDAO<EntornoFacadeBD>({
     });
     limpiezas.push(() => sequelize.removeHook('afterQuery', hook));
     const facade = crearFacadePrueba({
-      usuarioDAO,
       lugarDAO,
       reporteDAO,
       conexion: new ConexionSequelize(sequelize),

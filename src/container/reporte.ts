@@ -1,7 +1,6 @@
 import type { ConfiguracionApp } from '../config/ConfiguracionApp.js';
 import type { LugarDAO } from '../dao/LugarDAO.js';
 import type { ReporteDAO } from '../dao/ReporteDAO.js';
-import type { UsuarioDAO } from '../dao/UsuarioDAO.js';
 import type { ConexionBD } from '../datasource/ConexionBD.js';
 import { ReporteFacadeImpl } from '../facade/impl/ReporteFacadeImpl.js';
 import type { ReporteFacade } from '../facade/ReporteFacade.js';
@@ -14,10 +13,8 @@ import { ReporteController } from '../controller/ReporteController.js';
 import { crearAnaliticaRouter } from '../route/analitica.routes.js';
 import { crearReporteRouter } from '../route/reporte.routes.js';
 import { AnaliticaServiceImpl } from '../service/impl/AnaliticaServiceImpl.js';
-import { KarmaServiceImpl } from '../service/impl/KarmaServiceImpl.js';
 import { ReporteServiceImpl } from '../service/impl/ReporteServiceImpl.js';
 import { SaturacionServiceImpl } from '../service/impl/SaturacionServiceImpl.js';
-import type { KarmaService } from '../service/KarmaService.js';
 import type { PuntajeService } from '../service/PuntajeService.js';
 import type { ReporteService } from '../service/ReporteService.js';
 import type { SaturacionService } from '../service/SaturacionService.js';
@@ -45,7 +42,6 @@ export interface DependenciasServiciosReporte {
   reloj: Reloj;
   logger: Logger;
   conexion: ConexionBD;
-  usuarioDAO: UsuarioDAO;
   /** The Sequelize one belongs to M2; tests pass the in-memory one. */
   lugarDAO: LugarDAO;
   reporteDAO: ReporteDAO;
@@ -58,25 +54,15 @@ export interface DependenciasServiciosReporte {
 export interface ServiciosReporte {
   reporteFacade: ReporteFacade;
   reporteService: ReporteService;
-  /** M5 and M6 receive these two from here. */
-  karmaService: KarmaService;
+  /** M6 receives it from here. */
   saturacionService: SaturacionService;
 }
 
 /** Wires the report services and facade from the configuration; a pure function so tests can feed it in-memory DAOs. */
 export function construirServiciosReporte(deps: DependenciasServiciosReporte): ServiciosReporte {
-  const { cfg, reloj, logger, conexion, usuarioDAO, lugarDAO, reporteDAO, subject, puntajeService } = deps;
+  const { cfg, reloj, logger, conexion, lugarDAO, reporteDAO, subject, puntajeService } = deps;
   const reglas = cfg.reglas;
   const reporteService = new ReporteServiceImpl({ reporteDAO, lugarDAO, reloj, cooldownMin: reglas.cooldownReporteMin, puntajeService });
-  const karmaService = new KarmaServiceImpl({
-    usuarioDAO,
-    reporteDAO,
-    reloj,
-    karmaPorReporte: reglas.karmaPorReporte,
-    karmaPorValidacion: reglas.karmaPorValidacion,
-    reportesPremiadosPorDia: reglas.karmaReportesPremiadosDia,
-    zonaHoraria: cfg.servidor.zonaHoraria,
-  });
   const saturacionService = new SaturacionServiceImpl({
     lugarDAO,
     reporteDAO,
@@ -87,14 +73,13 @@ export function construirServiciosReporte(deps: DependenciasServiciosReporte): S
   const reporteFacade = new ReporteFacadeImpl({
     lugarDAO,
     reporteService,
-    karmaService,
     saturacionService,
     subject,
     conexion,
     logger,
     presupuestoEventosMs: reglas.eventosPresupuestoMs,
   });
-  return { reporteFacade, reporteService, karmaService, saturacionService };
+  return { reporteFacade, reporteService, saturacionService };
 }
 
 /**
@@ -106,7 +91,6 @@ export function construirReporte({
   logger,
   conexion,
   reloj,
-  usuarioDAO,
   lugarDAO,
   reporteDAO,
   subject,
@@ -118,7 +102,6 @@ export function construirReporte({
     reloj,
     logger,
     conexion,
-    usuarioDAO,
     lugarDAO,
     reporteDAO,
     subject,

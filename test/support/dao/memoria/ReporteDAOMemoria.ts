@@ -9,7 +9,6 @@ import type {
 import type { ReporteSaturacion } from '../../../../src/entity/ReporteSaturacion.js';
 import { EstadoReporte } from '../../../../src/enum/EstadoReporte.js';
 import { FiltroDias } from '../../../../src/enum/FiltroDias.js';
-import type { MotivoSinPuntos } from '../../../../src/enum/MotivoSinPuntos.js';
 import { VALOR_NIVEL } from '../../../../src/entity/valorNivel.js';
 import { relojSistema, type Reloj } from '../../../../src/util/Reloj.js';
 import type { ContextoTx } from '../../../../src/datasource/ConexionBD.js';
@@ -95,8 +94,6 @@ export class ReporteDAOMemoria implements ReporteDAO {
       id: this.siguienteId,
       nivelConfiabilidad: null,
       estado: EstadoReporte.ACTIVO,
-      puntosOtorgados: 0,
-      motivoSinPuntos: null,
       ...sellosNuevos(this.reloj),
     });
   }
@@ -136,16 +133,6 @@ export class ReporteDAOMemoria implements ReporteDAO {
   async contarPorLugarDesde(lugarId: number, desde: Date): Promise<number> {
     return this.todos().filter((r) => r.lugarId === lugarId && r.fechaHora >= desde && r.estado === EstadoReporte.ACTIVO)
       .length;
-  }
-
-  /** Like the Sequelize one, takes the per-user lock (key `usuario:<id>`) until the transaction ends. */
-  async contarPremiadosDeUsuarioDesde(usuarioId: number, desde: Date, tx?: ContextoTx): Promise<number> {
-    await this.cerrojos.adquirir(`usuario:${usuarioId}`, tx);
-    return this.todos().filter((r) => r.usuarioId === usuarioId && r.fechaHora >= desde && r.puntosOtorgados > 0).length;
-  }
-
-  async registrarPuntos(reporteId: number, puntos: number, motivo: MotivoSinPuntos | null) {
-    return this.modificar(reporteId, { puntosOtorgados: puntos, motivoSinPuntos: motivo });
   }
 
   async listarPorUsuario(usuarioId: number, paginacion: Paginacion): Promise<Pagina<ReporteSaturacion>> {

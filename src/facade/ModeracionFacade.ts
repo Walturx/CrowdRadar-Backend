@@ -50,7 +50,7 @@ export interface DetalleUsuarioModerado extends UsuarioModerado {
 }
 
 /**
- * Pattern: Facade. Admin moderation across UsuarioDAO, SancionDAO, DenunciaDAO, ReporteDAO, LugarDAO, KarmaService,
+ * Pattern: Facade. Admin moderation across UsuarioDAO, SancionDAO, DenunciaDAO, ReporteDAO, LugarDAO, PuntajeService,
  * SaturacionService, SaturacionSubject, EnviadorCorreo, ConexionBD and Reloj. Owner: M6. Admin routes only.
  * Throws SinDenunciasPendientesException (409), UsuarioYaSuspendidoException (409), UsuarioNoSuspendidoException (409),
  * OperacionNoPermitidaException (422: self, or another ADMIN), ValidacionException (400: days outside the configured set)
@@ -60,8 +60,8 @@ export interface ModeracionFacade {
   listarReportesDenunciados(paginacion: Paginacion): Promise<Pagina<ReporteDenunciadoItem>>;
   obtenerReporteDenunciado(reporteId: number): Promise<DetalleReporteDenunciado>;
   /**
-   * One transaction: resolve the pending complaints; on ELIMINAR also mark the report ELIMINADO, revoke its karma
-   * and recompute the place level. Publishes the level change after the commit.
+   * One transaction: resolve the pending complaints; on ELIMINAR also mark the report ELIMINADO and recompute the
+   * place level. Nothing is revoked: a removed report simply stops counting for everyone's points (CRO-72). Publishes the level change after the commit.
    */
   resolverDenuncias(adminId: number, reporteId: number, decision: DecisionModeracion, comentario: string | null): Promise<ResultadoResolucion>;
   listarUsuarios(filtro: FiltroUsuarios, paginacion: Paginacion): Promise<Pagina<UsuarioModerado>>;

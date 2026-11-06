@@ -29,7 +29,6 @@ import type {
   ResultadoValidacion,
   ValidacionService,
 } from '../ValidacionService.js';
-import type { KarmaService } from '../KarmaService.js';
 
 export interface DependenciasValidacionService {
   reporteDAO: ReporteDAO;
@@ -37,14 +36,11 @@ export interface DependenciasValidacionService {
   validacionDAO: ValidacionDAO;
   denunciaDAO: DenunciaDAO;
   usuarioDAO: UsuarioDAO;
-  karmaService: KarmaService;
   estrategia: EstrategiaConfiabilidad;
   conexion: ConexionBD;
   reloj: Reloj;
   /** CONFIABILIDAD_MIN_VOTOS_ESTADO: votes before a report counts as VALIDADO or RECHAZADO. */
   minVotosEstado: number;
-  /** KARMA_POR_VALIDACION: kept for the wiring; the points a vote stores are the ones KarmaService granted. */
-  karmaPorValidacion: number;
   /** Cap of the places read around the caller (LUGARES_LIMITE_MAX). */
   limiteLugares: number;
 }
@@ -123,25 +119,18 @@ export class ValidacionServiceImpl implements ValidacionService {
   }
 
   async validar(usuarioId: number, reporteId: number, tipoAccion: TipoAccionValidacion): Promise<ResultadoValidacion> {
-    const { reporteDAO, validacionDAO, usuarioDAO, karmaService, conexion, reloj } = this.deps;
+    const { reporteDAO, validacionDAO, usuarioDAO, conexion, reloj } = this.deps;
     return conexion.transaccion(async (tx) => {
       // The row lock comes first: votes on one report apply one at a time, so each recomputation sees every earlier
       // vote, and the state read here is the one the vote is written against (no check-then-act gap).
       const reporte = this.exigirActivo(await reporteDAO.buscarPorIdParaActualizar(reporteId, tx));
       if (reporte.usuarioId === usuarioId) throw new AutovalidacionException();
       if (await validacionDAO.buscarPorUsuarioYReporte(usuarioId, reporteId, tx)) throw new ValidacionDuplicadaException();
-      const votante = await usuarioDAO.buscarPorId(usuarioId, tx);
-      if (!votante) throw new UsuarioNoEncontradoException();
-      // Karma first: past the daily cap the vote still counts but stores (and earns) 0 points.
-      const puntosGanados = await karmaService.otorgarPorValidacion(usuarioId, tx);
-      const validacion = await this.guardarVoto(
-        { reporteId, usuarioId, tipoAccion, karmaVotante: votante.puntosKarma, puntosOtorgados: puntosGanados, fechaHora: reloj.ahora() },
-        tx,
-      );
+      if (!(await usuarioDAO.buscarPorId(usuarioId, tx))) throw new UsuarioNoEncontradoException();
+      const validacion = await this.guardarVoto({ reporteId, usuarioId, tipoAccion, fechaHora: reloj.ahora() }, tx);
       const confiabilidad = this.describir(await validacionDAO.listarVotos(reporteId, tx));
       if (confiabilidad.porcentaje !== null) await reporteDAO.actualizarConfiabilidad(reporteId, confiabilidad.porcentaje, tx);
-      const total = (await usuarioDAO.buscarPorId(usuarioId, tx))?.puntosKarma ?? votante.puntosKarma + puntosGanados;
-      return { validacion, karma: { puntosGanados, total }, confiabilidad };
+      return { validacion, confiabilidad };
     });
   }
 

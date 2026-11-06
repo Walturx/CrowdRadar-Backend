@@ -49,7 +49,7 @@ export function asignacionesDe(
   return { set: pares.map(([atributo]) => `"${campo(atributo)}" = :${atributo}`).join(', '), valores: Object.fromEntries(pares) };
 }
 
-/** Column name of an attribute (e.g. `puntosOtorgados` -> `puntos_otorgados`). Attribute names come from code, never input. */
+/** Column name of an attribute (e.g. `nivelConfiabilidad` -> `nivel_confiabilidad`). Attribute names come from code, never input. */
 export function campoDe(modelo: ModelStatic<Model>, atributo: string): string {
   const par = campos(modelo).find(([nombre]) => nombre === atributo);
   if (!par) throw new Error(`Atributo desconocido ${modelo.name}.${atributo}`);

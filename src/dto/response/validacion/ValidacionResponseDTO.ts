@@ -50,7 +50,6 @@ export interface DetalleReporteResponseDTO {
 /** data of POST /api/reportes/:id/validaciones. */
 export interface ValidacionCreadaResponseDTO {
   validacion: { id: number; reporteId: number; tipoAccion: TipoAccionValidacion; fechaHora: string };
-  karma: { puntosGanados: number; total: number };
   confiabilidad: ConfiabilidadDTO;
   estadoValidacion: EstadoValidacion;
 }

@@ -27,7 +27,7 @@ describe('puntos y tier por la API', () => {
     Authorization: `Bearer ${ctx.emisorToken.emitir(usuario).token}`,
   });
   const votar = (usuarioId: number, reporteId: number, tipoAccion: TipoAccionValidacion) =>
-    ctx.validacionDAO.crear({ reporteId, usuarioId, tipoAccion, karmaVotante: 0, puntosOtorgados: 0, fechaHora: new Date() });
+    ctx.validacionDAO.crear({ reporteId, usuarioId, tipoAccion, fechaHora: new Date() });
   const reporteDe = (usuarioId: number) => ctx.reporteDAO.agregar(aReporte({ usuarioId, lugarId })).id;
   /** A report of `autor` voted by the first `confirman` jurors with CONFIRMAR and the next `rechazan` with RECHAZAR. */
   const reporteVotado = async (autor: number, confirman: number, rechazan = 0) => {
@@ -187,6 +187,21 @@ describe('puntos y tier por la API', () => {
       const res = await request(app).get('/api/admin/usuarios?orden=KARMA').set(cabeceraAdmin);
       expect(res.status).toBe(400);
       expect(res.body.code).toBe('VALIDACION_FALLIDA');
+    });
+
+    it('eliminar un reporte VALIDADO por moderacion le quita sus 10 puntos al autor, sin paso de revocacion', async () => {
+      const autor = ctx.usuarioDAO.agregar(aUsuario({ nombre: 'Rosa' }));
+      const reporteId = await reporteVotado(autor.id, 10);
+      await reporteVotado(autor.id, 10);
+      const leer = async () => (await request(app).get('/api/users/profile').set(conToken(autor))).body.data.user;
+      expect(await leer()).toMatchObject({ puntos: 20 });
+      await ctx.denunciaDAO.crear({ reporteId, usuarioId: jurado[0]!, motivo: 'INFORMACION_FALSA', detalle: null, fechaHora: new Date() });
+      const res = await request(app)
+        .post(`/api/admin/reportes-denunciados/${reporteId}/resolucion`)
+        .set(cabeceraAdmin)
+        .send({ decision: 'ELIMINAR' });
+      expect(res.status).toBe(200);
+      expect(await leer()).toMatchObject({ puntos: 10, tier: 'CROWD_BABY' });
     });
 
     it('orden=RECIENTES y orden=NOMBRE siguen funcionando', async () => {

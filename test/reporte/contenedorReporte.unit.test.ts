@@ -52,7 +52,6 @@ describe('construirServiciosReporte', () => {
       reloj,
       logger: crearLoggerSilencioso(),
       conexion: new ConexionFalsa(),
-      usuarioDAO,
       lugarDAO,
       reporteDAO: new ReporteDAOMemoria(),
       subject,
@@ -62,10 +61,10 @@ describe('construirServiciosReporte', () => {
     return { servicios, reloj, usuarioId: usuario.id, lugarId: lugarDAO.agregar().id };
   };
 
-  it('la fachada ensamblada reporta con el karma y el cooldown de la configuracion', async () => {
-    const { servicios, reloj, usuarioId, lugarId } = await armar({ KARMA_POR_REPORTE: 7, COOLDOWN_REPORTE_MIN: 5 });
+  it('la fachada ensamblada reporta con el cooldown de la configuracion', async () => {
+    const { servicios, reloj, usuarioId, lugarId } = await armar({ COOLDOWN_REPORTE_MIN: 5 });
     const primero = await servicios.reporteFacade.registrar(usuarioId, lugarId, NivelSaturacion.MODERADO);
-    expect(primero.karma).toMatchObject({ puntosGanados: 7, total: 7 });
+    expect(primero.reporte).toMatchObject({ usuarioId, lugarId });
     reloj.avanzarMinutos(4);
     await expect(servicios.reporteFacade.registrar(usuarioId, lugarId, NivelSaturacion.MODERADO)).rejects.toMatchObject({
       status: 422,
@@ -73,7 +72,7 @@ describe('construirServiciosReporte', () => {
     });
     reloj.avanzarMinutos(1);
     const segundo = await servicios.reporteFacade.registrar(usuarioId, lugarId, NivelSaturacion.MODERADO);
-    expect(segundo.karma.total).toBe(14);
+    expect(segundo.reporte.id).not.toBe(primero.reporte.id);
   });
 
   it('EVENTOS_PRESUPUESTO_MS de la configuracion acota la espera de los suscriptores', async () => {
@@ -89,9 +88,9 @@ describe('construirServiciosReporte', () => {
     }
   });
 
-  it('expone el karma y la saturacion que otros streams (M5, M6) reutilizan', async () => {
-    const { servicios, usuarioId } = await armar({ KARMA_POR_VALIDACION: 3 });
-    expect(await servicios.karmaService.otorgarPorValidacion(usuarioId, {} as never)).toBe(3);
+  it('expone la saturacion que el stream de moderacion (M6) reutiliza, y nada que otorgue puntos', async () => {
+    const { servicios } = await armar();
     expect(servicios.saturacionService.recalcular).toBeTypeOf('function');
+    expect(Object.keys(servicios).sort()).toEqual(['reporteFacade', 'reporteService', 'saturacionService']);
   });
 });

@@ -79,10 +79,6 @@ export class ConfiguracionApp {
     this.reglas = congelar({
       recuperacionExpiraMin: env.RECUPERACION_EXPIRA_MIN,
       cooldownReporteMin: env.COOLDOWN_REPORTE_MIN,
-      karmaPorReporte: env.KARMA_POR_REPORTE,
-      karmaPorValidacion: env.KARMA_POR_VALIDACION,
-      karmaValidacionMaxDia: env.KARMA_VALIDACION_MAX_DIA,
-      karmaReportesPremiadosDia: env.KARMA_REPORTES_PREMIADOS_DIA,
       saturacionEstrategia: env.SATURACION_ESTRATEGIA,
       saturacionVentanaMin: env.SATURACION_VENTANA_MIN,
       saturacionMinReportes: env.SATURACION_MIN_REPORTES,
