@@ -19,6 +19,16 @@ const AHORA = new Date('2026-10-07T15:00:00Z');
 const VALOR = { TRANQUILO: NivelSaturacion.TRANQUILO, MODERADO: NivelSaturacion.MODERADO, SATURADO: NivelSaturacion.SATURADO };
 const MIN = 5;
 
+type Valores = { valor: number; muestras: number };
+const VACIA: Valores = { valor: 0, muestras: 0 };
+/** The 24 hourly slots `00:00`..`23:00` in order: the given hours filled in, the rest empty (CRO-64). */
+const franjas = (llenas: Record<number, Valores> = {}) =>
+  Array.from({ length: 24 }, (_, hora) => ({ etiqueta: `${String(hora).padStart(2, '0')}:00`, ...(llenas[hora] ?? VACIA) }));
+/** One point per day of `dias`, in order: the given days filled in, the rest empty (CRO-64). */
+const porDias = (dias: string[], llenos: Record<string, Valores> = {}) => dias.map((etiqueta) => ({ etiqueta, ...(llenos[etiqueta] ?? VACIA) }));
+/** The default daily range: today (2026-10-07) and the six days before. */
+const SEMANA = ['2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04', '2026-10-05', '2026-10-06', '2026-10-07'];
+
 describe('AnaliticaServiceImpl', () => {
   let sembrador: SembradorMemoria;
   let reporteDAO: ReporteDAOMemoria;
@@ -65,7 +75,7 @@ describe('AnaliticaServiceImpl', () => {
   });
 
   describe('obtenerHistorial', () => {
-    it('HORA sin fechas es hoy: puntos cronologicos 09:00 y 14:00 con promedio y muestras (S15)', async () => {
+    it('HORA sin fechas es hoy: las 24 franjas en orden, 09:00 y 14:00 con promedio y muestras (S15)', async () => {
       reportar('2026-10-07', 9, VALOR.MODERADO);
       reportar('2026-10-07', 9, VALOR.SATURADO);
       reportar('2026-10-07', 14, VALOR.TRANQUILO);
@@ -74,11 +84,18 @@ describe('AnaliticaServiceImpl', () => {
       expect(r).toEqual({
         hayDatos: true,
         sintetico: false,
-        puntos: [
-          { etiqueta: '09:00', valor: 2.5, muestras: 2 },
-          { etiqueta: '14:00', valor: 1, muestras: 1 },
-        ],
+        puntos: franjas({ 9: { valor: 2.5, muestras: 2 }, 14: { valor: 1, muestras: 1 } }),
       });
+    });
+
+    it('HORA con reportes solo a las 15:00: la franja 15:00 en su posicion y las otras 23 vacias (CRO-64)', async () => {
+      muchos(5, '2026-10-07', 15, VALOR.MODERADO);
+      const r = await servicio.obtenerHistorial(lugarId, { agrupacion: AgrupacionHistorial.HORA });
+      expect(r.hayDatos).toBe(true);
+      expect(r.puntos).toHaveLength(24);
+      expect(r.puntos[15]).toEqual({ etiqueta: '15:00', valor: 2, muestras: 5 });
+      expect(r.puntos.filter((p) => p.muestras > 0)).toEqual([r.puntos[15]]);
+      expect(r.puntos.filter((p) => p.muestras === 0).every((p) => p.valor === 0)).toBe(true);
     });
 
     it('HORA sobre varios dias junta la misma hora ponderando por muestras', async () => {
@@ -90,20 +107,20 @@ describe('AnaliticaServiceImpl', () => {
         desde: '2026-10-06',
         hasta: '2026-10-07',
       });
-      expect(r.puntos).toEqual([{ etiqueta: '09:00', valor: 2.33, muestras: 3 }]);
+      expect(r.puntos).toEqual(franjas({ 9: { valor: 2.33, muestras: 3 } }));
     });
 
-    it('DIA sin fechas son los ultimos 7 dias hasta hoy; cada dia se calcula a partir de las horas', async () => {
+    it('DIA sin fechas son los ultimos 7 dias hasta hoy, sin omitir los dias sin reportes (CRO-64)', async () => {
       reportar('2026-10-05', 9, VALOR.TRANQUILO);
       reportar('2026-10-05', 15, VALOR.SATURADO);
       reportar('2026-10-05', 15, VALOR.SATURADO);
       reportar('2026-10-07', 10, VALOR.MODERADO);
       reportar('2026-09-30', 10, VALOR.SATURADO); // 7 days back is 2026-10-01: out
       const r = await servicio.obtenerHistorial(lugarId, { agrupacion: AgrupacionHistorial.DIA });
-      expect(r.puntos).toEqual([
-        { etiqueta: '2026-10-05', valor: 2.33, muestras: 3 },
-        { etiqueta: '2026-10-07', valor: 2, muestras: 1 },
-      ]);
+      expect(r.puntos).toEqual(
+        porDias(SEMANA, { '2026-10-05': { valor: 2.33, muestras: 3 }, '2026-10-07': { valor: 2, muestras: 1 } }),
+      );
+      expect(r.puntos[5]).toEqual({ etiqueta: '2026-10-06', valor: 0, muestras: 0 });
     });
 
     it('ignora reportes ELIMINADO y de otros lugares', async () => {
@@ -111,14 +128,19 @@ describe('AnaliticaServiceImpl', () => {
       reportar('2026-10-07', 9, VALOR.SATURADO, { lugarId: lugarId + 99 });
       reportar('2026-10-07', 9, VALOR.TRANQUILO);
       const r = await servicio.obtenerHistorial(lugarId, { agrupacion: AgrupacionHistorial.HORA });
-      expect(r.puntos).toEqual([{ etiqueta: '09:00', valor: 1, muestras: 1 }]);
+      expect(r.puntos).toEqual(franjas({ 9: { valor: 1, muestras: 1 } }));
     });
 
-    it('sin reportes responde hayDatos=false y puntos vacios, no un error (S16)', async () => {
+    it('sin reportes responde hayDatos=false con las franjas vacias, no un error (S16, CRO-64)', async () => {
       expect(await servicio.obtenerHistorial(lugarId, { agrupacion: AgrupacionHistorial.DIA })).toEqual({
         hayDatos: false,
         sintetico: false,
-        puntos: [],
+        puntos: porDias(SEMANA),
+      });
+      expect(await servicio.obtenerHistorial(lugarId, { agrupacion: AgrupacionHistorial.HORA })).toEqual({
+        hayDatos: false,
+        sintetico: false,
+        puntos: franjas(),
       });
     });
 
@@ -141,18 +163,19 @@ describe('AnaliticaServiceImpl', () => {
       reportar('2026-10-07', 9, VALOR.SATURADO);
       reportar('2026-10-06', 15, VALOR.TRANQUILO);
       const rango = { desde: '2026-10-07', hasta: '2026-10-07' };
-      expect((await servicio.obtenerHistorial(lugarId, { agrupacion: AgrupacionHistorial.HORA, ...rango })).puntos).toEqual([
-        { etiqueta: '09:00', valor: 2.5, muestras: 2 },
-      ]);
+      expect((await servicio.obtenerHistorial(lugarId, { agrupacion: AgrupacionHistorial.HORA, ...rango })).puntos).toEqual(
+        franjas({ 9: { valor: 2.5, muestras: 2 } }),
+      );
       expect((await servicio.obtenerHistorial(lugarId, { agrupacion: AgrupacionHistorial.DIA, ...rango })).puntos).toEqual([
         { etiqueta: '2026-10-07', valor: 2.5, muestras: 2 },
       ]);
     });
 
-    it('31 dias de diferencia es el maximo permitido', async () => {
-      await expect(
-        servicio.obtenerHistorial(lugarId, { agrupacion: AgrupacionHistorial.DIA, desde: '2026-09-06', hasta: '2026-10-07' }),
-      ).resolves.toMatchObject({ hayDatos: false });
+    it('31 dias de diferencia es el maximo permitido: 32 dias, del primero al ultimo', async () => {
+      const r = await servicio.obtenerHistorial(lugarId, { agrupacion: AgrupacionHistorial.DIA, desde: '2026-09-06', hasta: '2026-10-07' });
+      expect(r.hayDatos).toBe(false);
+      expect(r.puntos).toHaveLength(32);
+      expect([r.puntos[0]?.etiqueta, r.puntos[31]?.etiqueta]).toEqual(['2026-09-06', '2026-10-07']);
     });
 
     it('un lugar inexistente es 404 LUGAR_NO_ENCONTRADO', async () => {
@@ -175,7 +198,7 @@ describe('AnaliticaServiceImpl', () => {
       reportar('2026-10-07', 9, VALOR.SATURADO);
       const r = await servicio.obtenerHistorial(lugarId, { agrupacion: AgrupacionHistorial.HORA });
       // The single aggregation still answers the whole contract: points, samples and the synthetic flag.
-      expect(r).toEqual({ hayDatos: true, sintetico: true, puntos: [{ etiqueta: '09:00', valor: 2.5, muestras: 2 }] });
+      expect(r).toEqual({ hayDatos: true, sintetico: true, puntos: franjas({ 9: { valor: 2.5, muestras: 2 } }) });
       expect(buscarLugar).toHaveBeenCalledTimes(1);
       expect(agregar).toHaveBeenCalledTimes(1);
     });
