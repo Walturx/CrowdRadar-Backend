@@ -3,7 +3,7 @@
  * same user and place must end as one success and one 422 REPORTE_EN_ESPERA, with a single row, thanks to
  * pg_advisory_xact_lock taken in ReporteDAOSequelize.buscarUltimoDeUsuarioEnLugar (spec M4 R3, S6). Two different
  * users reporting the same place keep a consistent saturation (row lock of the place), and one user reporting on
- * many places never exceeds the daily karma cap (advisory lock per user).
+ * many places at once gets every report through: there is no daily cap and no per-user lock since CRO-72.
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import { LugarDAOSequelize } from '../../src/dao/impl/sequelize/LugarDAOSequelize.js';
@@ -46,11 +46,12 @@ const posicion = (sentencias: string[], patron: RegExp, desde = 0) => {
 };
 
 /**
- * Statements of one report (place check, BEGIN, 2 advisory locks, cooldown read, place row lock, insert, premiados
- * count, karma, points, recent reports, level write, COMMIT). It was 16 before phase 3 (two read-backs after UPDATE
- * and a second read of the place already locked); each one held the transaction's connection for a round trip.
+ * Statements of one report, every one of them on every report (the transaction has no branch): place check, BEGIN,
+ * advisory lock of the user and place, cooldown read, place row lock, insert, recent reports, level write, COMMIT.
+ * It was 16 before phase 3 (two read-backs after UPDATE and a second read of the place already locked) and 13 until
+ * CRO-72 removed the per-user lock and the points writes; each one held the transaction's connection for a round trip.
  */
-const MAX_SENTENCIAS_REGISTRAR = 13;
+const MAX_SENTENCIAS_REGISTRAR = 9;
 
 ejecutarContratoDAO<EntornoFacadeBD>({
   titulo: 'ReporteFacadeImpl concurrencia (PostgreSQL)',
