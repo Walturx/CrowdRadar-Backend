@@ -2,6 +2,7 @@ import type { CategoriaLugar } from '../../../enum/CategoriaLugar.js';
 import type { EstadoValidacion } from '../../../enum/EstadoValidacion.js';
 import type { NivelConfiabilidad } from '../../../enum/NivelConfiabilidad.js';
 import type { NivelSaturacion } from '../../../enum/NivelSaturacion.js';
+import type { Tier } from '../../../enum/Tier.js';
 import type { TipoAccionValidacion } from '../../../enum/TipoAccionValidacion.js';
 
 /** The reliability block shared by every M5 response. Counts are raw votes; `porcentaje` is 100 x confirmaciones / votos. */
@@ -47,11 +48,19 @@ export interface DetalleReporteResponseDTO {
   esPropio: boolean;
 }
 
+/** The voter's points and tier after their vote (C7): the same values as `puntos` and `tier` of UsuarioResponseDTO. */
+export interface PuntajeVotanteDTO {
+  /** Integer >= 0, this vote included. */
+  puntos: number;
+  tier: Tier;
+}
+
 /** data of POST /api/reportes/:id/validaciones. */
 export interface ValidacionCreadaResponseDTO {
   validacion: { id: number; reporteId: number; tipoAccion: TipoAccionValidacion; fechaHora: string };
   confiabilidad: ConfiabilidadDTO;
   estadoValidacion: EstadoValidacion;
+  usuario: PuntajeVotanteDTO;
 }
 
 /** One item of GET /api/reportes/mios/validacion. */

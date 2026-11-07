@@ -41,16 +41,18 @@ describe('API de validacion y denuncias (contenedor de prueba)', () => {
   });
 
   describe('POST /api/reportes/:id/validaciones', () => {
-    it('201 "¡Gracias por validar!" con validacion, confiabilidad y estado, sin bloque karma, y persiste el voto (S1, CRO-72)', async () => {
+    it('201 "¡Gracias por validar!" con validacion, confiabilidad, estado y los puntos del votante, sin bloque karma, y persiste el voto (S1, CRO-72, C7)', async () => {
       const { usuario, cabecera } = nuevoUsuario();
       const res = await votar(cabecera, reporteId, { tipoAccion: 'CONFIRMAR' });
       expect(res.status).toBe(201);
       expect(res.body.message).toBe('¡Gracias por validar!');
-      expect(Object.keys(res.body.data).sort()).toEqual(['confiabilidad', 'estadoValidacion', 'validacion']);
+      expect(Object.keys(res.body.data).sort()).toEqual(['confiabilidad', 'estadoValidacion', 'usuario', 'validacion']);
+      expect(Object.keys(res.body.data.validacion).sort()).toEqual(['fechaHora', 'id', 'reporteId', 'tipoAccion']);
       expect(res.body.data).toEqual({
         validacion: { id: expect.any(Number), reporteId, tipoAccion: 'CONFIRMAR', fechaHora: expect.any(String) },
         confiabilidad: { porcentaje: null, nivel: 'INSUFICIENTE', confirmaciones: 1, rechazos: 0, advertencia: null },
         estadoValidacion: 'EN_VALIDACION',
+        usuario: { puntos: 0, tier: 'CROWD_BABY' },
       });
       expect(Date.parse(res.body.data.validacion.fechaHora)).not.toBeNaN();
       expect(JSON.stringify(res.body)).not.toMatch(/karma/i);

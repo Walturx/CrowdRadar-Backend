@@ -1,6 +1,6 @@
 /**
- * Points and tier over HTTP (CRO-72, wire contract C1, C4, C5): profile, login, register, the admin directory and
- * GET /api/reportes/mios, against the in-memory container. The points are never stored: every test seeds reports and
+ * Points and tier over HTTP (CRO-72, wire contract C1, C4, C5, C7): profile, login, register, the admin directory,
+ * GET /api/reportes/mios and the voter's block of the vote response, against the in-memory container. The points are never stored: every test seeds reports and
  * votes and reads them back through the API.
  */
 import request from 'supertest';
@@ -210,6 +210,58 @@ describe('puntos y tier por la API', () => {
       expect([recientes.status, nombre.status]).toEqual([200, 200]);
       expect(recientes.body.data.items.map((i: { id: number }) => i.id)).toEqual([lucia]);
       expect(nombre.body.data.items.map((i: { id: number }) => i.id)).toEqual([lucia]);
+    });
+  });
+
+  describe('POST /api/reportes/:id/validaciones trae los puntos y el tier del votante (C7)', () => {
+    let votante: ReturnType<ContenedorPrueba['usuarioDAO']['agregar']>;
+
+    const votarPorApi = (reporteId: number, tipoAccion: TipoAccionValidacion = C) =>
+      request(app).post(`/api/reportes/${reporteId}/validaciones`).set(conToken(votante)).send({ tipoAccion });
+    const perfil = async () => (await request(app).get('/api/users/profile').set(conToken(votante))).body.data.user;
+    /** The vote's `usuario` block must be exactly what the profile says right after it. */
+    const esperarIgualAlPerfil = async (usuario: unknown) => {
+      const { puntos, tier } = await perfil();
+      expect(usuario).toEqual({ puntos, tier });
+    };
+
+    beforeEach(() => {
+      votante = ctx.usuarioDAO.agregar(aUsuario());
+    });
+
+    it('el decimo voto CONFIRMAR deja el reporte VALIDADO y ya trae sus +2: el votante pasa de 0 a 2', async () => {
+      const reporteId = await reporteVotado(jurado[10]!, 9);
+      expect(await perfil()).toMatchObject({ puntos: 0, tier: 'CROWD_BABY' });
+      const res = await votarPorApi(reporteId);
+      expect(res.status).toBe(201);
+      expect(res.body.data.estadoValidacion).toBe('VALIDADO');
+      expect(res.body.data.usuario).toEqual({ puntos: 2, tier: 'CROWD_BABY' });
+      await esperarIgualAlPerfil(res.body.data.usuario);
+    });
+
+    it('un voto que todavia no decide el reporte trae los puntos que el votante ya tenia, iguales a su perfil', async () => {
+      for (let i = 0; i < 5; i += 1) await reporteVotado(votante.id, 10);
+      const res = await votarPorApi(reporteDe(jurado[10]!));
+      expect(res.status).toBe(201);
+      expect(res.body.data.estadoValidacion).toBe('EN_VALIDACION');
+      expect(res.body.data.usuario).toEqual({ puntos: 50, tier: 'CROWD_EXPLORER' });
+      await esperarIgualAlPerfil(res.body.data.usuario);
+    });
+
+    it('el voto que cruza un umbral trae el tier nuevo: 48 puntos pasan a 50 y Crowd Explorer', async () => {
+      for (let i = 0; i < 4; i += 1) await reporteVotado(votante.id, 10);
+      for (let i = 0; i < 4; i += 1) await votar(votante.id, await reporteVotado(jurado[10]!, 9), C);
+      expect(await perfil()).toMatchObject({ puntos: 48, tier: 'CROWD_BABY' });
+      const res = await votarPorApi(await reporteVotado(jurado[10]!, 9));
+      expect(res.body.data.usuario).toEqual({ puntos: 50, tier: 'CROWD_EXPLORER' });
+      await esperarIgualAlPerfil(res.body.data.usuario);
+    });
+
+    it('un voto que no coincide con el estado que deja no suma: RECHAZAR como decimo voto de un reporte VALIDADO', async () => {
+      const res = await votarPorApi(await reporteVotado(jurado[10]!, 9), R);
+      expect(res.body.data.estadoValidacion).toBe('VALIDADO'); // 9 of 10 confirm
+      expect(res.body.data.usuario).toEqual({ puntos: 0, tier: 'CROWD_BABY' });
+      await esperarIgualAlPerfil(res.body.data.usuario);
     });
   });
 

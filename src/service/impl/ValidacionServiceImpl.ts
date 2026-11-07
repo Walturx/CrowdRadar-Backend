@@ -20,6 +20,7 @@ import type { EstrategiaConfiabilidad } from '../../pattern/strategy/confiabilid
 import { bboxAlrededor, distanciaMetros } from '../../util/geo.js';
 import type { Reloj } from '../../util/Reloj.js';
 import { MS_POR_HORA } from '../../util/tiempo.js';
+import type { PuntajeService } from '../PuntajeService.js';
 import type {
   ConfiabilidadReporte,
   ConsultaPendientes,
@@ -36,6 +37,8 @@ export interface DependenciasValidacionService {
   validacionDAO: ValidacionDAO;
   denunciaDAO: DenunciaDAO;
   usuarioDAO: UsuarioDAO;
+  /** The voter's points and tier returned with each vote (C7); the same service the profile reads. */
+  puntajeService: PuntajeService;
   estrategia: EstrategiaConfiabilidad;
   conexion: ConexionBD;
   reloj: Reloj;
@@ -119,7 +122,7 @@ export class ValidacionServiceImpl implements ValidacionService {
   }
 
   async validar(usuarioId: number, reporteId: number, tipoAccion: TipoAccionValidacion): Promise<ResultadoValidacion> {
-    const { reporteDAO, validacionDAO, usuarioDAO, conexion, reloj } = this.deps;
+    const { reporteDAO, validacionDAO, usuarioDAO, puntajeService, conexion, reloj } = this.deps;
     return conexion.transaccion(async (tx) => {
       // The row lock comes first: votes on one report apply one at a time, so each recomputation sees every earlier
       // vote, and the state read here is the one the vote is written against (no check-then-act gap).
@@ -130,7 +133,9 @@ export class ValidacionServiceImpl implements ValidacionService {
       const validacion = await this.guardarVoto({ reporteId, usuarioId, tipoAccion, fechaHora: reloj.ahora() }, tx);
       const confiabilidad = this.describir(await validacionDAO.listarVotos(reporteId, tx));
       if (confiabilidad.porcentaje !== null) await reporteDAO.actualizarConfiabilidad(reporteId, confiabilidad.porcentaje, tx);
-      return { validacion, confiabilidad };
+      // Inside the transaction, after the insert: counts this vote with the same state as `confiabilidad`; a failed read rolls it back.
+      const usuario = await puntajeService.obtener(usuarioId, tx);
+      return { validacion, confiabilidad, usuario };
     });
   }
 

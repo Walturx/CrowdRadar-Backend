@@ -67,7 +67,7 @@ export const ValidacionMapper = {
     };
   },
 
-  aCreada({ validacion, confiabilidad }: ResultadoValidacion): ValidacionCreadaResponseDTO {
+  aCreada({ validacion, confiabilidad, usuario }: ResultadoValidacion): ValidacionCreadaResponseDTO {
     return {
       validacion: {
         id: validacion.id,
@@ -77,6 +77,7 @@ export const ValidacionMapper = {
       },
       confiabilidad: ValidacionMapper.aConfiabilidad(confiabilidad),
       estadoValidacion: confiabilidad.estado,
+      usuario: { puntos: usuario.puntos, tier: usuario.tier },
     };
   },
 

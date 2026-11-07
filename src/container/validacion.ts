@@ -37,15 +37,19 @@ export interface ServiciosValidacion {
   denunciaService: DenunciaService;
 }
 
-/** Wires the validation and complaint services. A vote awards nothing: points are computed when read (CRO-72). */
+/**
+ * Wires the validation and complaint services. A vote awards nothing: points are computed when read (CRO-72); the vote
+ * answer reads the voter's points through the shared `infra.puntajeService` (C7).
+ */
 export function construirServiciosValidacion(infra: Infraestructura, daos: DaosValidacion): ServiciosValidacion {
-  const { cfg, reloj, conexion, usuarioDAO, lugarDAO, reporteDAO } = infra;
+  const { cfg, reloj, conexion, usuarioDAO, lugarDAO, reporteDAO, puntajeService } = infra;
   return {
     validacionService: new ValidacionServiceImpl({
       ...daos,
       reporteDAO,
       lugarDAO,
       usuarioDAO,
+      puntajeService,
       estrategia: crearEstrategiaConfiabilidad(cfg),
       conexion,
       reloj,
