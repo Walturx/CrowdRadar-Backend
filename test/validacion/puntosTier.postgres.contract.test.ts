@@ -1,5 +1,5 @@
 /**
- * Points, tiers and uniform vote weight (CRO-72, CRO-73: S1, S4-S7, C1-C5) through the public API over a REAL
+ * Points, tiers and uniform vote weight (CRO-72, CRO-73: S1, S4-S7, C1-C5, C7) through the public API over a REAL
  * PostgreSQL (opt-in: DATABASE_URL_TEST), with the real composition root. Every point value is read back over HTTP;
  * the SQL seeds are rows a real deployment would hold. Kept from the independent verification of CRO-72.
  */
@@ -196,7 +196,7 @@ describe.skipIf(!URL_BD_TEST)('puntos y tier por la API (PostgreSQL real)', () =
     expect(ultimoB.body.data.confiabilidad).toMatchObject({ porcentaje: 66.67, nivel: 'MEDIA' });
   });
 
-  describe('contrato C1-C5', () => {
+  describe('contrato C1-C5 y C7', () => {
     it('C1 registro/login/perfil GET y PUT: claves exactas con puntos y tier', async () => {
       const claves = ['apellido', 'distrito', 'email', 'id', 'nombre', 'puntos', 'rol', 'status', 'telefono', 'tier'];
       const reg = await request(e.app)
@@ -224,16 +224,48 @@ describe.skipIf(!URL_BD_TEST)('puntos y tier por la API (PostgreSQL real)', () =
       expect(JSON.stringify(res.body)).not.toMatch(/karma|puntos/i);
     });
 
-    it('C3 POST validaciones: mensaje exacto y data { validacion, confiabilidad, estadoValidacion }', async () => {
+    it('C3+C7 POST validaciones: mensaje exacto y data { validacion, confiabilidad, estadoValidacion, usuario { puntos, tier } }', async () => {
       const autor = await e.usuario();
       const v = await e.usuario();
       const rep = await e.reporteSql(autor, lugarComun);
       const res = await e.post(v, `/api/reportes/${rep}/validaciones`, { tipoAccion: 'CONFIRMAR' });
       expect(res.status).toBe(201);
       expect(res.body.message).toBe('¡Gracias por validar!');
-      expect(Object.keys(res.body.data).sort()).toEqual(['confiabilidad', 'estadoValidacion', 'validacion']);
+      expect(Object.keys(res.body.data).sort()).toEqual(['confiabilidad', 'estadoValidacion', 'usuario', 'validacion']);
       expect(Object.keys(res.body.data.validacion).sort()).toEqual(['fechaHora', 'id', 'reporteId', 'tipoAccion']);
-      expect(JSON.stringify(res.body)).not.toMatch(/karma|puntos/i);
+      expect(Object.keys(res.body.data.confiabilidad).sort()).toEqual(['advertencia', 'confirmaciones', 'nivel', 'porcentaje', 'rechazos']);
+      expect(res.body.data.estadoValidacion).toBe('EN_VALIDACION');
+      expect(res.body.data.usuario).toEqual({ puntos: 0, tier: 'CROWD_BABY' });
+      expect(JSON.stringify(res.body)).not.toMatch(/karma/i);
+    });
+
+    it('C7: el voto trae los puntos y el tier del votante con su propio voto incluido, iguales al perfil justo despues', async () => {
+      const igualAlPerfil = async (votante: number, usuario: unknown) => {
+        const { puntos: p, tier } = await perfil(votante);
+        expect(usuario).toEqual({ puntos: p, tier });
+      };
+      // the 10th CONFIRMAR turns the report VALIDADO: the voter goes from 0 to 2 in the same answer
+      const novato = await e.usuario();
+      const decidido = await reporteVotado(jurado[29]!, 9);
+      expect(await puntos(novato)).toBe(0);
+      const primero = await e.post(novato, `/api/reportes/${decidido.id}/validaciones`, { tipoAccion: 'CONFIRMAR' });
+      expect(primero.status).toBe(201);
+      expect(primero.body.data.estadoValidacion).toBe('VALIDADO');
+      expect(primero.body.data.usuario).toEqual({ puntos: 2, tier: 'CROWD_BABY' });
+      await igualAlPerfil(novato, primero.body.data.usuario);
+      // 48 points (4 own VALIDADO reports + 4 matching votes) and a 10th CONFIRMAR: 50 and the new tier
+      const cerca = await e.usuario();
+      for (let i = 0; i < 4; i += 1) await reporteVotado(cerca, 10);
+      for (let i = 0; i < 4; i += 1) await e.votoSql(cerca, (await reporteVotado(jurado[29]!, 9)).id, 'CONFIRMAR');
+      expect(await perfil(cerca)).toMatchObject({ puntos: 48, tier: 'CROWD_BABY' });
+      const cruce = await e.post(cerca, `/api/reportes/${(await reporteVotado(jurado[29]!, 9)).id}/validaciones`, { tipoAccion: 'CONFIRMAR' });
+      expect(cruce.body.data.usuario).toEqual({ puntos: 50, tier: 'CROWD_EXPLORER' });
+      await igualAlPerfil(cerca, cruce.body.data.usuario);
+      // a vote that leaves the report undecided returns what the voter already had
+      const pendiente = await e.post(cerca, `/api/reportes/${await e.reporteSql(jurado[29]!, lugarComun)}/validaciones`, { tipoAccion: 'RECHAZAR' });
+      expect(pendiente.body.data.estadoValidacion).toBe('EN_VALIDACION');
+      expect(pendiente.body.data.usuario).toEqual({ puntos: 50, tier: 'CROWD_EXPLORER' });
+      await igualAlPerfil(cerca, pendiente.body.data.usuario);
     });
 
     it('C4 GET /api/reportes/mios: claves exactas, puntos 10 o 0', async () => {

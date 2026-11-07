@@ -303,8 +303,9 @@ The `tier` is a pure function of the points, informational only (it gives no ext
 | `CROWD_COLLABORATOR` (Crowd Collaborator) | 150-299 |
 | `CROWD_ROYALTY` (Crowd Royalty) | 300 or more |
 
-Login, register, the profile and the admin directory return `puntos` and `tier`; `GET /api/reportes/mios` returns the
-`puntos` each report gives (10 or 0). Migration 15 drops the former per-user and per-report point columns of `usuario`,
+Login, register, the profile and the admin directory return `puntos` and `tier`; so does each vote
+(`POST /api/reportes/:id/validaciones`, `data.usuario`), with the voter's own vote already counted. `GET /api/reportes/mios`
+returns the `puntos` each report gives (10 or 0). Migration 15 drops the former per-user and per-report point columns of `usuario`,
 `reporte_saturacion` and `validacion_reporte`: deploy this code first and run the migration right after it (deploy order and
 rollback in `docs/decisiones.md`, D-CRO-72-COLUMNAS).
 

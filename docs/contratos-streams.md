@@ -324,6 +324,9 @@ Delivered (M5-BE-01..03):
   `PuntajeService` is built once by `construirInfraestructura` (`infra.puntajeService`) from `reglaEstadoValidacion(cfg)`, the only
   reader of the `CONFIABILIDAD_*` keys, and is read by the account (M1), report (M4) and admin (M6) streams. Tier thresholds live in
   `entity/puntaje.ts` (`UMBRALES_TIER`).
+- Contract touch (C7): `ResultadoValidacion` adds `usuario: Puntaje` and `ValidacionServiceImpl` takes `infra.puntajeService`; `validar`
+  reads the voter's points with `obtener(usuarioId, tx)` inside the vote's transaction, after the insert, so `POST /reportes/:id/validaciones`
+  answers `data.usuario: { puntos, tier }` with this vote counted (a failing read rolls the vote back).
 
 How to run tests: `npm test` (strategies and services with `ValidacionDAOMemoria`, `DenunciaDAOMemoria`);
 `npm run test:db` with `DATABASE_URL_TEST` runs both Sequelize DAOs through `ejecutarContratoDAO`; the denuncia

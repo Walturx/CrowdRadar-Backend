@@ -7,6 +7,7 @@ import { TipoAccionValidacion } from '../../src/enum/TipoAccionValidacion.js';
 import { CodigoError } from '../../src/exception/CodigoError.js';
 import { ConfiabilidadSimpleStrategy } from '../../src/pattern/strategy/confiabilidad/impl/ConfiabilidadSimpleStrategy.js';
 import { ValidacionServiceImpl } from '../../src/service/impl/ValidacionServiceImpl.js';
+import type { PuntajeService } from '../../src/service/PuntajeService.js';
 import { distanciaMetros } from '../../src/util/geo.js';
 import { ConexionFalsa } from '../support/ConexionFalsa.js';
 import { RelojFijo } from '../support/RelojFijo.js';
@@ -16,6 +17,7 @@ import { ReporteDAOMemoria } from '../support/dao/memoria/ReporteDAOMemoria.js';
 import { UsuarioDAOMemoria } from '../support/dao/memoria/UsuarioDAOMemoria.js';
 import { ValidacionDAOMemoria } from '../support/dao/memoria/ValidacionDAOMemoria.js';
 import { aReporte, aUsuario } from '../support/fabrica/datos.js';
+import { puntajeEnMemoria } from '../support/puntajePrueba.js';
 
 const AHORA = new Date('2026-10-05T15:00:00Z');
 const C = TipoAccionValidacion.CONFIRMAR;
@@ -32,6 +34,7 @@ describe('ValidacionServiceImpl', () => {
   let validacionDAO: ValidacionDAOMemoria;
   let denunciaDAO: DenunciaDAOMemoria;
   let conexion: ConexionFalsa;
+  let puntajeService: PuntajeService;
   let servicio: ValidacionServiceImpl;
   let autor: number;
   let votante: number;
@@ -56,12 +59,14 @@ describe('ValidacionServiceImpl', () => {
     lugarDAO = new LugarDAOMemoria();
     denunciaDAO = new DenunciaDAOMemoria();
     conexion = new ConexionFalsa();
+    puntajeService = puntajeEnMemoria(reporteDAO, validacionDAO);
     servicio = new ValidacionServiceImpl({
       reporteDAO,
       lugarDAO,
       validacionDAO,
       denunciaDAO,
       usuarioDAO,
+      puntajeService,
       estrategia: new ConfiabilidadSimpleStrategy({ minVotos: 3, umbralAlta: 70, umbralMedia: 40 }),
       conexion,
       reloj,
@@ -75,9 +80,10 @@ describe('ValidacionServiceImpl', () => {
   });
 
   describe('validar', () => {
-    it('guarda el voto y devuelve la confiabilidad, sin otorgar nada (S1, CRO-72)', async () => {
+    it('guarda el voto y devuelve la confiabilidad y el puntaje del votante, sin otorgar nada (S1, CRO-72, C7)', async () => {
       const resultado = await servicio.validar(votante, reporteId, C);
-      expect(Object.keys(resultado).sort()).toEqual(['confiabilidad', 'validacion']);
+      expect(Object.keys(resultado).sort()).toEqual(['confiabilidad', 'usuario', 'validacion']);
+      expect(resultado.usuario).toEqual({ puntos: 0, tier: 'CROWD_BABY' });
       expect(resultado.validacion).toEqual({
         id: expect.any(Number),
         reporteId,
@@ -173,6 +179,34 @@ describe('ValidacionServiceImpl', () => {
       await votoDe(votante, reporteId, C);
       validacionDAO.buscarPorUsuarioYReporte = async () => null; // the second request passed the check before the first saved
       await expect(servicio.validar(votante, reporteId, C)).rejects.toMatchObject({ code: CodigoError.VALIDACION_DUPLICADA });
+    });
+
+    it('lee el puntaje del votante dentro de la transaccion, despues del voto: el decimo CONFIRMAR ya suma +2 (C7)', async () => {
+      await votosNuevos(reporteId, 9, 0);
+      const orden: string[] = [];
+      const crear = validacionDAO.crear.bind(validacionDAO);
+      validacionDAO.crear = async (datos) => {
+        orden.push('voto');
+        return crear(datos);
+      };
+      const obtener = puntajeService.obtener.bind(puntajeService);
+      puntajeService.obtener = async (usuarioId, tx) => {
+        orden.push(tx ? `puntaje-en-tx:${usuarioId}` : 'puntaje-sin-tx');
+        return obtener(usuarioId, tx);
+      };
+      const resultado = await servicio.validar(votante, reporteId, C);
+      expect(orden).toEqual(['voto', `puntaje-en-tx:${votante}`]);
+      expect(resultado.confiabilidad.estado).toBe(EstadoValidacion.VALIDADO);
+      expect(resultado.usuario).toEqual({ puntos: 2, tier: 'CROWD_BABY' });
+      expect(conexion.transacciones).toBe(1);
+    });
+
+    it('si leer el puntaje falla, el error sale de la transaccion (la BD deshace el voto)', async () => {
+      puntajeService.obtener = async () => {
+        throw new Error('bd caida');
+      };
+      await expect(servicio.validar(votante, reporteId, C)).rejects.toThrow('bd caida');
+      expect(conexion.transacciones).toBe(1);
     });
 
     it('si guardar la confiabilidad falla, el error sale de la transaccion (la BD deshace todo)', async () => {

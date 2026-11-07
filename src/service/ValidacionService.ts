@@ -1,5 +1,6 @@
 import type { Pagina, Paginacion } from '../dao/Paginacion.js';
 import type { Lugar } from '../entity/Lugar.js';
+import type { Puntaje } from '../entity/puntaje.js';
 import type { ReporteSaturacion } from '../entity/ReporteSaturacion.js';
 import type { ValidacionReporte } from '../entity/ValidacionReporte.js';
 import type { EstadoValidacion } from '../enum/EstadoValidacion.js';
@@ -46,6 +47,8 @@ export interface ResultadoValidacion {
   validacion: ValidacionReporte;
   /** Recomputed with the new vote included. */
   confiabilidad: ConfiabilidadReporte;
+  /** The voter's points and tier with this vote already stored (C7): the same read as the profile (PuntajeService). */
+  usuario: Puntaje;
 }
 
 /** One of the caller's own reports with how its validation is going (HU 5.3). */
@@ -58,8 +61,9 @@ export interface EstadoMiReporte {
 /**
  * Pattern: Service layer + Strategy (context for EstrategiaConfiabilidad). Voting on other people's reports.
  * Owner: M5. Throws ReporteNoEncontradoException (404), AutovalidacionException (422) and
- * ValidacionDuplicadaException (409). `validar` runs in one transaction: vote, recompute reliability and store it.
- * A vote awards nothing by itself: points are computed from the report's state when read (PuntajeService).
+ * ValidacionDuplicadaException (409). `validar` runs in one transaction: vote, recompute reliability and store it, then
+ * read the voter's points. A vote awards nothing by itself: points are computed from the report's state when read
+ * (PuntajeService), so the voter's answer already counts the +2 their vote may have just earned.
  */
 export interface ValidacionService {
   /** ACTIVO reports of other users in the radius and time window the caller has not voted on: nearest place first, then newest. */
