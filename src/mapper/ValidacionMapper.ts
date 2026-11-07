@@ -38,7 +38,7 @@ export const ValidacionMapper = {
     };
   },
 
-  aPendiente({ reporte, lugar, distanciaMetros, confiabilidad }: ReportePendiente): ReportePendienteResponseDTO {
+  aPendiente({ reporte, lugar, distanciaMetros, confiabilidad, tierAutor }: ReportePendiente): ReportePendienteResponseDTO {
     return {
       id: reporte.id,
       lugar: { id: lugar.id, nombre: lugar.nombre, categoria: lugar.categoria },
@@ -46,6 +46,7 @@ export const ValidacionMapper = {
       fechaHora: reporte.fechaHora.toISOString(),
       distanciaMetros: Math.round(distanciaMetros),
       confiabilidad: ValidacionMapper.aConfiabilidad(confiabilidad),
+      autor: { tier: tierAutor },
     };
   },
 
@@ -53,7 +54,7 @@ export const ValidacionMapper = {
     return { ...pagina, items: pagina.items.map(ValidacionMapper.aPendiente) };
   },
 
-  aDetalle({ reporte, lugar, confiabilidad, miValidacion, yaDenunciado, esPropio }: DetalleReporte): DetalleReporteResponseDTO {
+  aDetalle({ reporte, lugar, confiabilidad, miValidacion, yaDenunciado, esPropio, tierAutor }: DetalleReporte): DetalleReporteResponseDTO {
     return {
       id: reporte.id,
       lugar: { id: lugar.id, nombre: lugar.nombre, categoria: lugar.categoria },
@@ -64,6 +65,7 @@ export const ValidacionMapper = {
       miValidacion,
       yaDenunciado,
       esPropio,
+      autor: { tier: tierAutor },
     };
   },
 

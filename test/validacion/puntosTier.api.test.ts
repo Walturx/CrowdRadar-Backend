@@ -1,6 +1,7 @@
 /**
- * Points and tier over HTTP (CRO-72, wire contract C1, C4, C5, C7): profile, login, register, the admin directory,
- * GET /api/reportes/mios and the voter's block of the vote response, against the in-memory container. The points are never stored: every test seeds reports and
+ * Points and tier over HTTP (CRO-72, wire contract C1, C4, C5, C7, C8): profile, login, register, the admin directory,
+ * GET /api/reportes/mios, the voter's block of the vote response and the author's tier on the pending list and the report
+ * detail, against the in-memory container. The points are never stored: every test seeds reports and
  * votes and reads them back through the API.
  */
 import request from 'supertest';
@@ -262,6 +263,120 @@ describe('puntos y tier por la API', () => {
       expect(res.body.data.estadoValidacion).toBe('VALIDADO'); // 9 of 10 confirm
       expect(res.body.data.usuario).toEqual({ puntos: 0, tier: 'CROWD_BABY' });
       await esperarIgualAlPerfil(res.body.data.usuario);
+    });
+  });
+
+  describe('el tier del autor en pendientes y en el detalle, sin su identidad (C8)', () => {
+    /** Where 'Parque Kennedy' is (aLugar's coordinates): the pending list is searched around it. */
+    const PENDIENTES = '/api/validaciones/pendientes?lat=-12.12&lng=-77.03';
+    /** Keys that would carry who wrote a report; none may appear anywhere in these responses. */
+    const CLAVES_DE_IDENTIDAD = ['usuarioId', 'autorId', 'idAutor', 'usuario', 'email', 'apellido', 'telefono', 'distrito'];
+    type Autor = ReturnType<ContenedorPrueba['usuarioDAO']['agregar']>;
+    let visor: Autor;
+    let zoila: Autor;
+    let rita: Autor;
+    let beto: Autor;
+    /** The fresh (inside the 3 h window) report each author has waiting for the visor's vote. */
+    let pendienteDe: Map<number, number>;
+
+    const tierDelPerfil = async (autor: Autor) => (await request(app).get('/api/users/profile').set(conToken(autor))).body.data.user.tier;
+    const listar = (cabecera = conToken(visor), size = 20) => request(app).get(`${PENDIENTES}&size=${size}`).set(cabecera);
+    const detalle = (reporteId: number, cabecera = conToken(visor)) => request(app).get(`/api/reportes/${reporteId}`).set(cabecera);
+    const clavesDe = (valor: unknown): string[] =>
+      Array.isArray(valor)
+        ? valor.flatMap(clavesDe)
+        : valor && typeof valor === 'object'
+          ? Object.entries(valor).flatMap(([clave, hijo]) => [clave, ...clavesDe(hijo)])
+          : [];
+    const numerosDe = (valor: unknown): number[] =>
+      typeof valor === 'number' ? [valor] : valor && typeof valor === 'object' ? Object.values(valor).flatMap(numerosDe) : [];
+    /** Neither the author's id, name, surname nor email shows up in `cuerpo`, under any key. */
+    const esperarSinIdentidad = (cuerpo: unknown, autor: Autor) => {
+      const texto = JSON.stringify(cuerpo);
+      for (const dato of [autor.nombre, autor.apellido, autor.email]) expect(texto).not.toContain(dato);
+      expect(clavesDe(cuerpo).filter((clave) => CLAVES_DE_IDENTIDAD.includes(clave))).toEqual([]);
+      expect(numerosDe(cuerpo)).not.toContain(autor.id);
+    };
+
+    beforeEach(async () => {
+      visor = ctx.usuarioDAO.agregar(aUsuario());
+      // Ids far from every other id the factory hands out, so "the id is nowhere in the body" cannot pass by luck.
+      zoila = ctx.usuarioDAO.agregar(aUsuario({ id: 9_100_001, nombre: 'Zoila', apellido: 'Quispe', email: 'zoila.autora@crowdradar.pe' }));
+      rita = ctx.usuarioDAO.agregar(aUsuario({ id: 9_100_002, nombre: 'Rita', apellido: 'Salas', email: 'rita.autora@crowdradar.pe' }));
+      beto = ctx.usuarioDAO.agregar(aUsuario({ id: 9_100_003, nombre: 'Beto', apellido: 'Huaman', email: 'beto.autor@crowdradar.pe' }));
+      // Old VALIDADO reports (outside the pending window) give the points: 150, 50 and 0.
+      for (let i = 0; i < 15; i += 1) await reporteVotado(zoila.id, 10);
+      for (let i = 0; i < 5; i += 1) await reporteVotado(rita.id, 10);
+      pendienteDe = new Map(
+        [zoila, rita, beto].map((autor) => [autor.id, ctx.reporteDAO.agregar(aReporte({ usuarioId: autor.id, lugarId, fechaHora: new Date() })).id]),
+      );
+    });
+
+    it('cada reporte pendiente trae autor.tier igual al tier del perfil de su autor, con los demas campos igual', async () => {
+      const res = await listar();
+      expect(res.status).toBe(200);
+      const porId = new Map(res.body.data.items.map((i: { id: number }) => [i.id, i]));
+      const esperado = { zoila: 'CROWD_COLLABORATOR', rita: 'CROWD_EXPLORER', beto: 'CROWD_BABY' };
+      for (const [nombre, autor] of Object.entries({ zoila, rita, beto })) {
+        expect(await tierDelPerfil(autor)).toBe(esperado[nombre as keyof typeof esperado]);
+        expect(porId.get(pendienteDe.get(autor.id)!)).toEqual({
+          id: pendienteDe.get(autor.id),
+          lugar: { id: lugarId, nombre: 'Parque Kennedy', categoria: expect.any(String) },
+          nivel: 'MODERADO',
+          fechaHora: expect.any(String),
+          distanciaMetros: 0,
+          confiabilidad: { porcentaje: null, nivel: 'INSUFICIENTE', confirmaciones: 0, rechazos: 0, advertencia: null },
+          autor: { tier: await tierDelPerfil(autor) },
+        });
+      }
+    });
+
+    it('el detalle del reporte trae el mismo autor.tier, tambien cuando el autor mira su propio reporte', async () => {
+      for (const autor of [zoila, rita, beto]) {
+        const res = await detalle(pendienteDe.get(autor.id)!);
+        expect(res.status).toBe(200);
+        expect(res.body.data).toEqual({
+          id: pendienteDe.get(autor.id),
+          lugar: { id: lugarId, nombre: 'Parque Kennedy', categoria: expect.any(String) },
+          nivel: 'MODERADO',
+          fechaHora: expect.any(String),
+          confiabilidad: { porcentaje: null, nivel: 'INSUFICIENTE', confirmaciones: 0, rechazos: 0, advertencia: null },
+          estadoValidacion: 'SIN_VALIDACIONES',
+          miValidacion: null,
+          yaDenunciado: false,
+          esPropio: false,
+          autor: { tier: await tierDelPerfil(autor) },
+        });
+      }
+      const propio = await detalle(pendienteDe.get(zoila.id)!, conToken(zoila));
+      expect(propio.body.data).toMatchObject({ esPropio: true, autor: { tier: 'CROWD_COLLABORATOR' } });
+    });
+
+    it('ni la lista ni el detalle contienen el id, nombre, apellido o email del autor en ningun lado', async () => {
+      const lista = await listar();
+      expect(lista.body.data.items.length).toBeGreaterThanOrEqual(3);
+      for (const item of lista.body.data.items) expect(Object.keys(item.autor)).toEqual(['tier']);
+      for (const autor of [zoila, rita, beto]) {
+        for (const item of lista.body.data.items) esperarSinIdentidad(item, autor);
+        const res = await detalle(pendienteDe.get(autor.id)!);
+        expect(Object.keys(res.body.data.autor)).toEqual(['tier']);
+        esperarSinIdentidad(res.body, autor);
+      }
+    });
+
+    it('calcula los tiers de toda la pagina con una sola lectura de puntos, sea cual sea el tamano (sin N+1)', async () => {
+      for (let i = 0; i < 12; i += 1) {
+        const autor = ctx.usuarioDAO.agregar(aUsuario()).id;
+        ctx.reporteDAO.agregar(aReporte({ usuarioId: autor, lugarId, fechaHora: new Date() }));
+      }
+      const espia = vi.spyOn(ctx.puntajeDAO, 'contarAportes');
+      for (const size of [2, 50]) {
+        espia.mockClear();
+        const res = await listar(conToken(visor), size);
+        expect(res.body.data.items).toHaveLength(Math.min(size, 15));
+        expect(res.body.data.items.every((i: { autor?: { tier?: string } }) => typeof i.autor?.tier === 'string')).toBe(true);
+        expect(espia).toHaveBeenCalledTimes(1);
+      }
     });
   });
 

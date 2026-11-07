@@ -37,7 +37,7 @@ export interface DependenciasValidacionService {
   validacionDAO: ValidacionDAO;
   denunciaDAO: DenunciaDAO;
   usuarioDAO: UsuarioDAO;
-  /** The voter's points and tier returned with each vote (C7); the same service the profile reads. */
+  /** The voter's points and tier returned with each vote (C7) and the authors' tiers (C8); the same service the profile reads. */
   puntajeService: PuntajeService;
   estrategia: EstrategiaConfiabilidad;
   conexion: ConexionBD;
@@ -60,8 +60,9 @@ const TOPE_CANDIDATOS_PENDIENTES = 500;
 export class ValidacionServiceImpl implements ValidacionService {
   constructor(private readonly deps: DependenciasValidacionService) {}
 
+  /** The authors' tiers of the whole page come from one read (`obtenerVarios`), never one per report (C8). */
   async listarPendientes(usuarioId: number, consulta: ConsultaPendientes): Promise<Pagina<ReportePendiente>> {
-    const { reporteDAO, lugarDAO, validacionDAO, reloj } = this.deps;
+    const { reporteDAO, lugarDAO, validacionDAO, puntajeService, reloj } = this.deps;
     const centro = { lat: consulta.lat, lng: consulta.lng };
     const cercanos = await lugarDAO.explorar({ bbox: bboxAlrededor(centro, consulta.radioKm), limite: this.deps.limiteLugares });
     const distancias = new Map<number, number>();
@@ -90,18 +91,22 @@ export class ValidacionServiceImpl implements ValidacionService {
     );
     const desde = desplazamiento(paginacion);
     const pagina = ordenados.slice(desde, desde + consulta.size);
-    const votos = await validacionDAO.listarVotosDeReportes(pagina.map((r) => r.id));
+    const [votos, puntajes] = await Promise.all([
+      validacionDAO.listarVotosDeReportes(pagina.map((r) => r.id)),
+      puntajeService.obtenerVarios(pagina.map((r) => r.usuarioId)),
+    ]);
     const items = pagina.map((reporte) => ({
       reporte,
       lugar: lugares.get(reporte.lugarId) as Lugar,
       distanciaMetros: distancias.get(reporte.lugarId) as number,
       confiabilidad: this.describir(votos.filter((v) => v.reporteId === reporte.id)),
+      tierAutor: puntajes.get(reporte.usuarioId)!.tier,
     }));
     return armarPagina(items, ordenados.length, paginacion);
   }
 
   async obtenerReporte(usuarioId: number, reporteId: number): Promise<DetalleReporte> {
-    const { validacionDAO, denunciaDAO, lugarDAO } = this.deps;
+    const { validacionDAO, denunciaDAO, lugarDAO, puntajeService } = this.deps;
     const reporte = await this.exigirReporteActivo(reporteId);
     const lugar = await lugarDAO.buscarPorId(reporte.lugarId);
     if (!lugar) throw new ReporteNoEncontradoException();
@@ -113,6 +118,7 @@ export class ValidacionServiceImpl implements ValidacionService {
       miValidacion: votos.find((v) => v.usuarioId === usuarioId)?.tipoAccion ?? null,
       yaDenunciado: await denunciaDAO.existe(usuarioId, reporteId),
       esPropio: reporte.usuarioId === usuarioId,
+      tierAutor: (await puntajeService.obtener(reporte.usuarioId)).tier,
     };
   }
 

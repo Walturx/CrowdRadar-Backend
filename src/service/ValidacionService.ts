@@ -4,6 +4,7 @@ import type { Puntaje } from '../entity/puntaje.js';
 import type { ReporteSaturacion } from '../entity/ReporteSaturacion.js';
 import type { ValidacionReporte } from '../entity/ValidacionReporte.js';
 import type { EstadoValidacion } from '../enum/EstadoValidacion.js';
+import type { Tier } from '../enum/Tier.js';
 import type { TipoAccionValidacion } from '../enum/TipoAccionValidacion.js';
 import type { ResultadoConfiabilidad } from '../pattern/strategy/confiabilidad/EstrategiaConfiabilidad.js';
 
@@ -31,6 +32,8 @@ export interface ReportePendiente {
   lugar: Lugar;
   distanciaMetros: number;
   confiabilidad: ConfiabilidadReporte;
+  /** The author's tier (C8), the same value as their profile; nothing else about the author leaves the service. */
+  tierAutor: Tier;
 }
 
 /** What the caller sees of a report: reliability plus what they already did with it. */
@@ -41,6 +44,8 @@ export interface DetalleReporte {
   miValidacion: TipoAccionValidacion | null;
   yaDenunciado: boolean;
   esPropio: boolean;
+  /** The author's tier (C8), the same value as their profile; nothing else about the author leaves the service. */
+  tierAutor: Tier;
 }
 
 export interface ResultadoValidacion {
@@ -63,7 +68,8 @@ export interface EstadoMiReporte {
  * Owner: M5. Throws ReporteNoEncontradoException (404), AutovalidacionException (422) and
  * ValidacionDuplicadaException (409). `validar` runs in one transaction: vote, recompute reliability and store it, then
  * read the voter's points. A vote awards nothing by itself: points are computed from the report's state when read
- * (PuntajeService), so the voter's answer already counts the +2 their vote may have just earned.
+ * (PuntajeService), so the voter's answer already counts the +2 their vote may have just earned. Pending reports and the
+ * report detail carry only the author's tier (C8), read from the same PuntajeService (one read for a whole page).
  */
 export interface ValidacionService {
   /** ACTIVO reports of other users in the radius and time window the caller has not voted on: nearest place first, then newest. */

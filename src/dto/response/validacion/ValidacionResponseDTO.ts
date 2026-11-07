@@ -22,6 +22,12 @@ export interface LugarReporteDTO {
   categoria: CategoriaLugar;
 }
 
+/** The only thing shown about a report's author (C8): reports stay anonymous, so never their id, name or email. */
+export interface AutorReporteDTO {
+  /** Same values as `tier` of UsuarioResponseDTO, computed from the author's current points. */
+  tier: Tier;
+}
+
 /** One item of GET /api/validaciones/pendientes. */
 export interface ReportePendienteResponseDTO {
   id: number;
@@ -32,9 +38,10 @@ export interface ReportePendienteResponseDTO {
   /** Straight-line distance from the caller to the place, rounded to metres. */
   distanciaMetros: number;
   confiabilidad: ConfiabilidadDTO;
+  autor: AutorReporteDTO;
 }
 
-/** data of GET /api/reportes/:id. The author of the report is never exposed. */
+/** data of GET /api/reportes/:id. Of the author only the tier is exposed (C8), never who they are. */
 export interface DetalleReporteResponseDTO {
   id: number;
   lugar: LugarReporteDTO;
@@ -46,6 +53,7 @@ export interface DetalleReporteResponseDTO {
   miValidacion: TipoAccionValidacion | null;
   yaDenunciado: boolean;
   esPropio: boolean;
+  autor: AutorReporteDTO;
 }
 
 /** The voter's points and tier after their vote (C7): the same values as `puntos` and `tier` of UsuarioResponseDTO. */

@@ -190,7 +190,7 @@ describe('API de validacion y denuncias (contenedor de prueba)', () => {
   });
 
   describe('GET /api/reportes/:id y /confiabilidad', () => {
-    it('detalle sin datos del autor, con mi voto y mi denuncia (S2)', async () => {
+    it('detalle sin datos del autor salvo su tier, con mi voto y mi denuncia (S2, C8)', async () => {
       const { usuario, cabecera } = nuevoUsuario();
       await votoDe(usuario.id, reporteId, R);
       await denunciar(cabecera, reporteId, { motivo: 'SPAM' });
@@ -206,6 +206,7 @@ describe('API de validacion y denuncias (contenedor de prueba)', () => {
         miValidacion: 'RECHAZAR',
         yaDenunciado: true,
         esPropio: false,
+        autor: { tier: 'CROWD_BABY' },
       });
     });
 

@@ -327,6 +327,9 @@ Delivered (M5-BE-01..03):
 - Contract touch (C7): `ResultadoValidacion` adds `usuario: Puntaje` and `ValidacionServiceImpl` takes `infra.puntajeService`; `validar`
   reads the voter's points with `obtener(usuarioId, tx)` inside the vote's transaction, after the insert, so `POST /reportes/:id/validaciones`
   answers `data.usuario: { puntos, tier }` with this vote counted (a failing read rolls the vote back).
+- Contract touch (C8): `ReportePendiente` and `DetalleReporte` add `tierAutor: Tier` (nothing else about the author); `listarPendientes`
+  reads the authors of the page with one `obtenerVarios` (no N+1, `test/validacion/pendientes.consultas.contract.test.ts`) and
+  `obtenerReporte` with `obtener`. `ValidacionMapper` answers `autor: { tier }` on both; the author's id, name and email never leave.
 
 How to run tests: `npm test` (strategies and services with `ValidacionDAOMemoria`, `DenunciaDAOMemoria`);
 `npm run test:db` with `DATABASE_URL_TEST` runs both Sequelize DAOs through `ejecutarContratoDAO`; the denuncia
