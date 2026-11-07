@@ -305,7 +305,9 @@ The `tier` is a pure function of the points, informational only (it gives no ext
 
 Login, register, the profile and the admin directory return `puntos` and `tier`; so does each vote
 (`POST /api/reportes/:id/validaciones`, `data.usuario`), with the voter's own vote already counted. `GET /api/reportes/mios`
-returns the `puntos` each report gives (10 or 0). Migration 15 drops the former per-user and per-report point columns of `usuario`,
+returns the `puntos` each report gives (10 or 0). The pending list (`GET /api/validaciones/pendientes`) and the report detail
+(`GET /api/reportes/:id`) show only the author's `tier` (`autor: { tier }`), never who they are.
+Migration 15 drops the former per-user and per-report point columns of `usuario`,
 `reporte_saturacion` and `validacion_reporte`: deploy this code first and run the migration right after it (deploy order and
 rollback in `docs/decisiones.md`, D-CRO-72-COLUMNAS).
 

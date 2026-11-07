@@ -1,5 +1,5 @@
 /**
- * Points, tiers and uniform vote weight (CRO-72, CRO-73: S1, S4-S7, C1-C5, C7) through the public API over a REAL
+ * Points, tiers and uniform vote weight (CRO-72, CRO-73: S1, S4-S7, C1-C5, C7, C8) through the public API over a REAL
  * PostgreSQL (opt-in: DATABASE_URL_TEST), with the real composition root. Every point value is read back over HTTP;
  * the SQL seeds are rows a real deployment would hold. Kept from the independent verification of CRO-72.
  */
@@ -196,7 +196,7 @@ describe.skipIf(!URL_BD_TEST)('puntos y tier por la API (PostgreSQL real)', () =
     expect(ultimoB.body.data.confiabilidad).toMatchObject({ porcentaje: 66.67, nivel: 'MEDIA' });
   });
 
-  describe('contrato C1-C5 y C7', () => {
+  describe('contrato C1-C5, C7 y C8', () => {
     it('C1 registro/login/perfil GET y PUT: claves exactas con puntos y tier', async () => {
       const claves = ['apellido', 'distrito', 'email', 'id', 'nombre', 'puntos', 'rol', 'status', 'telefono', 'tier'];
       const reg = await request(e.app)
@@ -277,6 +277,46 @@ describe.skipIf(!URL_BD_TEST)('puntos y tier por la API (PostgreSQL real)', () =
       for (const item of res.body.data.items) expect(Object.keys(item).sort()).toEqual(['estado', 'fechaHora', 'id', 'lugar', 'nivel', 'puntos']);
       const porId = Object.fromEntries(res.body.data.items.map((i: { id: number; puntos: number }) => [i.id, i.puntos]));
       expect(porId).toEqual({ [r.id]: 10, [r2]: 0 });
+    });
+
+    it('C8 pendientes y detalle: autor { tier } igual al perfil de cada autor, sin su id, nombre, apellido ni email', async () => {
+      // A place of its own, ~40 km from lugarComun, so the list holds only this test's reports.
+      const centro = { lat: -11.7, lng: -76.9 };
+      const lugar = await e.lugar({ nombre: 'Plaza C8', ...centro });
+      const visor = await e.usuario();
+      const explorer = await e.usuario({ nombre: 'Zoila' });
+      const baby = await e.usuario({ nombre: 'Beto' });
+      for (let i = 0; i < 5; i += 1) await reporteVotado(explorer, 10); // 50 points (on lugarComun, outside the radius)
+      const pendientes = new Map([
+        [explorer, await e.reporteSql(explorer, lugar)],
+        [baby, await e.reporteSql(baby, lugar)],
+      ]);
+      const lista = await e.get(visor, `/api/validaciones/pendientes?lat=${centro.lat}&lng=${centro.lng}&radioKm=1`);
+      expect(lista.status).toBe(200);
+      expect(lista.body.data.items.map((i: { id: number }) => i.id).sort()).toEqual([...pendientes.values()].sort());
+      for (const item of lista.body.data.items) {
+        expect(Object.keys(item).sort()).toEqual(['autor', 'confiabilidad', 'distanciaMetros', 'fechaHora', 'id', 'lugar', 'nivel']);
+        expect(Object.keys(item.autor)).toEqual(['tier']);
+      }
+      const tiers: string[] = [];
+      for (const [autor, reporteId] of pendientes) {
+        const { tier } = await perfil(autor);
+        tiers.push(tier);
+        expect(lista.body.data.items.find((i: { id: number }) => i.id === reporteId).autor).toEqual({ tier });
+        const det = await e.get(visor, `/api/reportes/${reporteId}`);
+        expect(det.status).toBe(200);
+        expect(Object.keys(det.body.data).sort()).toEqual(
+          ['autor', 'confiabilidad', 'esPropio', 'estadoValidacion', 'fechaHora', 'id', 'lugar', 'miValidacion', 'nivel', 'yaDenunciado'],
+        );
+        expect(det.body.data.autor).toEqual({ tier });
+        const [identidad] = await e.sql<{ nombre: string; apellido: string; email: string }>('SELECT nombre, apellido, email FROM usuario WHERE id = $1', [autor]);
+        for (const cuerpo of [lista.body, det.body]) {
+          const texto = JSON.stringify(cuerpo);
+          for (const dato of [identidad!.nombre, identidad!.apellido, identidad!.email]) expect(texto).not.toContain(dato);
+          expect(texto).not.toMatch(/"(usuarioId|autorId|usuario|email|apellido)":/);
+        }
+      }
+      expect(tiers).toEqual(['CROWD_EXPLORER', 'CROWD_BABY']);
     });
 
     it('C5 admin: claves exactas, orden=KARMA 400 VALIDACION_FALLIDA, RECIENTES y NOMBRE responden', async () => {
