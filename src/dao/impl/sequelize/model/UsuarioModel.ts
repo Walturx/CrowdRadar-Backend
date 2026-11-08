@@ -12,7 +12,6 @@ export class UsuarioModel extends Model<InferAttributes<UsuarioModel>, InferCrea
   declare distrito: string | null;
   declare rol: CreationOptional<string>;
   declare status: CreationOptional<string>;
-  declare puntosKarma: CreationOptional<number>;
   declare passwordCambiadaEn: CreationOptional<Date | null>;
   declare createdAt: CreationOptional<Date>;
   declare updatedAt: CreationOptional<Date>;
@@ -30,7 +29,6 @@ export function initUsuarioModel(sequelize: Sequelize): void {
       distrito: { type: DataTypes.STRING(60), allowNull: true },
       rol: { type: DataTypes.STRING(10), allowNull: false, defaultValue: 'USUARIO' },
       status: { type: DataTypes.STRING(12), allowNull: false, defaultValue: 'ACTIVO' },
-      puntosKarma: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
       passwordCambiadaEn: { type: DataTypes.DATE, allowNull: true },
       createdAt: DataTypes.DATE,
       updatedAt: DataTypes.DATE,

@@ -21,6 +21,7 @@ import { DenunciaDAOMemoria } from './dao/memoria/DenunciaDAOMemoria.js';
 import { DispositivoDAOMemoria } from './dao/memoria/DispositivoDAOMemoria.js';
 import { FavoritoDAOMemoria } from './dao/memoria/FavoritoDAOMemoria.js';
 import { LugarDAOMemoria } from './dao/memoria/LugarDAOMemoria.js';
+import { PuntajeDAOMemoria } from './dao/memoria/PuntajeDAOMemoria.js';
 import { ReporteDAOMemoria } from './dao/memoria/ReporteDAOMemoria.js';
 import { SancionDAOMemoria } from './dao/memoria/SancionDAOMemoria.js';
 import { TokenRecuperacionDAOMemoria } from './dao/memoria/TokenRecuperacionDAOMemoria.js';
@@ -61,6 +62,8 @@ export interface ContenedorPrueba {
   reporteDAO: ReporteDAOMemoria;
   /** M5 stream: the in-memory vote and complaint DAOs the container was built with. */
   validacionDAO: ValidacionDAOMemoria;
+  /** Points read model over `reporteDAO` and `validacionDAO` (the same in-memory rows). */
+  puntajeDAO: PuntajeDAOMemoria;
   denunciaDAO: DenunciaDAOMemoria;
   /** M6 stream: the in-memory sanction DAO behind the account-status check. */
   sancionDAO: SancionDAOMemoria;
@@ -88,6 +91,7 @@ export function crearContenedorPrueba(opciones: OpcionesContenedorPrueba = {}): 
   const validacionDAO = opciones.validacionDAO ?? new ValidacionDAOMemoria();
   const reporteDAO = opciones.reporteDAO ?? new ReporteDAOMemoria({ validaciones: validacionDAO });
   const denunciaDAO = opciones.denunciaDAO ?? new DenunciaDAOMemoria();
+  const puntajeDAO = new PuntajeDAOMemoria({ reportes: reporteDAO, validaciones: validacionDAO });
   const sancionDAO = opciones.sancionDAO ?? new SancionDAOMemoria({ reloj: opciones.reloj });
   const hasher = opciones.hasher ?? new BcryptHasherAdapter(cfg.seguridad.bcryptCosto);
   const emisorToken = opciones.emisorToken ?? new JwtEmisorTokenAdapter(cfg.seguridad);
@@ -117,6 +121,7 @@ export function crearContenedorPrueba(opciones: OpcionesContenedorPrueba = {}): 
       lugarDAO,
       reporteDAO,
       sancionDAO,
+      puntajeDAO,
       hasher,
       emisorToken,
       seguridad: { tokenDAO, dispositivoDAO, correo, generador: new GeneradorTokenFijo(opciones.tokensRecuperacion ?? Array.from({ length: 50 }, (_, i) => `token-recuperacion-${i + 1}`)) },
@@ -131,6 +136,7 @@ export function crearContenedorPrueba(opciones: OpcionesContenedorPrueba = {}): 
     favoritoDAO,
     reporteDAO,
     validacionDAO,
+    puntajeDAO,
     denunciaDAO,
     sancionDAO,
     hasher,

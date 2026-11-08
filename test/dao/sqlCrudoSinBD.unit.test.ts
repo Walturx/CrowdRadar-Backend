@@ -48,8 +48,6 @@ const filaReporte = (extra: Record<string, unknown> = {}) => ({
   fechaHora: new Date('2026-10-05T14:00:00Z'),
   nivelConfiabilidad: '66.67',
   estado: 'ACTIVO',
-  puntosOtorgados: 10,
-  motivoSinPuntos: null,
   createdAt: new Date('2026-10-05T14:00:00Z'),
   updatedAt: new Date('2026-10-05T14:00:00Z'),
   ...extra,
@@ -58,27 +56,27 @@ const filaReporte = (extra: Record<string, unknown> = {}) => ({
 describe('sqlCrudo sobre los modelos registrados', () => {
   it('columnasDe lista "columna" AS "atributo" de cada atributo, igual en cada llamada (cacheada)', () => {
     const columnas = columnasDe(ReporteModel);
-    expect(columnas).toContain('"puntos_otorgados" AS "puntosOtorgados"');
+    expect(columnas).toContain('"nivel_confiabilidad" AS "nivelConfiabilidad"');
     expect(columnas).toContain('"id" AS "id"');
     expect(columnas.split(', ')).toHaveLength(Object.keys(ReporteModel.getAttributes()).length);
     expect(columnasDe(ReporteModel)).toBe(columnas);
   });
 
   it('campoDe traduce el atributo a su columna y rechaza uno desconocido', () => {
-    expect(campoDe(ReporteModel, 'motivoSinPuntos')).toBe('motivo_sin_puntos');
+    expect(campoDe(ReporteModel, 'nivelConfiabilidad')).toBe('nivel_confiabilidad');
     expect(() => campoDe(ReporteModel, 'inventado')).toThrow('Atributo desconocido Reporte.inventado');
   });
 });
 
-describe('ReporteDAOSequelize.modificar (via registrarPuntos y actualizarConfiabilidad)', () => {
+describe('ReporteDAOSequelize.modificar (via actualizarConfiabilidad y actualizarEstado)', () => {
   it('un UPDATE ... RETURNING con los reemplazos internos __id y __ahora, y el DECIMAL devuelto como number', async () => {
     respuestas = [[filaReporte()]];
-    const reporte = await new ReporteDAOSequelize().registrarPuntos(9, 10, null);
+    const reporte = await new ReporteDAOSequelize().actualizarConfiabilidad(9, 66.67);
     expect(sentencias).toHaveLength(1);
     expect(sentencias[0]!.sql).toMatch(
-      /^UPDATE reporte_saturacion SET "puntos_otorgados" = :puntosOtorgados, "motivo_sin_puntos" = :motivoSinPuntos, updated_at = :__ahora WHERE id = :__id RETURNING /,
+      /^UPDATE reporte_saturacion SET "nivel_confiabilidad" = :nivelConfiabilidad, updated_at = :__ahora WHERE id = :__id RETURNING /,
     );
-    expect(sentencias[0]!.replacements).toMatchObject({ puntosOtorgados: 10, motivoSinPuntos: null, __id: 9 });
+    expect(sentencias[0]!.replacements).toMatchObject({ nivelConfiabilidad: 66.67, __id: 9 });
     expect(sentencias[0]!.replacements.__ahora).toBeInstanceOf(Date);
     expect(reporte).toMatchObject({ id: 9, nivelConfiabilidad: 66.67, estado: EstadoReporte.ACTIVO });
   });

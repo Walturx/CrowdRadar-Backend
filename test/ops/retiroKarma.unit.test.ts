@@ -1,6 +1,7 @@
 /**
  * Karma is retired (CRO-62): every valid vote weighs the same (CRO-73), so the karma-weighted reliability variant and its
- * cap must not survive anywhere a developer or an operator would read them.
+ * cap must not survive anywhere a developer or an operator would read them. Migration 15 drops the old point columns
+ * (S22), so the code and the ER diagram must not name them either.
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
@@ -37,5 +38,36 @@ describe('peso uniforme de los votos (CRO-73)', () => {
   it('el entorno ya no ofrece elegir ni topar el peso de los votos', () => {
     expect(Object.keys(esquemaEntorno.shape)).not.toContain('CONFIABILIDAD_ESTRATEGIA');
     expect(Object.keys(esquemaEntorno.shape)).not.toContain('TOPE_KARMA_PESO');
+  });
+});
+
+describe('puntos y tiers en lugar de karma (CRO-72)', () => {
+  it.each(['docs/api-contract.md', 'README.md', '.env.example'])('%s ya no menciona karma', (ruta) => {
+    expect(readFileSync(resolve(RAIZ, ruta), 'utf8')).not.toMatch(/karma/i);
+  });
+
+  it.each(['docs/api-contract.md', 'README.md'])('%s describe las reglas nuevas: +10, +2, los cuatro tiers y sus umbrales', (ruta) => {
+    const texto = readFileSync(resolve(RAIZ, ruta), 'utf8');
+    for (const termino of ['+10', '+2', 'CROWD_BABY', 'CROWD_EXPLORER', 'CROWD_COLLABORATOR', 'CROWD_ROYALTY', '0-49', '50-149', '150-299', '300']) {
+      expect(texto, termino).toContain(termino);
+    }
+  });
+
+  it('el entorno ya no tiene topes diarios ni puntos por accion', () => {
+    expect(Object.keys(esquemaEntorno.shape).filter((clave) => clave.startsWith('KARMA_'))).toEqual([]);
+  });
+
+});
+
+describe('columnas de karma y puntos retiradas por la migracion 15 (S22)', () => {
+  it('el codigo fuente ya no nombra karma', () => {
+    const conKarma = archivos('src').filter((ruta) => /karma/i.test(readFileSync(resolve(RAIZ, ruta), 'utf8')));
+    expect(conKarma).toEqual([]);
+  });
+
+  it('ni src/ ni el diagrama entidad-relacion nombran las cinco columnas retiradas', () => {
+    const columnas = /puntos_karma|karma_votante|puntos_otorgados|motivo_sin_puntos|puntosOtorgados|motivoSinPuntos/;
+    const revisados = [...archivos('src'), 'docs/diagramas/er.puml', 'docs/diagramas/er.svg'];
+    expect(revisados.filter((ruta) => columnas.test(readFileSync(resolve(RAIZ, ruta), 'utf8')))).toEqual([]);
   });
 });

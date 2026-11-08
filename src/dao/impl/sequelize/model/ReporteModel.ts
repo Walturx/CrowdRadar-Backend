@@ -11,8 +11,6 @@ export class ReporteModel extends Model<InferAttributes<ReporteModel>, InferCrea
   /** NUMERIC(5,2): the driver returns it as a string. */
   declare nivelConfiabilidad: CreationOptional<string | number | null>;
   declare estado: CreationOptional<string>;
-  declare puntosOtorgados: CreationOptional<number>;
-  declare motivoSinPuntos: CreationOptional<string | null>;
   declare createdAt: CreationOptional<Date>;
   declare updatedAt: CreationOptional<Date>;
 }
@@ -27,8 +25,6 @@ export function initReporteModel(sequelize: Sequelize): void {
       fechaHora: { type: DataTypes.DATE, allowNull: false },
       nivelConfiabilidad: { type: DataTypes.DECIMAL(5, 2), allowNull: true },
       estado: { type: DataTypes.STRING(10), allowNull: false, defaultValue: 'ACTIVO' },
-      puntosOtorgados: { type: DataTypes.SMALLINT, allowNull: false, defaultValue: 0 },
-      motivoSinPuntos: { type: DataTypes.STRING(20), allowNull: true },
       createdAt: DataTypes.DATE,
       updatedAt: DataTypes.DATE,
     },

@@ -23,6 +23,9 @@ import { ConexionFalsa } from '../support/ConexionFalsa.js';
 import { crearLoggerSilencioso } from '../support/LoggerSilencioso.js';
 import { configPrueba } from '../support/configPrueba.js';
 import { URL_BD_TEST, consultar, crearBdTemporal, ejecutarCli, type BaseTemporal } from '../support/baseDatos.js';
+import { PuntajeDAOSequelize } from '../../src/dao/impl/sequelize/PuntajeDAOSequelize.js';
+import { PuntajeServiceImpl } from '../../src/service/impl/PuntajeServiceImpl.js';
+import { REGLA_PRUEBA } from '../support/puntajePrueba.js';
 
 const registro = {
   nombre: 'Ana',
@@ -62,6 +65,7 @@ describe.skipIf(!URL_BD_TEST)('registro concurrente (PostgreSQL real)', () => {
       hasher,
       emisorToken,
       verificador: new VerificadorEstadoCuentaImpl({ usuarioDAO, sancionDAO: new SancionDAOSequelize(), reloj: relojSistema }),
+      puntajeService: new PuntajeServiceImpl({ puntajeDAO: new PuntajeDAOSequelize(), regla: REGLA_PRUEBA }),
       politicaMensajes: 'GENERICA',
     });
     const email = 'servicio@crowdradar.pe';

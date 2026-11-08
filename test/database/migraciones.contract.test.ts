@@ -116,7 +116,7 @@ describe.skipIf(!URL_BD_TEST)('migraciones (PostgreSQL real)', () => {
       expect(await tablas()).toEqual(TODAS);
     });
 
-    it('SequelizeMeta registra las 13 migraciones en orden', async () => {
+    it('SequelizeMeta registra las 14 migraciones en orden', async () => {
       const filas = await q<{ name: string }>('SELECT name FROM "SequelizeMeta" ORDER BY name');
       expect(filas.map((f) => f.name)).toEqual([
         '20261005000001-crear-usuario.cjs',
@@ -132,6 +132,7 @@ describe.skipIf(!URL_BD_TEST)('migraciones (PostgreSQL real)', () => {
         '20261005000012-usuario-password-cambiada-en.cjs',
         '20261005000013-lugar-osm-tipo.cjs',
         '20261018000014-usuario-indice-sintetico.cjs',
+        '20261106000015-retirar-columnas-karma.cjs',
       ]);
     });
   });
@@ -172,6 +173,19 @@ describe.skipIf(!URL_BD_TEST)('migraciones (PostgreSQL real)', () => {
       const reglas = Object.fromEntries(filas.map((f) => [f.constraint_name, f.delete_rule]));
       expect(reglas).toEqual(REGLAS_FK);
     });
+
+    it('las cinco columnas de karma y puntos y sus CHECK ya no existen (migracion 15, S22)', async () => {
+      const columnas = await q<{ columna: string }>(
+        `SELECT table_name || '.' || column_name AS columna FROM information_schema.columns
+          WHERE table_schema = 'public' AND column_name IN ('puntos_karma', 'puntos_otorgados', 'motivo_sin_puntos', 'karma_votante')`,
+      );
+      expect(columnas).toEqual([]);
+      const checks = await q<{ conname: string }>(
+        `SELECT conname FROM pg_constraint WHERE conname IN
+           ('ck_usuario_puntos_karma', 'ck_reporte_puntos', 'ck_reporte_motivo_sin_puntos', 'ck_validacion_karma', 'ck_validacion_puntos')`,
+      );
+      expect(checks).toEqual([]);
+    });
   });
 
   describe('usuario', () => {
@@ -189,40 +203,30 @@ describe.skipIf(!URL_BD_TEST)('migraciones (PostgreSQL real)', () => {
         'distrito',
         'rol',
         'status',
-        'puntos_karma',
         'created_at',
         'updated_at',
         'password_cambiada_en',
       ]);
       const porNombre = Object.fromEntries(columnas.map((c) => [c.column_name, c]));
-      expect(porNombre.puntos_karma?.data_type).toBe('integer');
       expect(porNombre.nombre?.is_nullable).toBe('NO');
       expect(porNombre.telefono?.is_nullable).toBe('YES');
 
       await q("INSERT INTO usuario (nombre, apellido, email) VALUES ('Ana', 'Perez', 'defecto@crowdradar.pe')");
-      const [fila] = await q("SELECT rol, status, puntos_karma, created_at, updated_at FROM usuario WHERE email = 'defecto@crowdradar.pe'");
-      expect(fila).toMatchObject({ rol: 'USUARIO', status: 'ACTIVO', puntos_karma: 0 });
+      const [fila] = await q("SELECT rol, status, created_at, updated_at FROM usuario WHERE email = 'defecto@crowdradar.pe'");
+      expect(fila).toMatchObject({ rol: 'USUARIO', status: 'ACTIVO' });
       expect(fila?.created_at).toBeInstanceOf(Date);
       expect(fila?.updated_at).toBeInstanceOf(Date);
     });
 
-    it('rechaza email duplicado, email con mayusculas, rol/status fuera del enum y karma negativo', async () => {
-      const insertar = (email: string, rol = 'USUARIO', status = 'ACTIVO', karma = 0) =>
-        codigo('INSERT INTO usuario (nombre, apellido, email, rol, status, puntos_karma) VALUES ($1, $2, $3, $4, $5, $6)', [
-          'N',
-          'A',
-          email,
-          rol,
-          status,
-          karma,
-        ]);
+    it('rechaza email duplicado, email con mayusculas y rol/status fuera del enum', async () => {
+      const insertar = (email: string, rol = 'USUARIO', status = 'ACTIVO') =>
+        codigo('INSERT INTO usuario (nombre, apellido, email, rol, status) VALUES ($1, $2, $3, $4, $5)', ['N', 'A', email, rol, status]);
 
       expect(await insertar('defecto@crowdradar.pe')).toBe(UNIQUE);
       expect(await insertar('Mayus@crowdradar.pe')).toBe(CHECK);
       expect(await insertar('rol@crowdradar.pe', 'SUPERADMIN')).toBe(CHECK);
       expect(await insertar('status@crowdradar.pe', 'USUARIO', 'BORRADO')).toBe(CHECK);
-      expect(await insertar('karma@crowdradar.pe', 'USUARIO', 'ACTIVO', -1)).toBe(CHECK);
-      expect(await insertar('valido@crowdradar.pe', 'ADMIN', 'SUSPENDIDO', 5)).toBeUndefined();
+      expect(await insertar('valido@crowdradar.pe', 'ADMIN', 'SUSPENDIDO')).toBeUndefined();
     });
   });
 
@@ -288,14 +292,13 @@ describe.skipIf(!URL_BD_TEST)('migraciones (PostgreSQL real)', () => {
       };
       expect(await insertar({ nivel_saturacion: 'LLENO' })).toBe(CHECK);
       expect(await insertar({ estado: 'BORRADO' })).toBe(CHECK);
-      expect(await insertar({ motivo_sin_puntos: 'OTRO' })).toBe(CHECK);
       expect(await insertar({ nivel_confiabilidad: 100.01 })).toBe(CHECK);
       expect(await insertar({ usuario_id: 999999 })).toBe(FK);
       expect(await insertar({ lugar_id: 999999 })).toBe(FK);
-      expect(await insertar({ motivo_sin_puntos: 'TOPE_DIARIO', nivel_confiabilidad: 85.5 })).toBeUndefined();
+      expect(await insertar({ nivel_confiabilidad: 85.5 })).toBeUndefined();
 
-      const [fila] = await q('SELECT estado, puntos_otorgados, fecha_hora, nivel_confiabilidad FROM reporte_saturacion WHERE id = $1', [reporte1]);
-      expect(fila).toMatchObject({ estado: 'ACTIVO', puntos_otorgados: 0, nivel_confiabilidad: null });
+      const [fila] = await q('SELECT estado, fecha_hora, nivel_confiabilidad FROM reporte_saturacion WHERE id = $1', [reporte1]);
+      expect(fila).toMatchObject({ estado: 'ACTIVO', nivel_confiabilidad: null });
       expect(fila?.fecha_hora).toBeInstanceOf(Date);
 
       // ON DELETE RESTRICT reports 23503 on Postgres <= 16 (CI) and 23001 on Postgres 18.
@@ -303,9 +306,9 @@ describe.skipIf(!URL_BD_TEST)('migraciones (PostgreSQL real)', () => {
       expect(RESTRICT_CODES).toContain(await codigo('DELETE FROM lugar WHERE id = $1', [lugar1]));
     });
 
-    it('validacion_reporte: una validacion por usuario y reporte, tipo valido, karma obligatorio, cascade', async () => {
+    it('validacion_reporte: una validacion por usuario y reporte, tipo valido y obligatorio, cascade', async () => {
       const insertar = (reporte: number, usuario: number, extra: Record<string, unknown> = {}) => {
-        const base = { reporte_id: reporte, usuario_id: usuario, tipo_accion: 'CONFIRMAR', karma_votante: 10, ...extra };
+        const base = { reporte_id: reporte, usuario_id: usuario, tipo_accion: 'CONFIRMAR', ...extra };
         const columnas = Object.keys(base);
         return codigo(
           `INSERT INTO validacion_reporte (${columnas.join(', ')}) VALUES (${columnas.map((_, i) => `$${i + 1}`).join(', ')})`,
@@ -313,8 +316,7 @@ describe.skipIf(!URL_BD_TEST)('migraciones (PostgreSQL real)', () => {
         );
       };
       expect(await insertar(reporte1, u2, { tipo_accion: 'TALVEZ' })).toBe(CHECK);
-      expect(await insertar(reporte1, u2, { karma_votante: null })).toBe(NOT_NULL);
-      expect(await insertar(reporte1, u2, { karma_votante: -1 })).toBe(CHECK);
+      expect(await insertar(reporte1, u2, { tipo_accion: null })).toBe(NOT_NULL);
       expect(await insertar(reporte1, u2)).toBeUndefined();
       expect(await insertar(reporte1, u2, { tipo_accion: 'RECHAZAR' })).toBe(UNIQUE);
 
@@ -466,8 +468,29 @@ describe.skipIf(!URL_BD_TEST)('migraciones (PostgreSQL real)', () => {
 
     const indiceSintetico = () => q("SELECT 1 FROM pg_indexes WHERE indexname = 'ix_usuario_sintetico'");
 
-    it('db:migrate:undo deshace solo la ultima migracion (ix_usuario_sintetico) y la rehace', async () => {
-      const deshacer = await ejecutarCli(['db:migrate:undo'], bd.url);
+    const columnaPuntosKarma = () =>
+      q("SELECT 1 FROM information_schema.columns WHERE table_name = 'usuario' AND column_name = 'puntos_karma'");
+
+    /** Runs `db:migrate:undo` `veces` times (each one undoes the latest applied migration); stops at the first failure. */
+    async function deshacerUltimas(veces: number) {
+      let resultado = await ejecutarCli(['db:migrate:undo'], bd.url);
+      for (let paso = 1; paso < veces && resultado.codigo === 0; paso += 1) resultado = await ejecutarCli(['db:migrate:undo'], bd.url);
+      return resultado;
+    }
+
+    it('db:migrate:undo deshace solo la ultima migracion (15: columnas de karma y puntos) y la rehace', async () => {
+      const deshacer = await deshacerUltimas(1);
+      expect(deshacer.codigo, deshacer.salida).toBe(0);
+      expect(await tablas()).toEqual(TODAS);
+      expect(await columnaPuntosKarma()).toHaveLength(1);
+      expect(await indiceSintetico()).toHaveLength(1);
+      const rehacer = await ejecutarCli(['db:migrate'], bd.url);
+      expect(rehacer.codigo, rehacer.salida).toBe(0);
+      expect(await columnaPuntosKarma()).toEqual([]);
+    });
+
+    it('un segundo db:migrate:undo deshace ix_usuario_sintetico y la rehace', async () => {
+      const deshacer = await deshacerUltimas(2);
       expect(deshacer.codigo, deshacer.salida).toBe(0);
       expect(await tablas()).toEqual(TODAS);
       expect(await indiceSintetico()).toEqual([]);
@@ -478,7 +501,7 @@ describe.skipIf(!URL_BD_TEST)('migraciones (PostgreSQL real)', () => {
     });
 
     it('la migracion 14 tolera que ix_usuario_sintetico ya exista (creado a mano antes del deploy)', async () => {
-      const deshacer = await ejecutarCli(['db:migrate:undo'], bd.url);
+      const deshacer = await deshacerUltimas(2);
       expect(deshacer.codigo, deshacer.salida).toBe(0);
       await q(`CREATE INDEX ix_usuario_sintetico ON usuario (id) WHERE email LIKE '%${DOMINIO_EMAIL_SINTETICO}'`);
       const rehacer = await ejecutarCli(['db:migrate'], bd.url);
@@ -486,9 +509,8 @@ describe.skipIf(!URL_BD_TEST)('migraciones (PostgreSQL real)', () => {
       expect(await indiceSintetico()).toHaveLength(1);
     });
 
-    it('un segundo db:migrate:undo deshace lugar.osm_tipo y la rehace', async () => {
-      await ejecutarCli(['db:migrate:undo'], bd.url);
-      const deshacer = await ejecutarCli(['db:migrate:undo'], bd.url);
+    it('un tercer db:migrate:undo deshace lugar.osm_tipo y la rehace', async () => {
+      const deshacer = await deshacerUltimas(3);
       expect(deshacer.codigo, deshacer.salida).toBe(0);
       expect(await tablas()).toEqual(TODAS);
       expect(await columnaOsmTipo()).toEqual([]);
@@ -498,10 +520,8 @@ describe.skipIf(!URL_BD_TEST)('migraciones (PostgreSQL real)', () => {
       expect(await columnaOsmTipo()).toHaveLength(1);
     });
 
-    it('un tercer db:migrate:undo deshace password_cambiada_en y la rehace', async () => {
-      await ejecutarCli(['db:migrate:undo'], bd.url);
-      await ejecutarCli(['db:migrate:undo'], bd.url);
-      const deshacer = await ejecutarCli(['db:migrate:undo'], bd.url);
+    it('un cuarto db:migrate:undo deshace password_cambiada_en y la rehace', async () => {
+      const deshacer = await deshacerUltimas(4);
       expect(deshacer.codigo, deshacer.salida).toBe(0);
       expect(await columnaPasswordCambiadaEn()).toEqual([]);
       const rehacer = await ejecutarCli(['db:migrate'], bd.url);
@@ -510,11 +530,8 @@ describe.skipIf(!URL_BD_TEST)('migraciones (PostgreSQL real)', () => {
       expect(await columnaOsmTipo()).toHaveLength(1);
     });
 
-    it('un cuarto db:migrate:undo deshace dispositivo_push y la rehace', async () => {
-      await ejecutarCli(['db:migrate:undo'], bd.url);
-      await ejecutarCli(['db:migrate:undo'], bd.url);
-      await ejecutarCli(['db:migrate:undo'], bd.url);
-      const deshacer = await ejecutarCli(['db:migrate:undo'], bd.url);
+    it('un quinto db:migrate:undo deshace dispositivo_push y la rehace', async () => {
+      const deshacer = await deshacerUltimas(5);
       expect(deshacer.codigo, deshacer.salida).toBe(0);
       expect(await tablas()).toEqual(TODAS.filter((t) => t !== 'dispositivo_push'));
       const rehacer = await ejecutarCli(['db:migrate'], bd.url);
@@ -652,7 +669,7 @@ describe.skipIf(!URL_BD_TEST)('migraciones (PostgreSQL real)', () => {
         await q("INSERT INTO dispositivo_push (usuario_id, token_fcm, plataforma) VALUES ($1, 'tok-demo', 'ANDROID')", [demo?.id]);
         const [reporteDemo] = await q<{ id: number }>('SELECT id FROM reporte_saturacion WHERE usuario_id = $1 LIMIT 1', [demo?.id]);
         await q(
-          "INSERT INTO validacion_reporte (reporte_id, usuario_id, tipo_accion, karma_votante) VALUES ($1, $2, 'CONFIRMAR', 0)",
+          "INSERT INTO validacion_reporte (reporte_id, usuario_id, tipo_accion) VALUES ($1, $2, 'CONFIRMAR')",
           [reporteDemo?.id, real?.id],
         );
         await q("INSERT INTO lugar_favorito (usuario_id, lugar_id) VALUES ($1, $2)", [real?.id, lugar?.id]);

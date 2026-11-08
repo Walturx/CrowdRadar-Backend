@@ -53,6 +53,7 @@ describe('GET /api/validaciones/pendientes (caja negra)', () => {
         fechaHora: haceMinutos(10).toISOString(),
         distanciaMetros: expect.any(Number),
         confiabilidad: { porcentaje: null, nivel: 'INSUFICIENTE', confirmaciones: 0, rechazos: 0, advertencia: null },
+        autor: { tier: 'CROWD_BABY' },
       },
     ]);
     expect(res.body.data.items[0].distanciaMetros).toBeGreaterThan(900);
@@ -81,8 +82,6 @@ describe('GET /api/validaciones/pendientes (caja negra)', () => {
       reporteId: votado,
       usuarioId: miId,
       tipoAccion: TipoAccionValidacion.CONFIRMAR,
-      karmaVotante: 0,
-      puntosOtorgados: 2,
       fechaHora: AHORA,
     });
     expect(ids(await pedir(BASE))).toEqual([cercaViejo, lejosNuevo, lejosViejo]);

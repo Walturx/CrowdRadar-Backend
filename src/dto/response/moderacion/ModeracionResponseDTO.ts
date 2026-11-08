@@ -4,6 +4,7 @@ import type { EstadoReporte } from '../../../enum/EstadoReporte.js';
 import type { MotivoDenuncia } from '../../../enum/MotivoDenuncia.js';
 import type { NivelSaturacion } from '../../../enum/NivelSaturacion.js';
 import type { Rol } from '../../../enum/Rol.js';
+import type { Tier } from '../../../enum/Tier.js';
 
 export interface LugarModeracionDTO {
   id: number;
@@ -62,7 +63,9 @@ export interface UsuarioModeradoResponseDTO {
   email: string;
   rol: Rol;
   status: EstadoCuenta;
-  puntosKarma: number;
+  /** Computed from the user's reports and votes (CRO-72). */
+  puntos: number;
+  tier: Tier;
   sancionVigente: SancionResponseDTO | null;
 }
 

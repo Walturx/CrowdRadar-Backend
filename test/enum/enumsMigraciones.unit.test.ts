@@ -11,7 +11,6 @@ import { EstadoDenuncia } from '../../src/enum/EstadoDenuncia.js';
 import { EstadoReporte } from '../../src/enum/EstadoReporte.js';
 import { FiltroDias } from '../../src/enum/FiltroDias.js';
 import { MotivoDenuncia } from '../../src/enum/MotivoDenuncia.js';
-import { MotivoSinPuntos } from '../../src/enum/MotivoSinPuntos.js';
 import { NivelConfiabilidad } from '../../src/enum/NivelConfiabilidad.js';
 import { NivelEfectivo, NivelSaturacion } from '../../src/enum/NivelSaturacion.js';
 import { PlataformaPush } from '../../src/enum/PlataformaPush.js';
@@ -35,7 +34,6 @@ const casos: [string, Record<string, string>, string, string][] = [
   ['NivelSaturacion (reporte)', NivelSaturacion, '20261005000003-crear-reporte-saturacion.cjs', 'ck_reporte_nivel'],
   ['NivelSaturacion (alerta)', NivelSaturacion, '20261005000008-crear-alerta.cjs', 'ck_alerta_nivel_nuevo'],
   ['EstadoReporte', EstadoReporte, '20261005000003-crear-reporte-saturacion.cjs', 'ck_reporte_estado'],
-  ['MotivoSinPuntos', MotivoSinPuntos, '20261005000003-crear-reporte-saturacion.cjs', 'ck_reporte_motivo_sin_puntos'],
   ['TipoAccionValidacion', TipoAccionValidacion, '20261005000004-crear-validacion-reporte.cjs', 'ck_validacion_tipo'],
   ['MotivoDenuncia', MotivoDenuncia, '20261005000005-crear-denuncia.cjs', 'ck_denuncia_motivo'],
   ['EstadoDenuncia', EstadoDenuncia, '20261005000005-crear-denuncia.cjs', 'ck_denuncia_estado'],

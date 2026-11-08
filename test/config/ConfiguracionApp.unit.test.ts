@@ -56,10 +56,6 @@ describe('ConfiguracionApp', () => {
       expect(cfg.seguridad.limites).toMatchObject({ ventanaMin: 15, login: 10, registro: 10, recuperar: 5, restablecer: 10, validaciones: 60, denuncias: 10 });
       expect(cfg.reglas).toMatchObject({
         cooldownReporteMin: 30,
-        karmaPorReporte: 10,
-        karmaPorValidacion: 2,
-        karmaValidacionMaxDia: 20,
-        karmaReportesPremiadosDia: 5,
         saturacionVentanaMin: 60,
         saturacionMinReportes: 3,
         saturacionUmbralModerado: 1.67,
@@ -71,6 +67,10 @@ describe('ConfiguracionApp', () => {
         radioBusquedaKm: 2,
         suspensionDiasPermitidos: [3, 7, 30],
       });
+      // Karma is retired (CRO-72, CRO-73): no daily caps, no points per action, no vote weighting.
+      for (const clave of ['karmaPorReporte', 'karmaPorValidacion', 'karmaValidacionMaxDia', 'karmaReportesPremiadosDia', 'topeKarmaPeso', 'confiabilidadEstrategia']) {
+        expect(cfg.reglas).not.toHaveProperty(clave);
+      }
       expect(cfg.bd).toMatchObject({ host: 'localhost', puerto: 5432, password: 'clave-bd' });
       expect(cfg.correo.proveedor).toBe('consola');
       expect(cfg.push.proveedor).toBe('consola');

@@ -21,6 +21,7 @@ export const MENSAJE_SIN_PENDIENTES = 'No hay reportes pendientes de validar cer
 export const MENSAJE_PENDIENTES = 'Reportes pendientes obtenidos correctamente.';
 export const MENSAJE_DETALLE_REPORTE = 'Reporte obtenido correctamente.';
 export const MENSAJE_CONFIABILIDAD = 'Confiabilidad obtenida correctamente.';
+export const MENSAJE_VALIDACION_CREADA = '¡Gracias por validar!';
 export const MENSAJE_SIN_VALIDACIONES = 'Todavía no existen validaciones registradas.';
 export const MENSAJE_ESTADO_MIS_REPORTES = 'Estado de validación obtenido correctamente.';
 export const MENSAJE_SIN_REPORTES_PROPIOS = 'Aún no tienes reportes';
@@ -37,7 +38,7 @@ export const ValidacionMapper = {
     };
   },
 
-  aPendiente({ reporte, lugar, distanciaMetros, confiabilidad }: ReportePendiente): ReportePendienteResponseDTO {
+  aPendiente({ reporte, lugar, distanciaMetros, confiabilidad, tierAutor }: ReportePendiente): ReportePendienteResponseDTO {
     return {
       id: reporte.id,
       lugar: { id: lugar.id, nombre: lugar.nombre, categoria: lugar.categoria },
@@ -45,6 +46,7 @@ export const ValidacionMapper = {
       fechaHora: reporte.fechaHora.toISOString(),
       distanciaMetros: Math.round(distanciaMetros),
       confiabilidad: ValidacionMapper.aConfiabilidad(confiabilidad),
+      autor: { tier: tierAutor },
     };
   },
 
@@ -52,7 +54,7 @@ export const ValidacionMapper = {
     return { ...pagina, items: pagina.items.map(ValidacionMapper.aPendiente) };
   },
 
-  aDetalle({ reporte, lugar, confiabilidad, miValidacion, yaDenunciado, esPropio }: DetalleReporte): DetalleReporteResponseDTO {
+  aDetalle({ reporte, lugar, confiabilidad, miValidacion, yaDenunciado, esPropio, tierAutor }: DetalleReporte): DetalleReporteResponseDTO {
     return {
       id: reporte.id,
       lugar: { id: lugar.id, nombre: lugar.nombre, categoria: lugar.categoria },
@@ -63,10 +65,11 @@ export const ValidacionMapper = {
       miValidacion,
       yaDenunciado,
       esPropio,
+      autor: { tier: tierAutor },
     };
   },
 
-  aCreada({ validacion, karma, confiabilidad }: ResultadoValidacion): ValidacionCreadaResponseDTO {
+  aCreada({ validacion, confiabilidad, usuario }: ResultadoValidacion): ValidacionCreadaResponseDTO {
     return {
       validacion: {
         id: validacion.id,
@@ -74,9 +77,9 @@ export const ValidacionMapper = {
         tipoAccion: validacion.tipoAccion,
         fechaHora: validacion.fechaHora.toISOString(),
       },
-      karma: { puntosGanados: karma.puntosGanados, total: karma.total },
       confiabilidad: ValidacionMapper.aConfiabilidad(confiabilidad),
       estadoValidacion: confiabilidad.estado,
+      usuario: { puntos: usuario.puntos, tier: usuario.tier },
     };
   },
 

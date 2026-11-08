@@ -19,8 +19,6 @@ participant "LugarDAO\n(LugarDAOSequelize)" as lugarDAO
 participant "ConexionBD\n(ConexionSequelize)" as conexion
 participant "ReporteServiceImpl" as repSvc
 participant "ReporteDAO\n(ReporteDAOSequelize)" as repDAO
-participant "KarmaServiceImpl" as karma
-participant "UsuarioDAO" as usuarioDAO
 participant "SaturacionServiceImpl" as satSvc
 participant "EstrategiaSaturacion\n(SaturacionPonderadaStrategy)" as estrategia
 participant "PublicadorSaturacion\n<<SaturacionSubject>>" as pub
@@ -65,15 +63,7 @@ group conexion.transaccion(tx) [una transaccion por reporte]
   facade -> repSvc : crear(usuarioId, lugarId, nivel, tx)
   repSvc -> repDAO : crear({usuarioId, lugarId, nivelSaturacion, fechaHora}, tx)
   repDAO -> pg : INSERT reporte_saturacion
-  facade -> karma : otorgarPorReporte(usuarioId, reporteId, tx)
-  karma -> repDAO : contarPremiadosDeUsuarioDesde(usuarioId, inicioDelDia, tx)
-  repDAO -> pg : SELECT pg_advisory_xact_lock(usuarioId, 0); COUNT
-  alt tope diario (KARMA_REPORTES_PREMIADOS_DIA) alcanzado
-    karma -> repDAO : registrarPuntos(reporteId, 0, TOPE_DIARIO, tx)
-  else
-    karma -> usuarioDAO : incrementarKarma(usuarioId, KARMA_POR_REPORTE, tx)
-    karma -> repDAO : registrarPuntos(reporteId, puntos, null, tx)
-  end
+  note right of repDAO : no se otorgan puntos al crear:\nse calculan al leer (PuntajeService, CRO-72)
   facade -> satSvc : recalcular(lugarId, tx)
   satSvc -> lugarDAO : buscarPorId(lugarId, tx)
   satSvc -> repDAO : listarRecientesPorLugar(lugarId, desde, tx)
@@ -105,7 +95,7 @@ opt cambio.anterior != cambio.nuevo (solo despues del COMMIT)
   note over pub, push : Un fallo de suscriptor o de push solo se registra en el log:\nnunca deshace el reporte ni cambia la respuesta.
 end
 
-facade --> ctrl : ReporteRegistrado {reporte, karma, lugar}
+facade --> ctrl : ReporteRegistrado {reporte, lugar}
 ctrl -> ctrl : ReporteMapper.aCreado(registrado)
 ctrl --> app : 201 { message: "Reporte registrado correctamente.", data }
 @enduml

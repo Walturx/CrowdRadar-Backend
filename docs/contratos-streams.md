@@ -96,6 +96,7 @@ Shared ports (contract PR required):
 - `adapter/correo/EnviadorCorreo.ts`: owner M1. Reviewer: M6 (it also sends mail). Writes: `enviar`.
 - `dao/UsuarioDAO.ts`: owner C0. Reviewer: lead, M4, M6. Reads: `buscarPorId`, `buscarPorEmail`. Writes:
   `actualizarPasswordHash`.
+- `service/PuntajeService.ts`: owner M5. Reviewer: M5. Reads: `obtener` (points and tier of login, register and profile).
 
 How to run tests: `npm test` for the facade and the Nodemailer adapter (use `CorreoEspia` and `GeneradorTokenFijo`);
 `npm run test:db` with `DATABASE_URL_TEST` runs `TokenRecuperacionDAOSequelize` through `ejecutarContratoDAO` and
@@ -181,12 +182,12 @@ caller's `limite` itself. `FavoritoService` returns `FavoritoConLugar` (favourit
 `ConsultaExploracion` carries `limite`. `container/lugar.ts` builds `ExploracionServiceImpl` (it shares the places router) and
 `container/favoritoAlerta.ts` builds `FavoritoServiceImpl` from the shared `lugarDAO` and clock.
 
-## M4 Reports, karma and analytics
+## M4 Reports and analytics
 
 Interfaces to implement:
 
-- `facade/ReporteFacade.ts` (Pattern: Facade), `service/ReporteService.ts`, `service/KarmaService.ts`,
-  `service/SaturacionService.ts`, `service/AnaliticaService.ts` -> `service/impl/{Reporte,Karma,Saturacion,Analitica}ServiceImpl.ts`.
+- `facade/ReporteFacade.ts` (Pattern: Facade), `service/ReporteService.ts`,
+  `service/SaturacionService.ts`, `service/AnaliticaService.ts` -> `service/impl/{Reporte,Saturacion,Analitica}ServiceImpl.ts`.
 - `pattern/strategy/saturacion/EstrategiaSaturacion.ts` (Pattern: Strategy) ->
   `pattern/strategy/saturacion/impl/SaturacionPonderadaStrategy.ts` and `SaturacionUltimoReporteStrategy.ts`, chosen
   by `SATURACION_ESTRATEGIA`.
@@ -194,7 +195,7 @@ Interfaces to implement:
   `actualizarConfiabilidad` (already in the port; M5 only calls them).
 - `pattern/observer/SaturacionSubject.ts` as publisher (the only emitter together with M6), through `PublicadorSaturacion`.
 
-Owned files: `facade/ReporteFacade*`, `service/impl/{Reporte,Karma,Saturacion,Analitica}ServiceImpl.ts`,
+Owned files: `facade/ReporteFacade*`, `service/impl/{Reporte,Saturacion,Analitica}ServiceImpl.ts`,
 `pattern/strategy/saturacion/impl/*`, `controller/{Reporte,Analitica}Controller.ts`, `mapper/{Reporte,Analitica}Mapper.ts`,
 `dao/impl/sequelize/ReporteDAOSequelize.ts`, `route/{reporte,analitica}.routes.ts` (`/reportes/mios` before
 `/reportes/:id`), `container/reporte.ts`, `exception/reporte/*`, `dto/**/reporte/*`, seeder `20261005100003-historial-sintetico`
@@ -206,14 +207,12 @@ Must not touch: `service/impl/Validacion*` and `service/impl/Denuncia*` (M5), `d
 Shared ports (contract PR required):
 
 - `dao/ReporteDAO.ts`: owner M4. Reviewer: M2, M5, M6. Reads: `buscarPorId`, `buscarUltimoDeUsuarioEnLugar`,
-  `listarRecientesPorLugar`, `contarPorLugarDesde`, `contarPremiadosDeUsuarioDesde`, `listarPorUsuario`,
-  `agregarPorHora`. Writes: `crear`, `registrarPuntos`, `actualizarEstado`, `actualizarConfiabilidad`.
-- `service/KarmaService.ts`: owner M4. Reviewer: M5, M6. Writes: `otorgarPorReporte`, `otorgarPorValidacion`,
-  `revocarPorReporteEliminado`.
+  `listarRecientesPorLugar`, `contarPorLugarDesde`, `listarPorUsuario`,
+  `agregarPorHora`. Writes: `crear`, `actualizarEstado`, `actualizarConfiabilidad`.
+- `service/PuntajeService.ts`: owner M5. Reviewer: M4. Reads: `puntosDeReportes` (the points of GET /reportes/mios).
 - `service/SaturacionService.ts`: owner M4. Reviewer: M6. Writes: `recalcular`.
 - `pattern/observer/SaturacionCambiadaEvento.ts`: owner M4. Reviewer: M3. Writes: `crearEventoSaturacion`.
 - `dao/LugarDAO.ts`: owner M2. Reviewer: M2, M3. Reads: `buscarPorId`, `buscarPorIdParaActualizar`. Writes: `actualizarSaturacion`.
-- `dao/UsuarioDAO.ts`: owner C0. Reviewer: lead, M1, M6. Writes: `incrementarKarma`.
 
 How to run tests: `npm test` (strategies and services with `ReporteDAOMemoria`, `RelojFijo`);
 `npm run test:db` with `DATABASE_URL_TEST` runs `ReporteDAOSequelize` through `ejecutarContratoDAO` and
@@ -229,7 +228,7 @@ M4 notes (delivered in the BE-01..03 slices):
 - `ReporteDAOMemoria` emulates that lock per transaction handle: use `ConexionFalsa.transaccion` (it opens and closes the
   handle) when a test needs the mutual exclusion. Shared cases: `test/dao/ReporteDAO.concurrencia.contract.ts`.
 - `container/reporte.ts` exports `construirServiciosReporte` and `elegirEstrategiaSaturacion` (strategy picked by
-  `SATURACION_ESTRATEGIA`). M5 and M6 take `karmaService` and `saturacionService` from it. `construirReporte` now builds
+  `SATURACION_ESTRATEGIA`). M6 takes `saturacionService` from it. `construirReporte` now builds
   the facade and mounts `ReporteController` (POST /reportes, GET /reportes/mios).
 - Contract touch (M4-BE-04): `DependenciasInfraestructura` gained `lugarDAO` and `reporteDAO` (Sequelize in
   `crearContenedor`, in memory in `crearContenedorPrueba`) and `Infraestructura` gained the shared `subject`
@@ -254,9 +253,13 @@ M4 notes (delivered in the BE-01..03 slices):
   The switch `SEED_DEMO` was renamed `SEED_SINTETICO` (unset: on outside production, off in production; `true` in
   production is rejected). `down` deletes what points at the demo users before their reports and the users.
 - Integration touches (mvp-fixes-01): `LugarDAO.buscarPorIdParaActualizar(id, tx)` (`SELECT ... FOR UPDATE`, taken by the
-  facade after the cooldown check), `ReporteDAO.contarPremiadosDeUsuarioDesde` takes `pg_advisory_xact_lock(usuarioId, 0)`,
+  facade after the cooldown check), a per-user advisory lock for the old daily cap (removed in CRO-72),
   and `DispositivoDAO.conservarMasRecientes`; the locking order is in `docs/decisiones.md`. The nivel-to-number mapping is
   `entity/valorNivel.ts` (the SQL `CASE` of `agregarPorHora` is generated from it) and time factors live in `util/tiempo.ts`.
+- Contract touch (CRO-72): a report or a vote awards nothing when it is written; points are computed when read
+  (`PuntajeService`, M5). The service that granted, capped and revoked points was removed with its configuration keys,
+  `ReporteDAO` lost its points methods and the daily-cap lock, `ReporteRegistrado` lost its points block and the entities
+  no longer map the old point columns (migration 15 drops them, D-CRO-72-COLUMNAS in `docs/decisiones.md`).
 - `SembradorSequelize` has a single owner: the shared test support, `test/support/dao/sequelize/SembradorSequelize.ts`
   (the M3 and M4 copies were merged at the integration; `usuarioSintetico()` and the idempotent `favorito()` live there).
   A stream that needs another seeded row adds it there through a contract PR instead of keeping its own copy.
@@ -275,28 +278,29 @@ Interfaces to implement:
   `pattern/strategy/confiabilidad/impl/ConfiabilidadSimpleStrategy.ts` (every valid vote weighs 1 since CRO-73, which removed
   the karma-weighted variant and its configuration).
 - `dao/ValidacionDAO.ts`, `dao/DenunciaDAO.ts` -> `dao/impl/sequelize/{Validacion,Denuncia}DAOSequelize.ts`.
+- `service/PuntajeService.ts` (Pattern: Service layer) -> `service/impl/PuntajeServiceImpl.ts`, and its read model
+  `dao/PuntajeDAO.ts` (Pattern: DAO) -> `dao/impl/sequelize/PuntajeDAOSequelize.ts` (CRO-72: points and tier).
 
-Owned files: `service/impl/{Validacion,Denuncia}ServiceImpl.ts`, `pattern/strategy/confiabilidad/impl/*`,
+Owned files: `service/impl/{Validacion,Denuncia,Puntaje}ServiceImpl.ts`, `dao/impl/sequelize/PuntajeDAOSequelize.ts`, `entity/puntaje.ts`,
+`enum/Tier.ts`, `pattern/strategy/confiabilidad/impl/*`,
 `controller/{Validacion,Denuncia}Controller.ts`, `mapper/{Validacion,Denuncia}Mapper.ts`,
-`dao/impl/sequelize/{Validacion,Denuncia}DAOSequelize.ts`, `route/validacion.routes.ts`, `container/validacion.ts`
-(receives M4's `KarmaService`), `exception/validacion/*`, `dto/**/validacion/*`, `enum/EstadoValidacion.ts`.
+`dao/impl/sequelize/{Validacion,Denuncia}DAOSequelize.ts`, `route/validacion.routes.ts`, `container/validacion.ts`,
+`exception/validacion/*`, `dto/**/validacion/*`, `enum/EstadoValidacion.ts`.
 
-Must not touch: `dao/impl/sequelize/ReporteDAOSequelize.ts` and `service/impl/Karma*` (M4), `facade/ModeracionFacade*`
+Must not touch: `dao/impl/sequelize/ReporteDAOSequelize.ts` (M4), `facade/ModeracionFacade*`
 (M6), `container/index.ts` mount order, the delivered migrations.
 
 Shared ports (contract PR required):
 
 - `dao/ReporteDAO.ts`: owner M4. Reviewer: M4. Reads: `buscarPorId`, `listarPendientesDeValidar`. Writes:
   `actualizarConfiabilidad`.
-- `service/KarmaService.ts`: owner M4. Reviewer: M4, M6. Writes: `otorgarPorValidacion`.
 - `dao/DenunciaDAO.ts`: owner M5 (creates what M6 resolves). Reviewer: M6. Reads: `existe`, `contarRecibidasPorAutor`.
   Writes: `crear`.
 
 Delivered (M5-BE-01..03):
 
 - Contract touch (M5-BE-01): new config key `CONFIABILIDAD_MIN_VOTOS_ESTADO` (10; votes before a report is VALIDADO or RECHAZADO).
-  `ValidacionDAO` gained `listarVotosDeReportes(reporteIds)` and `sumarPuntosDelDiaDe(usuarioId, desde)` (daily validation karma cap,
-  under `pg_advisory_xact_lock(usuarioId, 0)`); `ReporteDAO.listarPendientesDeValidar` leaves out the reports the caller already voted
+  `ValidacionDAO` gained `listarVotosDeReportes(reporteIds)` (and a daily-cap sum, removed in CRO-72); `ReporteDAO.listarPendientesDeValidar` leaves out the reports the caller already voted
   on with `NOT EXISTS` over `validacion_reporte`, and `ReporteDAO.buscarPorIdParaActualizar(id, tx)` is `SELECT ... FOR UPDATE`,
   which `ValidacionService.validar` takes before the vote (M5-BE-04).
   Sequelize models `ValidacionModel` and `DenunciaModel` (registered in `initModels`) and both DAOs are in; both Sequelize DAOs map a
@@ -306,14 +310,26 @@ Delivered (M5-BE-01..03):
   `consultarEstadoMisReportes`); `ConfiabilidadReporte` adds raw counts and the derived `EstadoValidacion` to `ResultadoConfiabilidad`
   (`derivarEstadoValidacion`). New exceptions `ReporteNoEncontradoException`, `AutovalidacionException`,
   `ValidacionDuplicadaException`, `AutodenunciaException`, `DenunciaDuplicadaException` (codes were already frozen).
-  `container/validacion.ts` exports `crearEstrategiaConfiabilidad`, `construirServiciosValidacion` and `DaosValidacion`; the karma
-  service is the one `construirServiciosReporte` builds.
+  `container/validacion.ts` exports `crearEstrategiaConfiabilidad`, `construirServiciosValidacion` and `DaosValidacion`.
 - Contract touch (M5-BE-03): `ensamblar` takes `opciones.validacion` (`DaosValidacion`, in memory in `crearContenedorPrueba`); the
   mount order is unchanged. `GET /reportes/mios/validacion` moved from `reporte.routes.ts` to `validacion.routes.ts` (declared before
   `/reportes/:id`; the report router is still mounted first). `crearValidacionRouter` takes both controllers and the pendientes defaults.
 - The `tipoAccion` body key is kept from the design (not `veredicto`). `listarPendientes` loads the newest 500 candidates of the nearby places
   and orders them by distance in the service (the distance lives on the place); no `LugarDAO` change.
 - Tests: `test/validacion/` (strategies white box, services unit, `pendientes.blackbox`, `validaciones.api`, container wiring).
+- Contract touch (CRO-72): points and tier are computed, never stored. `PuntajeDAO.contarAportes(usuarioIds, regla)` counts, in one
+  statement, the own ACTIVO reports that are VALIDADO and the votes whose `tipo_accion` matches the state of an ACTIVO report;
+  `listarValidados(reporteIds, regla)` gives the points of `GET /api/reportes/mios`. The SQL state rule is `sqlEstadoValidacion`, the twin
+  of `estadoValidacionPorConteo`; `test/dao/PuntajeDAO.contract.ts` runs on memory (the TS rule) and PostgreSQL, so both agree.
+  `PuntajeService` is built once by `construirInfraestructura` (`infra.puntajeService`) from `reglaEstadoValidacion(cfg)`, the only
+  reader of the `CONFIABILIDAD_*` keys, and is read by the account (M1), report (M4) and admin (M6) streams. Tier thresholds live in
+  `entity/puntaje.ts` (`UMBRALES_TIER`).
+- Contract touch (C7): `ResultadoValidacion` adds `usuario: Puntaje` and `ValidacionServiceImpl` takes `infra.puntajeService`; `validar`
+  reads the voter's points with `obtener(usuarioId, tx)` inside the vote's transaction, after the insert, so `POST /reportes/:id/validaciones`
+  answers `data.usuario: { puntos, tier }` with this vote counted (a failing read rolls the vote back).
+- Contract touch (C8): `ReportePendiente` and `DetalleReporte` add `tierAutor: Tier` (nothing else about the author); `listarPendientes`
+  reads the authors of the page with one `obtenerVarios` (no N+1, `test/validacion/pendientes.consultas.contract.test.ts`) and
+  `obtenerReporte` with `obtener`. `ValidacionMapper` answers `autor: { tier }` on both; the author's id, name and email never leave.
 
 How to run tests: `npm test` (strategies and services with `ValidacionDAOMemoria`, `DenunciaDAOMemoria`);
 `npm run test:db` with `DATABASE_URL_TEST` runs both Sequelize DAOs through `ejecutarContratoDAO`; the denuncia
@@ -339,12 +355,12 @@ Owned files: `facade/ModeracionFacade*`, `service/impl/VerificadorEstadoCuentaIm
 `route/moderacion.routes.ts`, `container/moderacion.ts`, `exception/moderacion/*`, `dto/**/moderacion/*`.
 `SancionUsuario.dias` is `DiasSuspension` (3, 7 or 30) and `tipo` is the `TipoSancion` enum.
 
-Must not touch: `service/impl/Karma*` and `service/impl/Saturacion*` (M4; call the ports), `dao/impl/sequelize/DenunciaDAOSequelize.ts`
+Must not touch: `service/impl/Saturacion*` (M4; call the port), `dao/impl/sequelize/DenunciaDAOSequelize.ts`
 (M5), `middleware/autenticar.ts`, `container/index.ts` mount order, the delivered migrations.
 
 Shared ports (contract PR required):
 
-- `service/KarmaService.ts`: owner M4. Reviewer: M4, M5. Writes: `revocarPorReporteEliminado`.
+- `service/PuntajeService.ts`: owner M5. Reviewer: M5. Reads: `obtener`, `obtenerVarios` (one read per directory page).
 - `service/SaturacionService.ts`: owner M4. Reviewer: M4. Writes: `recalcular`.
 - `dao/ReporteDAO.ts`: owner M4. Reviewer: M4, M5. Writes: `actualizarEstado`.
 - `dao/DenunciaDAO.ts`: owner M5. Reviewer: M5. Reads: `listarReportesConPendientes`, `resumirMotivos`. Writes:

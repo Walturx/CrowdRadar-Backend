@@ -8,6 +8,7 @@ import type { SancionDAO } from '../../dao/SancionDAO.js';
 import type { FiltroUsuarios, UsuarioDAO } from '../../dao/UsuarioDAO.js';
 import type { ConexionBD, ContextoTx } from '../../datasource/ConexionBD.js';
 import type { DiasSuspension, SancionUsuario } from '../../entity/SancionUsuario.js';
+import type { Puntaje } from '../../entity/puntaje.js';
 import type { Usuario } from '../../entity/Usuario.js';
 import { EstadoCuenta } from '../../enum/EstadoCuenta.js';
 import { EstadoDenuncia } from '../../enum/EstadoDenuncia.js';
@@ -22,7 +23,7 @@ import { ReporteNoEncontradoException } from '../../exception/reporte/ReporteNoE
 import { UsuarioNoEncontradoException } from '../../exception/usuario/UsuarioNoEncontradoException.js';
 import { crearEventoSaturacion } from '../../pattern/observer/SaturacionCambiadaEvento.js';
 import type { SaturacionSubject } from '../../pattern/observer/SaturacionSubject.js';
-import type { KarmaService } from '../../service/KarmaService.js';
+import type { PuntajeService } from '../../service/PuntajeService.js';
 import type { SaturacionService } from '../../service/SaturacionService.js';
 import type { Logger } from '../../util/logger.js';
 import type { Reloj } from '../../util/Reloj.js';
@@ -45,7 +46,8 @@ export interface DependenciasModeracionFacade {
   lugarDAO: LugarDAO;
   /** Batch read of report, place and author for the review queue; defaults to composing the three DAOs above. */
   contextoReporteDAO?: ContextoReporteDAO;
-  karmaService: KarmaService;
+  /** Points and tier of the directory: one read per page. */
+  puntajeService: PuntajeService;
   saturacionService: SaturacionService;
   subject: SaturacionSubject;
   correo: EnviadorCorreo;
@@ -124,18 +126,20 @@ export class ModeracionFacadeImpl implements ModeracionFacade {
     logger.info({ usuarioId, adminId }, 'Usuario reactivado');
   }
 
+  /** The points of the whole page come from one read (`obtenerVarios`), never one per user. */
   async listarUsuarios(filtro: FiltroUsuarios, paginacion: Paginacion): Promise<Pagina<UsuarioModerado>> {
     const pagina = await this.deps.usuarioDAO.listar(filtro, paginacion);
-    const items = await Promise.all(pagina.items.map((usuario) => this.conSancion(usuario)));
+    const puntajes = await this.deps.puntajeService.obtenerVarios(pagina.items.map((u) => u.id));
+    const items = await Promise.all(pagina.items.map((usuario) => this.conSancion(usuario, puntajes.get(usuario.id)!)));
     return { ...pagina, items };
   }
 
   async obtenerUsuario(usuarioId: number): Promise<DetalleUsuarioModerado> {
-    const { usuarioDAO, reporteDAO, denunciaDAO } = this.deps;
+    const { usuarioDAO, reporteDAO, denunciaDAO, puntajeService } = this.deps;
     const usuario = await usuarioDAO.buscarPorId(usuarioId);
     if (!usuario) throw new UsuarioNoEncontradoException();
     const [moderado, publicados, reportesDenunciados] = await Promise.all([
-      this.conSancion(usuario),
+      puntajeService.obtener(usuarioId).then((puntaje) => this.conSancion(usuario, puntaje)),
       reporteDAO.listarPorUsuario(usuarioId, { page: 1, size: 1 }),
       denunciaDAO.contarRecibidasPorAutor(usuarioId),
     ]);
@@ -143,10 +147,10 @@ export class ModeracionFacadeImpl implements ModeracionFacade {
   }
 
   /** The live sanction is only looked up for suspended accounts (the only ones that can have one). */
-  private async conSancion(usuario: Usuario): Promise<UsuarioModerado> {
+  private async conSancion(usuario: Usuario, puntaje: Puntaje): Promise<UsuarioModerado> {
     const sancionVigente =
       usuario.status === EstadoCuenta.SUSPENDIDO ? await this.deps.sancionDAO.buscarVigente(usuario.id, this.deps.reloj.ahora()) : null;
-    return { usuario, sancionVigente };
+    return { usuario, puntaje, sancionVigente };
   }
 
   /**
@@ -188,7 +192,7 @@ export class ModeracionFacadeImpl implements ModeracionFacade {
   }
 
   async resolverDenuncias(adminId: number, reporteId: number, decision: DecisionModeracion, comentario: string | null): Promise<ResultadoResolucion> {
-    const { denunciaDAO, reporteDAO, lugarDAO, karmaService, saturacionService, conexion, reloj, logger } = this.deps;
+    const { denunciaDAO, reporteDAO, lugarDAO, saturacionService, conexion, reloj, logger } = this.deps;
     const { reporte } = await this.contextoDe(reporteId);
     const eliminar = decision === 'ELIMINAR';
     const ahora = reloj.ahora();
@@ -205,7 +209,6 @@ export class ModeracionFacadeImpl implements ModeracionFacade {
       if (total === 0) throw new SinDenunciasPendientesException();
       if (!eliminar) return { resueltas: total, cambio: null };
       await reporteDAO.actualizarEstado(reporteId, EstadoReporte.ELIMINADO, tx);
-      await karmaService.revocarPorReporteEliminado(reporteId, tx);
       return { resueltas: total, cambio: await saturacionService.recalcular(reporte.lugarId, tx, bloqueado ?? undefined) };
     });
 

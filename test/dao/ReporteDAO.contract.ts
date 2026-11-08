@@ -7,7 +7,6 @@ import { ForeignKeyConstraintError } from 'sequelize';
 import type { ReporteDAO } from '../../src/dao/ReporteDAO.js';
 import { EstadoReporte } from '../../src/enum/EstadoReporte.js';
 import { FiltroDias } from '../../src/enum/FiltroDias.js';
-import { MotivoSinPuntos } from '../../src/enum/MotivoSinPuntos.js';
 import { NivelSaturacion } from '../../src/enum/NivelSaturacion.js';
 import { casosPaginacion } from './paginacion.contract.js';
 import { ID_INEXISTENTE, type Sembrador } from './Sembrador.js';
@@ -45,17 +44,17 @@ export function contratoReporteDAO(nombre: string, crearEntorno: () => Promise<E
     });
 
     describe('crear / buscarPorId / actualizarEstado / actualizarConfiabilidad', () => {
-      it('crea ACTIVO sin puntos ni confiabilidad y se recupera por id', async () => {
+      it('crea ACTIVO sin confiabilidad y se recupera por id; la entidad ya no lleva puntos (CRO-72)', async () => {
         const creado = await crear(NivelSaturacion.SATURADO, T0);
         expect(creado).toMatchObject({
           usuarioId,
           lugarId,
           nivelSaturacion: 'SATURADO',
           estado: 'ACTIVO',
-          puntosOtorgados: 0,
-          motivoSinPuntos: null,
           nivelConfiabilidad: null,
         });
+        expect(creado).not.toHaveProperty('puntosOtorgados');
+        expect(creado).not.toHaveProperty('motivoSinPuntos');
         expect(creado.fechaHora).toEqual(T0);
         expect((await dao.buscarPorId(creado.id))?.id).toBe(creado.id);
         expect(await dao.buscarPorId(creado.id + 1000)).toBeNull();
@@ -108,29 +107,12 @@ export function contratoReporteDAO(nombre: string, crearEntorno: () => Promise<E
       });
     });
 
-    describe('registrarPuntos / contarPremiadosDeUsuarioDesde', () => {
-      it('cuenta solo reportes del usuario con puntos desde la fecha', async () => {
-        const premiado = await crear(NivelSaturacion.TRANQUILO, T0);
-        const sinPuntos = await crear(NivelSaturacion.TRANQUILO, desplazar(T0, 1));
-        const viejo = await crear(NivelSaturacion.TRANQUILO, desplazar(T0, -1500));
-        await dao.registrarPuntos(premiado.id, 10, null);
-        await dao.registrarPuntos(sinPuntos.id, 0, MotivoSinPuntos.TOPE_DIARIO);
-        await dao.registrarPuntos(viejo.id, 10, null);
-        expect(await dao.contarPremiadosDeUsuarioDesde(usuarioId, desplazar(T0, -60))).toBe(1);
-        expect(await dao.contarPremiadosDeUsuarioDesde(usuarioId, desplazar(T0, -2000))).toBe(2);
-        expect((await dao.buscarPorId(sinPuntos.id))?.motivoSinPuntos).toBe('TOPE_DIARIO');
-      });
-
-      it('registrarPuntos devuelve null si el reporte no existe', async () => {
-        expect(await dao.registrarPuntos(424242, 10, null)).toBeNull();
-      });
-
+    describe('modificar (actualizarConfiabilidad / actualizarEstado)', () => {
       it('un valor undefined (un caller JS sin tipos) deja la columna como estaba en vez de fallar o borrarla', async () => {
         const reporte = await crear(NivelSaturacion.TRANQUILO, T0);
-        await dao.registrarPuntos(reporte.id, 0, MotivoSinPuntos.TOPE_DIARIO);
-        const actualizado = await dao.registrarPuntos(reporte.id, 5, undefined as unknown as null);
-        expect(actualizado).toMatchObject({ id: reporte.id, puntosOtorgados: 5, motivoSinPuntos: 'TOPE_DIARIO' });
-        expect(await dao.buscarPorId(reporte.id)).toMatchObject({ puntosOtorgados: 5, motivoSinPuntos: 'TOPE_DIARIO' });
+        await dao.actualizarConfiabilidad(reporte.id, 40);
+        expect(await dao.actualizarEstado(reporte.id, undefined as unknown as EstadoReporte)).toMatchObject({ id: reporte.id, nivelConfiabilidad: 40 });
+        expect(await dao.buscarPorId(reporte.id)).toMatchObject({ estado: 'ACTIVO', nivelConfiabilidad: 40 });
       });
 
       it('sin nada que cambiar (solo undefined) no escribe: devuelve la fila tal cual, o null si no existe', async () => {

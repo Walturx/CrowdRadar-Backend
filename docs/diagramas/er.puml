@@ -1,5 +1,6 @@
 @startuml er
-' Diagrama entidad-relacion derivado de database/migrations/*.cjs (migraciones 01-10, 12 y 13).
+' Diagrama entidad-relacion derivado de database/migrations/*.cjs (migraciones 01-10, 12, 13 y 15; la 15 retira las
+' columnas de puntos que CRO-72 dejo de usar).
 ' Notacion: * = NOT NULL, <<PK>>, <<FK>>, <<UQ>>. Todas las tablas tienen created_at / updated_at TIMESTAMPTZ NOT NULL.
 skinparam monochrome true
 skinparam shadowing false
@@ -21,7 +22,6 @@ entity "usuario" as usuario {
   distrito : VARCHAR(60)
   * rol : VARCHAR(10) = 'USUARIO' {USUARIO, ADMIN}
   * status : VARCHAR(12) = 'ACTIVO' {ACTIVO, SUSPENDIDO}
-  * puntos_karma : INTEGER = 0 (>= 0)
   password_cambiada_en : TIMESTAMPTZ (mig. 12)
   --
   CHECK email = lower(email)
@@ -59,8 +59,6 @@ entity "reporte_saturacion" as reporte {
   * fecha_hora : TIMESTAMPTZ = now()
   nivel_confiabilidad : NUMERIC(5,2) (0-100)
   * estado : VARCHAR(10) = 'ACTIVO' {ACTIVO, ELIMINADO}
-  * puntos_otorgados : SMALLINT = 0
-  motivo_sin_puntos : VARCHAR(20) {TOPE_DIARIO, REPORTE_ELIMINADO}
   --
   ix_reporte_lugar_fecha (lugar_id, fecha_hora DESC)
   ix_reporte_usuario_lugar_fecha (usuario_id, lugar_id, fecha_hora DESC)
@@ -73,8 +71,6 @@ entity "validacion_reporte" as validacion {
   * reporte_id : INTEGER <<FK>> CASCADE
   * usuario_id : INTEGER <<FK>> CASCADE
   * tipo_accion : VARCHAR(10) {CONFIRMAR, RECHAZAR}
-  * karma_votante : INTEGER (>= 0)
-  * puntos_otorgados : SMALLINT = 0
   * fecha_hora : TIMESTAMPTZ = now()
   --
   UQ uq_validacion_reporte_usuario (reporte_id, usuario_id)

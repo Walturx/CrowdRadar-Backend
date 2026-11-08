@@ -5,10 +5,15 @@ import { EstadoReporte } from '../../src/enum/EstadoReporte.js';
 import { NivelSaturacion } from '../../src/enum/NivelSaturacion.js';
 import { CodigoError } from '../../src/exception/CodigoError.js';
 import { ReporteEnEsperaException } from '../../src/exception/reporte/ReporteEnEsperaException.js';
+import { TipoAccionValidacion } from '../../src/enum/TipoAccionValidacion.js';
+import { PuntajeServiceImpl } from '../../src/service/impl/PuntajeServiceImpl.js';
 import { ReporteServiceImpl } from '../../src/service/impl/ReporteServiceImpl.js';
 import { RelojFijo } from '../support/RelojFijo.js';
 import { LugarDAOMemoria } from '../support/dao/memoria/LugarDAOMemoria.js';
+import { PuntajeDAOMemoria } from '../support/dao/memoria/PuntajeDAOMemoria.js';
 import { ReporteDAOMemoria } from '../support/dao/memoria/ReporteDAOMemoria.js';
+import { ValidacionDAOMemoria } from '../support/dao/memoria/ValidacionDAOMemoria.js';
+import { puntajeEnMemoria } from '../support/puntajePrueba.js';
 
 const T0 = new Date('2026-10-05T15:00:00Z');
 const TX = {} as ContextoTx;
@@ -19,13 +24,19 @@ describe('ReporteServiceImpl', () => {
   let reloj: RelojFijo;
   let dao: ReporteDAOMemoria;
   let lugarDAO: LugarDAOMemoria;
+  let validaciones: ValidacionDAOMemoria;
   let servicio: ReporteServiceImpl;
 
   beforeEach(() => {
     reloj = new RelojFijo(T0);
     dao = new ReporteDAOMemoria();
     lugarDAO = new LugarDAOMemoria();
-    servicio = new ReporteServiceImpl({ reporteDAO: dao, lugarDAO, reloj, cooldownMin: 30 });
+    validaciones = new ValidacionDAOMemoria();
+    const puntajeService = new PuntajeServiceImpl({
+      puntajeDAO: new PuntajeDAOMemoria({ reportes: dao, validaciones }),
+      regla: { minVotos: 3, umbralAlta: 70, umbralMedia: 40, minVotosEstado: 10 },
+    });
+    servicio = new ReporteServiceImpl({ reporteDAO: dao, lugarDAO, reloj, cooldownMin: 30, puntajeService });
   });
 
   const reportar = (usuarioId = USUARIO, lugarId = LUGAR) => servicio.crear(usuarioId, lugarId, NivelSaturacion.MODERADO, TX);
@@ -74,7 +85,7 @@ describe('ReporteServiceImpl', () => {
     });
 
     it('la ventana sale de la configuracion', async () => {
-      servicio = new ReporteServiceImpl({ reporteDAO: dao, lugarDAO, reloj, cooldownMin: 10 });
+      servicio = new ReporteServiceImpl({ reporteDAO: dao, lugarDAO, reloj, cooldownMin: 10, puntajeService: puntajeEnMemoria(dao) });
       await reportar();
       reloj.avanzarMinutos(10);
       await expect(servicio.validarCooldown(USUARIO, LUGAR, TX)).resolves.toBeUndefined();
@@ -111,6 +122,21 @@ describe('ReporteServiceImpl', () => {
         [a.id, 'Parque Kennedy'],
       ]);
       expect(pagina).toMatchObject({ page: 1, size: 20, total: 2, totalPaginas: 1 });
+    });
+
+    it('cada reporte trae los puntos que da a su autor: 10 si esta VALIDADO, 0 si no', async () => {
+      lugarDAO.agregar({ id: LUGAR, nombre: 'Parque' });
+      const validado = await reportar();
+      reloj.avanzarMinutos(31);
+      const pendiente = await reportar();
+      for (let votante = 100; votante < 110; votante += 1) {
+        await validaciones.crear({ reporteId: validado.id, usuarioId: votante, tipoAccion: TipoAccionValidacion.CONFIRMAR, fechaHora: T0 });
+      }
+      const pagina = await servicio.listarMios(USUARIO, PAGINA);
+      expect(pagina.items.map((i) => [i.reporte.id, i.puntos])).toEqual([
+        [pendiente.id, 0],
+        [validado.id, 10],
+      ]);
     });
 
     it('pagina: la segunda pagina trae el resto y una pagina pasada del final viene vacia con el total real', async () => {

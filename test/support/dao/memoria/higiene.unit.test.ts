@@ -116,7 +116,7 @@ const casos: Caso[] = [
       });
       return {
         creada,
-        campo: 'puntosOtorgados',
+        campo: 'nivelSaturacion',
         releer: () => dao.buscarPorId(creada.id),
         tocar: () => dao.actualizarConfiabilidad(creada.id, 2),
       };
@@ -184,13 +184,11 @@ const casos: Caso[] = [
         reporteId: 9,
         usuarioId: 2,
         tipoAccion: TipoAccionValidacion.CONFIRMAR,
-        karmaVotante: 4,
-        puntosOtorgados: 1,
         fechaHora: FECHA,
       });
       return {
         creada,
-        campo: 'karmaVotante',
+        campo: 'tipoAccion',
         releer: () => dao.buscarPorUsuarioYReporte(2, 9),
         tocar: async () => undefined,
       };

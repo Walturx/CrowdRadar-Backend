@@ -1,11 +1,9 @@
 import type { LugarDAO } from '../../../src/dao/LugarDAO.js';
 import type { ReporteDAO } from '../../../src/dao/ReporteDAO.js';
-import type { UsuarioDAO } from '../../../src/dao/UsuarioDAO.js';
 import type { ConexionBD } from '../../../src/datasource/ConexionBD.js';
 import { ReporteFacadeImpl } from '../../../src/facade/impl/ReporteFacadeImpl.js';
 import type { SaturacionSubject } from '../../../src/pattern/observer/SaturacionSubject.js';
 import { SaturacionUltimoReporteStrategy } from '../../../src/pattern/strategy/saturacion/impl/SaturacionUltimoReporteStrategy.js';
-import { KarmaServiceImpl } from '../../../src/service/impl/KarmaServiceImpl.js';
 import { ReporteServiceImpl } from '../../../src/service/impl/ReporteServiceImpl.js';
 import { SaturacionServiceImpl } from '../../../src/service/impl/SaturacionServiceImpl.js';
 import type { Logger } from '../../../src/util/logger.js';
@@ -16,11 +14,11 @@ import { RelojFijo } from '../RelojFijo.js';
 import { LugarDAOMemoria } from '../dao/memoria/LugarDAOMemoria.js';
 import { ReporteDAOMemoria } from '../dao/memoria/ReporteDAOMemoria.js';
 import { UsuarioDAOMemoria } from '../dao/memoria/UsuarioDAOMemoria.js';
+import { puntajeEnMemoria } from '../puntajePrueba.js';
 
 export const INSTANTE_PRUEBA = new Date('2026-10-05T15:00:00Z');
 
 export interface DependenciasFacadePrueba {
-  usuarioDAO: UsuarioDAO;
   lugarDAO: LugarDAO;
   reporteDAO: ReporteDAO;
   conexion: ConexionBD;
@@ -30,22 +28,14 @@ export interface DependenciasFacadePrueba {
   presupuestoEventosMs?: number;
 }
 
-/** Real services with the production numbers (cooldown 30, +10 karma, cap 5 per day) and the latest-report strategy. */
+/** Real services with the production numbers (cooldown 30) and the latest-report strategy. */
 export function crearFacadePrueba(deps: DependenciasFacadePrueba): ReporteFacadeImpl {
-  const { usuarioDAO, lugarDAO, reporteDAO, conexion, reloj } = deps;
+  const { lugarDAO, reporteDAO, conexion, reloj } = deps;
   return new ReporteFacadeImpl({
     lugarDAO,
     conexion,
-    reporteService: new ReporteServiceImpl({ reporteDAO, lugarDAO, reloj, cooldownMin: 30 }),
-    karmaService: new KarmaServiceImpl({
-      usuarioDAO,
-      reporteDAO,
-      reloj,
-      karmaPorReporte: 10,
-      karmaPorValidacion: 2,
-      reportesPremiadosPorDia: 5,
-      zonaHoraria: 'America/Lima',
-    }),
+    // The facade never lists reports, so the points service of the report service reads its own empty store.
+    reporteService: new ReporteServiceImpl({ reporteDAO, lugarDAO, reloj, cooldownMin: 30, puntajeService: puntajeEnMemoria() }),
     saturacionService: new SaturacionServiceImpl({
       lugarDAO,
       reporteDAO,
@@ -64,12 +54,6 @@ export class ReporteDAOLento extends ReporteDAOMemoria {
   override async crear(...argumentos: Parameters<ReporteDAOMemoria['crear']>) {
     await new Promise<void>((resolver) => setTimeout(resolver, 5));
     return super.crear(...argumentos);
-  }
-
-  /** Also yields before storing the points, so two unserialized karma awards both count the same premiados. */
-  override async registrarPuntos(...argumentos: Parameters<ReporteDAOMemoria['registrarPuntos']>) {
-    await new Promise<void>((resolver) => setTimeout(resolver, 5));
-    return super.registrarPuntos(...argumentos);
   }
 }
 
@@ -94,6 +78,6 @@ export async function armarFacadeConMemoria(
   const usuarioId = (await usuarioDAO.crear({ ...DATOS_USUARIO, email: 'ana@crowdradar.pe' })).id;
   const otroUsuarioId = (await usuarioDAO.crear({ ...DATOS_USUARIO, email: 'luis@crowdradar.pe' })).id;
   const lugarId = lugarDAO.agregar().id;
-  const facade = crearFacadePrueba({ usuarioDAO, lugarDAO, reporteDAO, conexion: new ConexionFalsa(), reloj, subject: opciones.subject });
+  const facade = crearFacadePrueba({ lugarDAO, reporteDAO, conexion: new ConexionFalsa(), reloj, subject: opciones.subject });
   return { facade, usuarioDAO, lugarDAO, reporteDAO, usuarioId, otroUsuarioId, lugarId, reloj };
 }

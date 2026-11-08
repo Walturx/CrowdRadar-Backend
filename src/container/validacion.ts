@@ -10,13 +10,12 @@ import { ConfiabilidadSimpleStrategy } from '../pattern/strategy/confiabilidad/i
 import { limitarIntentos } from '../middleware/limitarIntentos.js';
 import { crearValidacionRouter } from '../route/validacion.routes.js';
 import { DenunciaServiceImpl } from '../service/impl/DenunciaServiceImpl.js';
-import { KarmaServiceImpl } from '../service/impl/KarmaServiceImpl.js';
 import { ValidacionServiceImpl } from '../service/impl/ValidacionServiceImpl.js';
 import type { DenunciaService } from '../service/DenunciaService.js';
 import type { ValidacionService } from '../service/ValidacionService.js';
 import { MS_POR_HORA } from '../util/tiempo.js';
 import type { MontajeRuta } from './Contenedor.js';
-import type { Infraestructura } from './infraestructura.js';
+import { reglaEstadoValidacion, type Infraestructura } from './infraestructura.js';
 
 /** DAOs of the validation stream; tests hand in the in-memory ones, production builds the Sequelize ones. */
 export interface DaosValidacion {
@@ -28,14 +27,9 @@ export function crearDaosValidacionSequelize(): DaosValidacion {
   return { validacionDAO: new ValidacionDAOSequelize(), denunciaDAO: new DenunciaDAOSequelize() };
 }
 
-/** The reliability strategy (every vote weighs 1) with the thresholds of the configuration. */
+/** The reliability strategy (every vote weighs 1) with the thresholds of the configuration (`reglaEstadoValidacion`). */
 export function crearEstrategiaConfiabilidad(cfg: ConfiguracionApp): EstrategiaConfiabilidad {
-  const { confiabilidadMinVotos, confiabilidadUmbralAlta, confiabilidadUmbralMedia } = cfg.reglas;
-  return new ConfiabilidadSimpleStrategy({
-    minVotos: confiabilidadMinVotos,
-    umbralAlta: confiabilidadUmbralAlta,
-    umbralMedia: confiabilidadUmbralMedia,
-  });
+  return new ConfiabilidadSimpleStrategy(reglaEstadoValidacion(cfg));
 }
 
 export interface ServiciosValidacion {
@@ -43,33 +37,23 @@ export interface ServiciosValidacion {
   denunciaService: DenunciaService;
 }
 
-/** Wires the validation and complaint services; the karma service adds the daily cap of validation karma. */
+/**
+ * Wires the validation and complaint services. A vote awards nothing: points are computed when read (CRO-72); the vote
+ * answer reads the voter's points through the shared `infra.puntajeService` (C7).
+ */
 export function construirServiciosValidacion(infra: Infraestructura, daos: DaosValidacion): ServiciosValidacion {
-  const { cfg, reloj, conexion, usuarioDAO, lugarDAO, reporteDAO } = infra;
-  const { reglas } = cfg;
-  const karmaService = new KarmaServiceImpl({
-    usuarioDAO,
-    reporteDAO,
-    reloj,
-    karmaPorReporte: reglas.karmaPorReporte,
-    karmaPorValidacion: reglas.karmaPorValidacion,
-    reportesPremiadosPorDia: reglas.karmaReportesPremiadosDia,
-    zonaHoraria: cfg.servidor.zonaHoraria,
-    validacionDAO: daos.validacionDAO,
-    karmaValidacionMaxDia: reglas.karmaValidacionMaxDia,
-  });
+  const { cfg, reloj, conexion, usuarioDAO, lugarDAO, reporteDAO, puntajeService } = infra;
   return {
     validacionService: new ValidacionServiceImpl({
       ...daos,
       reporteDAO,
       lugarDAO,
       usuarioDAO,
-      karmaService,
+      puntajeService,
       estrategia: crearEstrategiaConfiabilidad(cfg),
       conexion,
       reloj,
-      minVotosEstado: reglas.confiabilidadMinVotosEstado,
-      karmaPorValidacion: reglas.karmaPorValidacion,
+      minVotosEstado: reglaEstadoValidacion(cfg).minVotosEstado,
       limiteLugares: cfg.lugares.limiteMax,
     }),
     denunciaService: new DenunciaServiceImpl({ reporteDAO, denunciaDAO: daos.denunciaDAO, reloj }),

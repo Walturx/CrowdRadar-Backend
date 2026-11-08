@@ -76,13 +76,11 @@ describe('ReporteFacadeImpl.registrar: concurrencia', () => {
     ]);
   });
 
-  it('un usuario reportando en varios lugares a la vez no supera el tope diario de karma (lock por usuario)', async () => {
-    const { facade, usuarioId, lugarId, lugarDAO, reporteDAO, usuarioDAO } = await armarFacadeConMemoria({ insercionLenta: true });
+  it('un usuario reportando en varios lugares a la vez: se registran todos (sin tope diario)', async () => {
+    const { facade, usuarioId, lugarId, lugarDAO, reporteDAO } = await armarFacadeConMemoria({ insercionLenta: true });
     const lugarIds = [lugarId, ...Array.from({ length: 7 }, (_, i) => lugarDAO.agregar({ id: lugarId + 1 + i }).id)];
     const resultados = await Promise.all(lugarIds.map((id) => facade.registrar(usuarioId, id, NivelSaturacion.MODERADO)));
-    expect(resultados.filter((r) => r.karma.puntosGanados > 0)).toHaveLength(5);
-    expect(resultados.filter((r) => r.karma.motivoSinPuntos === 'TOPE_DIARIO')).toHaveLength(3);
-    expect(await reporteDAO.contarPremiadosDeUsuarioDesde(usuarioId, new Date(0))).toBe(5);
-    expect((await usuarioDAO.buscarPorId(usuarioId))?.puntosKarma).toBe(50);
+    expect(resultados.map((r) => r.reporte.lugarId).sort((a, b) => a - b)).toEqual([...lugarIds].sort((a, b) => a - b));
+    expect((await reporteDAO.listarPorUsuario(usuarioId, { page: 1, size: 20 })).total).toBe(8);
   });
 });

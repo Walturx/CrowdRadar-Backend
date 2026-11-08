@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { contextoReporteDesde } from '../../src/dao/ContextoReporteDAO.js';
 import { EstadoCuenta } from '../../src/enum/EstadoCuenta.js';
 import { EstadoReporte } from '../../src/enum/EstadoReporte.js';
+import { TipoAccionValidacion } from '../../src/enum/TipoAccionValidacion.js';
 import { SinDenunciasPendientesException } from '../../src/exception/moderacion/SinDenunciasPendientesException.js';
 import { UsuarioNoSuspendidoException } from '../../src/exception/moderacion/UsuarioNoSuspendidoException.js';
 import { ReporteNoEncontradoException } from '../../src/exception/reporte/ReporteNoEncontradoException.js';
@@ -148,13 +149,24 @@ describe('ModeracionFacadeImpl', () => {
   });
 
   describe('resolverDenuncias (HU 7.1 c3)', () => {
-    it('ELIMINAR: reporte ELIMINADO, denuncias resueltas, karma revocado, saturacion recalculada y evento tras confirmar (S4)', async () => {
+    /** Ten fresh users confirm the report: VALIDADO, worth 10 points to its author. */
+    const validar = async (reporteId: number) => {
+      for (let i = 0; i < 10; i += 1) {
+        await m.validacionDAO.crear({ reporteId, usuarioId: m.usuario().id, tipoAccion: TipoAccionValidacion.CONFIRMAR, fechaHora: AHORA });
+      }
+    };
+    const puntosDe = async (usuarioId: number) => (await m.facade.obtenerUsuario(usuarioId)).puntaje.puntos;
+
+    it('ELIMINAR: reporte ELIMINADO, denuncias resueltas, sus puntos dejan de contar, saturacion recalculada y evento tras confirmar (S4)', async () => {
       const { reporte, lugar, autor } = await m.reporteDenunciado(2);
+      await validar(reporte.id);
+      expect(await puntosDe(autor.id)).toBe(10);
       const resultado = await m.facade.resolverDenuncias(m.admin().id, reporte.id, 'ELIMINAR', 'Contenido falso');
       expect(resultado).toEqual({ reporteId: reporte.id, estado: EstadoReporte.ELIMINADO, denunciasResueltas: 2 });
       expect((await m.reporteDAO.buscarPorId(reporte.id))?.estado).toBe(EstadoReporte.ELIMINADO);
       expect((await m.denunciaDAO.listarReportesConPendientes(pagina)).total).toBe(0);
-      expect(m.karmaService.revocarPorReporteEliminado).toHaveBeenCalledWith(reporte.id, expect.anything());
+      // Nothing is revoked: the removed report simply stops counting (CRO-72).
+      expect(await puntosDe(autor.id)).toBe(0);
       // The place locked for the removal is handed over, so the recompute does not read it again.
       expect(m.saturacionService.recalcular).toHaveBeenCalledWith(lugar.id, expect.anything(), expect.objectContaining({ id: lugar.id }));
       expect(m.subject.eventos).toHaveLength(1);
@@ -162,12 +174,13 @@ describe('ModeracionFacadeImpl', () => {
       expect(m.conexion.transacciones).toBe(1);
     });
 
-    it('MANTENER: el reporte sigue ACTIVO, sin karma ni saturacion ni evento (S5)', async () => {
-      const { reporte } = await m.reporteDenunciado(2);
+    it('MANTENER: el reporte sigue ACTIVO con sus puntos, sin saturacion ni evento (S5)', async () => {
+      const { reporte, autor } = await m.reporteDenunciado(2);
+      await validar(reporte.id);
       const resultado = await m.facade.resolverDenuncias(m.admin().id, reporte.id, 'MANTENER', null);
       expect(resultado).toMatchObject({ estado: EstadoReporte.ACTIVO, denunciasResueltas: 2 });
       expect((await m.denunciaDAO.listarReportesConPendientes(pagina)).total).toBe(0);
-      expect(m.karmaService.revocarPorReporteEliminado).not.toHaveBeenCalled();
+      expect(await puntosDe(autor.id)).toBe(10);
       expect(m.saturacionService.recalcular).not.toHaveBeenCalled();
       expect(m.subject.eventos).toHaveLength(0);
     });
@@ -176,7 +189,7 @@ describe('ModeracionFacadeImpl', () => {
       const { reporte } = await m.reporteDenunciado(0);
       await expect(m.facade.resolverDenuncias(m.admin().id, reporte.id, 'ELIMINAR', null)).rejects.toBeInstanceOf(SinDenunciasPendientesException);
       expect((await m.reporteDAO.buscarPorId(reporte.id))?.estado).toBe(EstadoReporte.ACTIVO);
-      expect(m.karmaService.revocarPorReporteEliminado).not.toHaveBeenCalled();
+      expect(m.saturacionService.recalcular).not.toHaveBeenCalled();
     });
 
     it('reporte inexistente: 404 (S7)', async () => {
