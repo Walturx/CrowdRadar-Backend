@@ -191,8 +191,7 @@ anything else `No hay lugares cercanos que cumplan con los filtros seleccionados
 | POST | /api/reportes/:id/denuncias | auth | real | M5: body `{ motivo: INFORMACION_FALSA | SPAM | CONTENIDO_INAPROPIADO | OTRO, detalle? (<= 280) }`, strict, `detalle` mandatory for `OTRO`; `201 { message: "Denuncia enviada. Gracias por avisar, la revisaremos.", data: { id, reporteId, motivo, detalle, estado: "PENDIENTE", fechaHora } }`; checks in order `404 REPORTE_NO_ENCONTRADO`, `422 AUTODENUNCIA_NO_PERMITIDA`, `400` (`OTRO` without `detalle`), `409 DENUNCIA_DUPLICADA` ("Esta denuncia ya fue registrada."); `429 DEMASIADAS_SOLICITUDES` (`Retry-After`) past `LIMITE_DENUNCIAS` (10) per hour and user; moderation (M6) decides it later |
 
 `confiabilidad` (M5) is `{ porcentaje, nivel, confirmaciones, rechazos, advertencia }`: `confirmaciones`/`rechazos` are raw vote counts; `porcentaje` is
-100 x weighted confirmations / weighted votes with 2 decimals, each vote weighing `1 + min(karma of the voter at vote time, TOPE_KARMA_PESO) / 100`
-(`CONFIABILIDAD_ESTRATEGIA=SIMPLE` weighs every vote 1). Fewer than `CONFIABILIDAD_MIN_VOTOS` (3) votes: `nivel` `INSUFICIENTE` and `porcentaje` null;
+100 x confirmations / votes with 2 decimals (half up), every valid vote weighing 1 whoever casts it. Fewer than `CONFIABILIDAD_MIN_VOTOS` (3) votes: `nivel` `INSUFICIENTE` and `porcentaje` null;
 otherwise `ALTA` from `CONFIABILIDAD_UMBRAL_ALTA` (70), `MEDIA` from `CONFIABILIDAD_UMBRAL_MEDIA` (40), else `BAJA`, with `advertencia`
 "Este reporte tiene pocas confirmaciones. Tómalo con precaución." (null for the other levels). `estadoValidacion` is derived, not stored: `SIN_VALIDACIONES` (no votes),
 `VALIDADO` (at least `CONFIABILIDAD_MIN_VOTOS_ESTADO` (10) votes and `ALTA`), `RECHAZADO` (same votes and `BAJA`), otherwise `EN_VALIDACION`.
