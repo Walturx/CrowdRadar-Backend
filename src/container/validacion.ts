@@ -6,7 +6,6 @@ import { DenunciaDAOSequelize } from '../dao/impl/sequelize/DenunciaDAOSequelize
 import { ValidacionDAOSequelize } from '../dao/impl/sequelize/ValidacionDAOSequelize.js';
 import type { ValidacionDAO } from '../dao/ValidacionDAO.js';
 import type { EstrategiaConfiabilidad } from '../pattern/strategy/confiabilidad/EstrategiaConfiabilidad.js';
-import { ConfiabilidadPonderadaKarmaStrategy } from '../pattern/strategy/confiabilidad/impl/ConfiabilidadPonderadaKarmaStrategy.js';
 import { ConfiabilidadSimpleStrategy } from '../pattern/strategy/confiabilidad/impl/ConfiabilidadSimpleStrategy.js';
 import { limitarIntentos } from '../middleware/limitarIntentos.js';
 import { crearValidacionRouter } from '../route/validacion.routes.js';
@@ -29,13 +28,14 @@ export function crearDaosValidacionSequelize(): DaosValidacion {
   return { validacionDAO: new ValidacionDAOSequelize(), denunciaDAO: new DenunciaDAOSequelize() };
 }
 
-/** Strategy variant named by CONFIABILIDAD_ESTRATEGIA, with the thresholds of the configuration. */
-export function elegirEstrategiaConfiabilidad(cfg: ConfiguracionApp): EstrategiaConfiabilidad {
-  const { confiabilidadEstrategia, confiabilidadMinVotos, confiabilidadUmbralAlta, confiabilidadUmbralMedia, topeKarmaPeso } =
-    cfg.reglas;
-  const umbrales = { minVotos: confiabilidadMinVotos, umbralAlta: confiabilidadUmbralAlta, umbralMedia: confiabilidadUmbralMedia };
-  if (confiabilidadEstrategia === 'SIMPLE') return new ConfiabilidadSimpleStrategy(umbrales);
-  return new ConfiabilidadPonderadaKarmaStrategy({ ...umbrales, topeKarmaPeso });
+/** The reliability strategy (every vote weighs 1) with the thresholds of the configuration. */
+export function crearEstrategiaConfiabilidad(cfg: ConfiguracionApp): EstrategiaConfiabilidad {
+  const { confiabilidadMinVotos, confiabilidadUmbralAlta, confiabilidadUmbralMedia } = cfg.reglas;
+  return new ConfiabilidadSimpleStrategy({
+    minVotos: confiabilidadMinVotos,
+    umbralAlta: confiabilidadUmbralAlta,
+    umbralMedia: confiabilidadUmbralMedia,
+  });
 }
 
 export interface ServiciosValidacion {
@@ -65,7 +65,7 @@ export function construirServiciosValidacion(infra: Infraestructura, daos: DaosV
       lugarDAO,
       usuarioDAO,
       karmaService,
-      estrategia: elegirEstrategiaConfiabilidad(cfg),
+      estrategia: crearEstrategiaConfiabilidad(cfg),
       conexion,
       reloj,
       minVotosEstado: reglas.confiabilidadMinVotosEstado,

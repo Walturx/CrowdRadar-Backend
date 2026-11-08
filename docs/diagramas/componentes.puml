@@ -57,7 +57,7 @@ package "pattern/strategy" as strategy {
   }
   package "confiabilidad" {
     interface "EstrategiaConfiabilidad" as IEstConf
-    component "ConfiabilidadPonderadaKarmaStrategy\nConfiabilidadSimpleStrategy" as estConf
+    component "ConfiabilidadSimpleStrategy\n(every vote weighs 1)" as estConf
   }
 }
 

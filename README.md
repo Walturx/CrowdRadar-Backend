@@ -253,7 +253,7 @@ finds nothing; `rg "console\.log" src` finds nothing.
 | Mapper | `mapper/*Mapper` (entity -> response DTO), one per module |
 | Service Layer | `service/*Service` interfaces with `service/impl/*Impl`; controllers never touch DAOs |
 | Facade | `RecuperacionFacadeImpl` (M1), `ReporteFacadeImpl` (M4: one transaction for cooldown, report, karma and saturation), `ModeracionFacadeImpl` (M6) |
-| Strategy | `EstrategiaSaturacion` (`SaturacionPonderadaStrategy`, `SaturacionUltimoReporteStrategy`, chosen by `SATURACION_ESTRATEGIA`) and `EstrategiaConfiabilidad` (`ConfiabilidadPonderadaKarmaStrategy`, `ConfiabilidadSimpleStrategy`, chosen by `CONFIABILIDAD_ESTRATEGIA`) |
+| Strategy | `EstrategiaSaturacion` (`SaturacionPonderadaStrategy`, `SaturacionUltimoReporteStrategy`, chosen by `SATURACION_ESTRATEGIA`) and `EstrategiaConfiabilidad` (`ConfiabilidadSimpleStrategy`: every valid vote weighs 1) |
 | Observer | `PublicadorSaturacion` (subject) publishes `SaturacionCambiadaEvento` after a report commit (`ReporteFacadeImpl`) or a moderation change (`ModeracionFacadeImpl`); `AlertaFavoritosObserver` is subscribed in `container/favoritoAlerta.ts` |
 | composition root | `container/`: manual DI; each stream edits only its own builder; `crearContenedorPrueba` reuses it with fakes |
 
@@ -336,12 +336,10 @@ or missing value prints every offending key (never its value) and exits with cod
 | `SATURACION_MIN_REPORTES` | Minimum reports to compute saturation (3) |
 | `SATURACION_UMBRAL_MODERADO` | Weighted average threshold for MODERADO (1.67) |
 | `SATURACION_UMBRAL_SATURADO` | Weighted average threshold for SATURADO (2.34) |
-| `CONFIABILIDAD_ESTRATEGIA` | `PONDERADA_KARMA` or `SIMPLE` (PONDERADA_KARMA) |
 | `CONFIABILIDAD_MIN_VOTOS` | Minimum votes for a reliability level (3) |
 | `CONFIABILIDAD_UMBRAL_ALTA` | Percentage for ALTA (70) |
 | `CONFIABILIDAD_UMBRAL_MEDIA` | Percentage for MEDIA (40) |
 | `CONFIABILIDAD_MIN_VOTOS_ESTADO` | Votes before a report is VALIDADO or RECHAZADO (10) |
-| `TOPE_KARMA_PESO` | Karma cap when weighting votes (500) |
 | `RADIO_BUSQUEDA_KM` | Default exploration radius in km (2) |
 | `RADIO_PENDIENTES_KM` | Radius for reports pending validation in km (5) |
 | `VENTANA_PENDIENTES_HORAS` | Window for pending reports in hours, 1-24 (3) |

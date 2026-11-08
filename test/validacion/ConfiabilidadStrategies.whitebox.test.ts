@@ -1,40 +1,37 @@
-/** White-box tests of the reliability strategies and of the derived estadoValidacion (spec M5 R2, S5-S7). */
+/** White-box tests of the reliability strategy (uniform weight, CRO-73) and of the derived estadoValidacion (spec M5 R2, S5-S7). */
 import { describe, expect, it } from 'vitest';
 import { NivelConfiabilidad } from '../../src/enum/NivelConfiabilidad.js';
 import { EstadoValidacion } from '../../src/enum/EstadoValidacion.js';
 import { TipoAccionValidacion } from '../../src/enum/TipoAccionValidacion.js';
 import type { VotoConfiabilidad } from '../../src/pattern/strategy/confiabilidad/EstrategiaConfiabilidad.js';
 import { derivarEstadoValidacion } from '../../src/pattern/strategy/confiabilidad/derivarEstadoValidacion.js';
-import { ConfiabilidadPonderadaKarmaStrategy } from '../../src/pattern/strategy/confiabilidad/impl/ConfiabilidadPonderadaKarmaStrategy.js';
 import { ConfiabilidadSimpleStrategy } from '../../src/pattern/strategy/confiabilidad/impl/ConfiabilidadSimpleStrategy.js';
 
-const OPCIONES = { minVotos: 3, umbralAlta: 70, umbralMedia: 40, topeKarmaPeso: 500 };
+const UMBRALES = { minVotos: 3, umbralAlta: 70, umbralMedia: 40 };
 const C = TipoAccionValidacion.CONFIRMAR;
 const R = TipoAccionValidacion.RECHAZAR;
 
-const voto = (tipoAccion: TipoAccionValidacion, karmaVotante = 0): VotoConfiabilidad => ({ tipoAccion, karmaVotante });
-const repetir = (n: number, tipo: TipoAccionValidacion, karma = 0) => Array.from({ length: n }, () => voto(tipo, karma));
+const voto = (tipoAccion: TipoAccionValidacion): VotoConfiabilidad => ({ tipoAccion });
+const repetir = (n: number, tipo: TipoAccionValidacion) => Array.from({ length: n }, () => voto(tipo));
 
-describe('ConfiabilidadPonderadaKarmaStrategy.calcular', () => {
-  const estrategia = new ConfiabilidadPonderadaKarmaStrategy(OPCIONES);
+describe('ConfiabilidadSimpleStrategy.calcular', () => {
+  const estrategia = new ConfiabilidadSimpleStrategy(UMBRALES);
 
   it('sin votos es INSUFICIENTE y no tiene porcentaje', () => {
     expect(estrategia.calcular([])).toEqual({ nivel: NivelConfiabilidad.INSUFICIENTE, porcentaje: null, votos: 0 });
   });
 
   it('con menos votos que el minimo es INSUFICIENTE aunque todos confirmen', () => {
-    expect(estrategia.calcular(repetir(2, C, 900))).toEqual({
-      nivel: NivelConfiabilidad.INSUFICIENTE,
-      porcentaje: null,
-      votos: 2,
-    });
+    expect(estrategia.calcular(repetir(2, C))).toEqual({ nivel: NivelConfiabilidad.INSUFICIENTE, porcentaje: null, votos: 2 });
   });
 
   it('exactamente el minimo de votos ya calcula', () => {
     expect(estrategia.calcular(repetir(3, C)).nivel).toBe(NivelConfiabilidad.ALTA);
   });
 
-  it('karma 0 pesa 1: 5 confirman y 8 rechazan dan 38.46 BAJA', () => {
+  it('cada voto pesa 1: el porcentaje es confirmaciones / votos', () => {
+    expect(estrategia.calcular([voto(C), voto(R), voto(R), voto(R)])).toEqual({ nivel: NivelConfiabilidad.BAJA, porcentaje: 25, votos: 4 });
+    // 5 confirman y 8 rechazan: 38.46 BAJA
     expect(estrategia.calcular([...repetir(5, C), ...repetir(8, R)])).toEqual({
       nivel: NivelConfiabilidad.BAJA,
       porcentaje: 38.46,
@@ -43,43 +40,27 @@ describe('ConfiabilidadPonderadaKarmaStrategy.calcular', () => {
   });
 
   it('18 confirman y 3 rechazan dan 85.71 ALTA', () => {
-    expect(estrategia.calcular([...repetir(18, C), ...repetir(3, R)])).toMatchObject({
-      nivel: NivelConfiabilidad.ALTA,
-      porcentaje: 85.71,
-    });
+    expect(estrategia.calcular([...repetir(18, C), ...repetir(3, R)])).toMatchObject({ nivel: NivelConfiabilidad.ALTA, porcentaje: 85.71 });
   });
 
-  it('el karma pesa mas: un voto con karma 100 vale 2', () => {
-    // 2 confirmaciones (peso 1 cada una) contra 1 rechazo de karma 100 (peso 2): 2 de 4 = 50
-    expect(estrategia.calcular([voto(C), voto(C), voto(R, 100)])).toMatchObject({
-      porcentaje: 50,
-      nivel: NivelConfiabilidad.MEDIA,
-    });
-  });
-
-  it('el peso se topa en karma 500 (peso 6): 900 pesa lo mismo que 500', () => {
-    const conTope = estrategia.calcular([voto(C, 900), voto(R), voto(R), voto(R)]);
-    const justo = estrategia.calcular([voto(C, 500), voto(R), voto(R), voto(R)]);
-    expect(conTope.porcentaje).toBe(66.67); // 6 / 9
-    expect(conTope).toEqual(justo);
-  });
-
-  it('un karma negativo no resta peso (se trata como 0)', () => {
-    expect(estrategia.calcular([voto(C, -50), voto(C), voto(C)]).porcentaje).toBe(100);
-  });
-
-  it('el borde 70 es ALTA y 69.99 es MEDIA', () => {
+  it('el borde 70 es ALTA y 69.57 es MEDIA', () => {
     // 7 de 10 = 70
     expect(estrategia.calcular([...repetir(7, C), ...repetir(3, R)])).toMatchObject({ porcentaje: 70, nivel: 'ALTA' });
-    // 69.57 = 16 de 23
+    // 16 de 23 = 69.57
     expect(estrategia.calcular([...repetir(16, C), ...repetir(7, R)])).toMatchObject({ porcentaje: 69.57, nivel: 'MEDIA' });
   });
 
-  it('el borde 40 es MEDIA y 39.99 es BAJA', () => {
+  it('el borde 40 es MEDIA y 39.13 es BAJA', () => {
     // 2 de 5 = 40
     expect(estrategia.calcular([...repetir(2, C), ...repetir(3, R)])).toMatchObject({ porcentaje: 40, nivel: 'MEDIA' });
     // 9 de 23 = 39.13
     expect(estrategia.calcular([...repetir(9, C), ...repetir(14, R)])).toMatchObject({ porcentaje: 39.13, nivel: 'BAJA' });
+  });
+
+  it('redondea exacto a 2 decimales, la mitad hacia arriba: 6999 de 10000 es 69.99 MEDIA y 39995 de 100000 es 40 MEDIA', () => {
+    expect(estrategia.calcular([...repetir(6999, C), ...repetir(3001, R)])).toMatchObject({ porcentaje: 69.99, nivel: 'MEDIA' });
+    // 39.995 exactly: a two-step float computation gave 39.99 (BAJA); the count-based one gives 40 like the database does.
+    expect(estrategia.calcular([...repetir(39995, C), ...repetir(60005, R)])).toMatchObject({ porcentaje: 40, nivel: 'MEDIA' });
   });
 
   it('todos confirman es 100 ALTA y todos rechazan es 0 BAJA', () => {
@@ -88,33 +69,19 @@ describe('ConfiabilidadPonderadaKarmaStrategy.calcular', () => {
   });
 
   it('clasifica con el porcentaje redondeado que devuelve (66.666 se devuelve 66.67 y alcanza el umbral 66.67)', () => {
-    const afinada = new ConfiabilidadPonderadaKarmaStrategy({ ...OPCIONES, umbralAlta: 66.67 });
-    expect(afinada.calcular([voto(C, 500), voto(R), voto(R), voto(R)])).toMatchObject({ porcentaje: 66.67, nivel: 'ALTA' });
+    const afinada = new ConfiabilidadSimpleStrategy({ ...UMBRALES, umbralAlta: 66.67 });
+    expect(afinada.calcular([voto(C), voto(C), voto(R)])).toMatchObject({ porcentaje: 66.67, nivel: 'ALTA' });
   });
 
   it('respeta los umbrales y el minimo configurados', () => {
-    const estricta = new ConfiabilidadPonderadaKarmaStrategy({ minVotos: 5, umbralAlta: 90, umbralMedia: 60, topeKarmaPeso: 0 });
+    const estricta = new ConfiabilidadSimpleStrategy({ minVotos: 5, umbralAlta: 90, umbralMedia: 60 });
     expect(estricta.calcular(repetir(4, C)).nivel).toBe(NivelConfiabilidad.INSUFICIENTE);
     expect(estricta.calcular([...repetir(8, C), ...repetir(2, R)])).toMatchObject({ nivel: 'MEDIA' });
-    // tope 0: el karma no pesa
-    expect(estricta.calcular([voto(C, 900), ...repetir(4, R)]).porcentaje).toBe(20);
-  });
-});
-
-describe('ConfiabilidadSimpleStrategy.calcular', () => {
-  const estrategia = new ConfiabilidadSimpleStrategy(OPCIONES);
-
-  it('ignora el karma: cada voto pesa 1', () => {
-    expect(estrategia.calcular([voto(C, 900), voto(R), voto(R), voto(R)])).toMatchObject({ porcentaje: 25, nivel: 'BAJA' });
-  });
-
-  it('tambien devuelve INSUFICIENTE bajo el minimo', () => {
-    expect(estrategia.calcular([voto(C), voto(R)])).toEqual({ nivel: 'INSUFICIENTE', porcentaje: null, votos: 2 });
   });
 });
 
 describe('derivarEstadoValidacion', () => {
-  const estrategia = new ConfiabilidadPonderadaKarmaStrategy(OPCIONES);
+  const estrategia = new ConfiabilidadSimpleStrategy(UMBRALES);
   const estado = (confirman: number, rechazan: number, minVotosEstado = 10) =>
     derivarEstadoValidacion(estrategia.calcular([...repetir(confirman, C), ...repetir(rechazan, R)]), minVotosEstado);
 
@@ -135,6 +102,11 @@ describe('derivarEstadoValidacion', () => {
     expect(estado(10, 0)).toBe(EstadoValidacion.VALIDADO);
     expect(estado(0, 9)).toBe(EstadoValidacion.EN_VALIDACION);
     expect(estado(0, 10)).toBe(EstadoValidacion.RECHAZADO);
+  });
+  it('con 10 votos el 70 % ya es VALIDADO y el 40 % sigue EN_VALIDACION (MEDIA)', () => {
+    expect(estado(7, 3)).toBe(EstadoValidacion.VALIDADO);
+    expect(estado(4, 6)).toBe(EstadoValidacion.EN_VALIDACION);
+    expect(estado(3, 7)).toBe(EstadoValidacion.RECHAZADO);
   });
   it('con muchos votos y confiabilidad MEDIA sigue EN_VALIDACION', () => {
     expect(estado(5, 5)).toBe(EstadoValidacion.EN_VALIDACION);
