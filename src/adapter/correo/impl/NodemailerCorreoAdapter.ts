@@ -34,6 +34,8 @@ const ESPERA_MAXIMA_MS = 10_000;
  * Longest wait (ms) for one whole send. The per-step limits above can add up to about 30 s, which is the default
  * SERVIDOR_REQUEST_TIMEOUT_MS, so the suspension request could time out before the mail gives up. Past this deadline
  * the adapter rejects with code ETIMEDOUT; Nodemailer's own socket limits still close the abandoned connection.
+ * Nodemailer cannot cancel one send, so a slow but progressing exchange may still deliver after that rejection. No
+ * caller retries, and a new recovery request only mails another valid link.
  */
 export const PLAZO_TOTAL_ENVIO_MS = 15_000;
 
@@ -63,23 +65,37 @@ export function opcionesTransporteSmtp(smtp: Required<ConfiguracionSmtp>): SMTPT
 export class EnvioCorreoFallidoError extends Error {
   override readonly name = 'EnvioCorreoFallidoError';
 
+  /** `tipoOriginal` is the original error's type (TypeError...) when it carries no Nodemailer code: a triage hint. */
   constructor(
     readonly codigo?: string,
     readonly codigoRespuesta?: number,
+    readonly tipoOriginal?: string,
   ) {
-    super(`El proveedor SMTP no aceptó el correo (código ${codigo ?? 'desconocido'}${codigoRespuesta ? `, respuesta ${codigoRespuesta}` : ''}).`);
+    super(
+      `El proveedor SMTP no aceptó el correo (código ${codigo ?? 'desconocido'}` +
+        `${codigoRespuesta ? `, respuesta ${codigoRespuesta}` : ''}${tipoOriginal ? `, error ${tipoOriginal}` : ''}).`,
+    );
   }
 }
 
 function sinDatosDelDestinatario(error: unknown): EnvioCorreoFallidoError {
   const { code, responseCode } = (typeof error === 'object' && error !== null ? error : {}) as { code?: unknown; responseCode?: unknown };
-  return new EnvioCorreoFallidoError(typeof code === 'string' ? code : undefined, typeof responseCode === 'number' ? responseCode : undefined);
+  const codigo = typeof code === 'string' ? code : undefined;
+  const tipoOriginal = codigo === undefined && error instanceof Error ? error.name : undefined;
+  return new EnvioCorreoFallidoError(codigo, typeof responseCode === 'number' ? responseCode : undefined, tipoOriginal);
 }
 
+/** Trimmed value: a secret pasted with a trailing newline or spaces would otherwise pass here and fail with EAUTH later. */
 function exigir(valor: string | undefined, clave: string): string {
-  if (!valor?.trim()) throw new Error(`CORREO_PROVEEDOR=smtp requiere ${clave}.`);
-  return valor;
+  const limpio = valor?.trim();
+  if (!limpio) throw new Error(`CORREO_PROVEEDOR=smtp requiere ${clave}.`);
+  return limpio;
 }
+
+/** Builds the Nodemailer transport; replaceable so tests can see the options without opening a connection. */
+export type CrearTransporte = (opciones: SMTPTransport.Options) => TransporteCorreo;
+
+const transporteNodemailer: CrearTransporte = (opciones) => nodemailer.createTransport(opciones);
 
 /**
  * Pattern: Adapter. Owner: M1. Real mail provider (CORREO_PROVEEDOR=smtp) over any SMTP server; the demo uses
@@ -94,14 +110,14 @@ export class NodemailerCorreoAdapter implements EnviadorCorreo {
   ) {}
 
   /** Validates the settings (fail-fast at assembly). Creating the transport opens no connection: the first send does. */
-  static desdeSmtp(smtp: ConfiguracionSmtp, remitente: string): NodemailerCorreoAdapter {
+  static desdeSmtp(smtp: ConfiguracionSmtp, remitente: string, crearTransporte: CrearTransporte = transporteNodemailer): NodemailerCorreoAdapter {
     const completa = {
       host: exigir(smtp.host, 'SMTP_HOST'),
       puerto: smtp.puerto,
       usuario: exigir(smtp.usuario, 'SMTP_USUARIO'),
       password: exigir(smtp.password, 'SMTP_PASSWORD'),
     };
-    return new NodemailerCorreoAdapter(nodemailer.createTransport(opcionesTransporteSmtp(completa)), remitente);
+    return new NodemailerCorreoAdapter(crearTransporte(opcionesTransporteSmtp(completa)), remitente);
   }
 
   async enviar(mensaje: MensajeCorreo): Promise<void> {
