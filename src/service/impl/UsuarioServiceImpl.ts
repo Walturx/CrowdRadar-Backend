@@ -8,6 +8,7 @@ import { PasswordActualIncorrectaException } from '../../exception/usuario/Passw
 import { PasswordRepetidaException } from '../../exception/usuario/PasswordRepetidaException.js';
 import { UsuarioNoEncontradoException } from '../../exception/usuario/UsuarioNoEncontradoException.js';
 import { UsuarioMapper } from '../../mapper/UsuarioMapper.js';
+import type { PuntajeService } from '../PuntajeService.js';
 import type { UsuarioService } from '../UsuarioService.js';
 
 export interface DependenciasUsuarioService {
@@ -15,6 +16,8 @@ export interface DependenciasUsuarioService {
   hasher: Hasher;
   /** A password change ends the push sessions: the user's devices are deleted. */
   dispositivoDAO: DispositivoDAO;
+  /** Points and tier shown with the profile. */
+  puntajeService: PuntajeService;
 }
 
 export class UsuarioServiceImpl implements UsuarioService {
@@ -23,13 +26,13 @@ export class UsuarioServiceImpl implements UsuarioService {
   async obtenerPerfil(usuarioId: number): Promise<PerfilResponseDTO> {
     const usuario = await this.deps.usuarioDAO.buscarPorId(usuarioId);
     if (!usuario) throw new UsuarioNoEncontradoException();
-    return UsuarioMapper.aPerfil(usuario);
+    return UsuarioMapper.aPerfil(usuario, await this.deps.puntajeService.obtener(usuarioId));
   }
 
   async actualizarPerfil(usuarioId: number, dto: ActualizarPerfilRequestDTO): Promise<PerfilResponseDTO> {
     const usuario = await this.deps.usuarioDAO.actualizarPerfil(usuarioId, dto);
     if (!usuario) throw new UsuarioNoEncontradoException();
-    return UsuarioMapper.aPerfil(usuario);
+    return UsuarioMapper.aPerfil(usuario, await this.deps.puntajeService.obtener(usuarioId));
   }
 
   async cambiarPassword(usuarioId: number, dto: CambiarPasswordRequestDTO): Promise<void> {

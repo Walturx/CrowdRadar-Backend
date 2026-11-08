@@ -132,8 +132,10 @@ describe('docs/contratos-streams.md: notas de integracion de M3 y M4', () => {
   });
 
   it('M4 declara la fachada y las estrategias como Observer/Strategy con duenio M4 y nombra los bloqueos', () => {
-    expect(seccion('M4')).toMatch(/pg_advisory_xact_lock\(usuarioId, 0\)/);
+    expect(seccion('M4')).toMatch(/pg_advisory_xact_lock\(usuarioId, lugarId\)/);
     expect(seccion('M4')).toMatch(/FOR UPDATE/);
+    // The per-user lock of the daily cap is gone with the cap (CRO-72).
+    expect(seccion('M4')).not.toMatch(/pg_advisory_xact_lock\(usuarioId, 0\)/);
   });
 
   it('M3 documenta los cambios incompatibles de AlertaService y el puerto DispositivoService', () => {

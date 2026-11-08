@@ -7,8 +7,6 @@ export class ValidacionModel extends Model<InferAttributes<ValidacionModel>, Inf
   declare reporteId: number;
   declare usuarioId: number;
   declare tipoAccion: string;
-  declare karmaVotante: number;
-  declare puntosOtorgados: number;
   declare fechaHora: Date;
   declare createdAt: CreationOptional<Date>;
   declare updatedAt: CreationOptional<Date>;
@@ -21,8 +19,6 @@ export function initValidacionModel(sequelize: Sequelize): void {
       reporteId: { type: DataTypes.INTEGER, allowNull: false },
       usuarioId: { type: DataTypes.INTEGER, allowNull: false },
       tipoAccion: { type: DataTypes.STRING(10), allowNull: false },
-      karmaVotante: { type: DataTypes.INTEGER, allowNull: false },
-      puntosOtorgados: { type: DataTypes.SMALLINT, allowNull: false, defaultValue: 0 },
       fechaHora: { type: DataTypes.DATE, allowNull: false },
       createdAt: DataTypes.DATE,
       updatedAt: DataTypes.DATE,

@@ -3,7 +3,7 @@ import type { Usuario } from '../entity/Usuario.js';
 import type { EstadoCuenta } from '../enum/EstadoCuenta.js';
 import type { Pagina, Paginacion } from './Paginacion.js';
 
-/** Data needed to create an account; rol, status and karma take the domain defaults. */
+/** Data needed to create an account; rol and status take the domain defaults. */
 export interface NuevoUsuario {
   nombre: string;
   apellido: string;
@@ -21,7 +21,7 @@ export interface DatosPerfil {
   distrito?: string | null;
 }
 
-export type OrdenUsuarios = 'RECIENTES' | 'NOMBRE' | 'KARMA';
+export type OrdenUsuarios = 'RECIENTES' | 'NOMBRE';
 
 /** Admin listing filter (M6): free text over nombre, apellido and email, plus account status. */
 export interface FiltroUsuarios {
@@ -46,8 +46,6 @@ export interface UsuarioDAO {
   /** Stores the new hash and stamps `passwordCambiadaEn` (invalidating older tokens). True when a row was updated. */
   actualizarPasswordHash(id: number, passwordHash: string, tx?: ContextoTx): Promise<boolean>;
   actualizarStatus(id: number, status: EstadoCuenta, tx?: ContextoTx): Promise<Usuario | null>;
-  /** Atomic add (floor 0); returns the new total, or null when the user does not exist. */
-  incrementarKarma(id: number, delta: number, tx?: ContextoTx): Promise<number | null>;
   /** Order per `filtro.orden`, always ending in `id` (SQL: `ORDER BY ..., id`). */
   listar(filtro: FiltroUsuarios, paginacion: Paginacion, tx?: ContextoTx): Promise<Pagina<Usuario>>;
 }

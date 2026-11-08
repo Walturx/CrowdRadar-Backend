@@ -9,8 +9,6 @@ export const votarEn =
       reporteId,
       usuarioId,
       tipoAccion: TipoAccionValidacion.CONFIRMAR,
-      karmaVotante: 0,
-      puntosOtorgados: 2,
       fechaHora: new Date(),
     });
   };

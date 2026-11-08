@@ -17,7 +17,7 @@ export interface DefectosPendientes {
   horas: number;
 }
 
-/** Per-user rate limits of the two write endpoints (the only ones that move karma or file complaints). */
+/** Per-user rate limits of the two write endpoints (the only ones that record votes or file complaints). */
 export interface LimitesAbuso {
   limitarValidaciones: RequestHandler;
   limitarDenuncias: RequestHandler;

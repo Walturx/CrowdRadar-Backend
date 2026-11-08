@@ -50,7 +50,8 @@ describe('API de cuentas (contenedor de prueba)', () => {
         distrito: 'Miraflores',
         rol: 'USUARIO',
         status: 'ACTIVO',
-        puntosKarma: 0,
+        puntos: 0,
+        tier: 'CROWD_BABY',
       });
       expect(JSON.stringify(res.body)).not.toMatch(/password|hash|\$2[aby]\$/i);
       expect(ctx.emisorToken.verificar(res.body.data.token).id).toBe(res.body.data.user.id);

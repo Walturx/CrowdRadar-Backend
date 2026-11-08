@@ -12,7 +12,7 @@ export const MOTIVO_SUSPENSION_MIN = 10;
 export const MOTIVO_SUSPENSION_MAX = 280;
 export const COMENTARIO_RESOLUCION_MAX = 280;
 
-const ORDENES = ['RECIENTES', 'NOMBRE', 'KARMA'] as const satisfies readonly OrdenUsuarios[];
+const ORDENES = ['RECIENTES', 'NOMBRE'] as const satisfies readonly OrdenUsuarios[];
 const DECISIONES = ['MANTENER', 'ELIMINAR'] as const satisfies readonly DecisionModeracion[];
 
 const idPositivo = z.string().regex(/^\d+$/, 'Debe ser un entero positivo.').transform(Number).pipe(z.number().min(1).max(ID_MAX));

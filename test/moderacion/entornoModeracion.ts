@@ -1,4 +1,4 @@
-/** Shared setup of the ModeracionFacadeImpl tests: in-memory DAOs, spies for mail, karma, saturation and events. */
+/** Shared setup of the ModeracionFacadeImpl tests: in-memory DAOs, real points, spies for mail, saturation and events. */
 import { vi } from 'vitest';
 import type { Usuario } from '../../src/entity/Usuario.js';
 import { EstadoCuenta } from '../../src/enum/EstadoCuenta.js';
@@ -17,6 +17,8 @@ import { LugarDAOMemoria } from '../support/dao/memoria/LugarDAOMemoria.js';
 import { ReporteDAOMemoria } from '../support/dao/memoria/ReporteDAOMemoria.js';
 import { SancionDAOMemoria } from '../support/dao/memoria/SancionDAOMemoria.js';
 import { UsuarioDAOMemoria } from '../support/dao/memoria/UsuarioDAOMemoria.js';
+import { ValidacionDAOMemoria } from '../support/dao/memoria/ValidacionDAOMemoria.js';
+import { puntajeEnMemoria } from '../support/puntajePrueba.js';
 import { aReporte, aUsuario } from '../support/fabrica/datos.js';
 
 export const AHORA = new Date('2026-10-05T14:00:00Z');
@@ -46,7 +48,8 @@ export function armarModeracion(diasPermitidos: readonly number[] = [3, 7, 30]) 
   const subject = new SujetoEspia();
   const conexion = new ConexionFalsa();
   const { logger, lineas } = crearLoggerEspia();
-  const karmaService = { otorgarPorReporte: vi.fn(), otorgarPorValidacion: vi.fn(), revocarPorReporteEliminado: vi.fn(async () => undefined) };
+  const validacionDAO = new ValidacionDAOMemoria({ reloj });
+  const puntajeService = puntajeEnMemoria(reporteDAO, validacionDAO);
   const saturacionService = {
     recalcular: vi.fn(async (lugarId: number) => ({ lugarId, anterior: NivelSaturacion.SATURADO, nuevo: NivelSaturacion.MODERADO, actualizadoEn: AHORA })),
   };
@@ -56,7 +59,7 @@ export function armarModeracion(diasPermitidos: readonly number[] = [3, 7, 30]) 
     denunciaDAO,
     reporteDAO,
     lugarDAO,
-    karmaService,
+    puntajeService,
     saturacionService,
     subject,
     correo,
@@ -78,12 +81,12 @@ export function armarModeracion(diasPermitidos: readonly number[] = [3, 7, 30]) 
   const reporteDenunciado = async (n = 2, extra: Partial<ReturnType<typeof aReporte>> = {}) => {
     const autor = usuario();
     const lugar = lugarDAO.agregar({ nombre: 'Parque Kennedy' });
-    const reporte = reporteDAO.agregar(aReporte({ usuarioId: autor.id, lugarId: lugar.id, puntosOtorgados: 5, ...extra }));
+    const reporte = reporteDAO.agregar(aReporte({ usuarioId: autor.id, lugarId: lugar.id, ...extra }));
     autores.set(reporte.id, autor.id);
     for (let i = 0; i < n; i++) {
       await denunciaDAO.crear({ reporteId: reporte.id, usuarioId: usuario().id, motivo: i === 0 ? 'CONTENIDO_INAPROPIADO' : 'INFORMACION_FALSA', detalle: null, fechaHora: AHORA });
     }
     return { autor, lugar, reporte };
   };
-  return { facade, deps, reloj, usuarioDAO, sancionDAO, denunciaDAO, reporteDAO, lugarDAO, correo, subject, conexion, lineas, karmaService, saturacionService, usuario, admin, suspendido, reporteDenunciado };
+  return { facade, deps, reloj, usuarioDAO, sancionDAO, denunciaDAO, reporteDAO, lugarDAO, correo, subject, conexion, lineas, validacionDAO, saturacionService, usuario, admin, suspendido, reporteDenunciado };
 }

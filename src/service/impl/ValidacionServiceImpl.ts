@@ -20,6 +20,7 @@ import type { EstrategiaConfiabilidad } from '../../pattern/strategy/confiabilid
 import { bboxAlrededor, distanciaMetros } from '../../util/geo.js';
 import type { Reloj } from '../../util/Reloj.js';
 import { MS_POR_HORA } from '../../util/tiempo.js';
+import type { PuntajeService } from '../PuntajeService.js';
 import type {
   ConfiabilidadReporte,
   ConsultaPendientes,
@@ -29,7 +30,6 @@ import type {
   ResultadoValidacion,
   ValidacionService,
 } from '../ValidacionService.js';
-import type { KarmaService } from '../KarmaService.js';
 
 export interface DependenciasValidacionService {
   reporteDAO: ReporteDAO;
@@ -37,14 +37,13 @@ export interface DependenciasValidacionService {
   validacionDAO: ValidacionDAO;
   denunciaDAO: DenunciaDAO;
   usuarioDAO: UsuarioDAO;
-  karmaService: KarmaService;
+  /** The voter's points and tier returned with each vote (C7) and the authors' tiers (C8); the same service the profile reads. */
+  puntajeService: PuntajeService;
   estrategia: EstrategiaConfiabilidad;
   conexion: ConexionBD;
   reloj: Reloj;
   /** CONFIABILIDAD_MIN_VOTOS_ESTADO: votes before a report counts as VALIDADO or RECHAZADO. */
   minVotosEstado: number;
-  /** KARMA_POR_VALIDACION: kept for the wiring; the points a vote stores are the ones KarmaService granted. */
-  karmaPorValidacion: number;
   /** Cap of the places read around the caller (LUGARES_LIMITE_MAX). */
   limiteLugares: number;
 }
@@ -61,8 +60,9 @@ const TOPE_CANDIDATOS_PENDIENTES = 500;
 export class ValidacionServiceImpl implements ValidacionService {
   constructor(private readonly deps: DependenciasValidacionService) {}
 
+  /** The authors' tiers of the whole page come from one read (`obtenerVarios`), never one per report (C8). */
   async listarPendientes(usuarioId: number, consulta: ConsultaPendientes): Promise<Pagina<ReportePendiente>> {
-    const { reporteDAO, lugarDAO, validacionDAO, reloj } = this.deps;
+    const { reporteDAO, lugarDAO, validacionDAO, puntajeService, reloj } = this.deps;
     const centro = { lat: consulta.lat, lng: consulta.lng };
     const cercanos = await lugarDAO.explorar({ bbox: bboxAlrededor(centro, consulta.radioKm), limite: this.deps.limiteLugares });
     const distancias = new Map<number, number>();
@@ -91,18 +91,22 @@ export class ValidacionServiceImpl implements ValidacionService {
     );
     const desde = desplazamiento(paginacion);
     const pagina = ordenados.slice(desde, desde + consulta.size);
-    const votos = await validacionDAO.listarVotosDeReportes(pagina.map((r) => r.id));
+    const [votos, puntajes] = await Promise.all([
+      validacionDAO.listarVotosDeReportes(pagina.map((r) => r.id)),
+      puntajeService.obtenerVarios(pagina.map((r) => r.usuarioId)),
+    ]);
     const items = pagina.map((reporte) => ({
       reporte,
       lugar: lugares.get(reporte.lugarId) as Lugar,
       distanciaMetros: distancias.get(reporte.lugarId) as number,
       confiabilidad: this.describir(votos.filter((v) => v.reporteId === reporte.id)),
+      tierAutor: puntajes.get(reporte.usuarioId)!.tier,
     }));
     return armarPagina(items, ordenados.length, paginacion);
   }
 
   async obtenerReporte(usuarioId: number, reporteId: number): Promise<DetalleReporte> {
-    const { validacionDAO, denunciaDAO, lugarDAO } = this.deps;
+    const { validacionDAO, denunciaDAO, lugarDAO, puntajeService } = this.deps;
     const reporte = await this.exigirReporteActivo(reporteId);
     const lugar = await lugarDAO.buscarPorId(reporte.lugarId);
     if (!lugar) throw new ReporteNoEncontradoException();
@@ -114,6 +118,7 @@ export class ValidacionServiceImpl implements ValidacionService {
       miValidacion: votos.find((v) => v.usuarioId === usuarioId)?.tipoAccion ?? null,
       yaDenunciado: await denunciaDAO.existe(usuarioId, reporteId),
       esPropio: reporte.usuarioId === usuarioId,
+      tierAutor: (await puntajeService.obtener(reporte.usuarioId)).tier,
     };
   }
 
@@ -123,25 +128,20 @@ export class ValidacionServiceImpl implements ValidacionService {
   }
 
   async validar(usuarioId: number, reporteId: number, tipoAccion: TipoAccionValidacion): Promise<ResultadoValidacion> {
-    const { reporteDAO, validacionDAO, usuarioDAO, karmaService, conexion, reloj } = this.deps;
+    const { reporteDAO, validacionDAO, usuarioDAO, puntajeService, conexion, reloj } = this.deps;
     return conexion.transaccion(async (tx) => {
       // The row lock comes first: votes on one report apply one at a time, so each recomputation sees every earlier
       // vote, and the state read here is the one the vote is written against (no check-then-act gap).
       const reporte = this.exigirActivo(await reporteDAO.buscarPorIdParaActualizar(reporteId, tx));
       if (reporte.usuarioId === usuarioId) throw new AutovalidacionException();
       if (await validacionDAO.buscarPorUsuarioYReporte(usuarioId, reporteId, tx)) throw new ValidacionDuplicadaException();
-      const votante = await usuarioDAO.buscarPorId(usuarioId, tx);
-      if (!votante) throw new UsuarioNoEncontradoException();
-      // Karma first: past the daily cap the vote still counts but stores (and earns) 0 points.
-      const puntosGanados = await karmaService.otorgarPorValidacion(usuarioId, tx);
-      const validacion = await this.guardarVoto(
-        { reporteId, usuarioId, tipoAccion, karmaVotante: votante.puntosKarma, puntosOtorgados: puntosGanados, fechaHora: reloj.ahora() },
-        tx,
-      );
+      if (!(await usuarioDAO.buscarPorId(usuarioId, tx))) throw new UsuarioNoEncontradoException();
+      const validacion = await this.guardarVoto({ reporteId, usuarioId, tipoAccion, fechaHora: reloj.ahora() }, tx);
       const confiabilidad = this.describir(await validacionDAO.listarVotos(reporteId, tx));
       if (confiabilidad.porcentaje !== null) await reporteDAO.actualizarConfiabilidad(reporteId, confiabilidad.porcentaje, tx);
-      const total = (await usuarioDAO.buscarPorId(usuarioId, tx))?.puntosKarma ?? votante.puntosKarma + puntosGanados;
-      return { validacion, karma: { puntosGanados, total }, confiabilidad };
+      // Inside the transaction, after the insert: counts this vote with the same state as `confiabilidad`; a failed read rolls it back.
+      const usuario = await puntajeService.obtener(usuarioId, tx);
+      return { validacion, confiabilidad, usuario };
     });
   }
 

@@ -3,7 +3,6 @@ import type { ContextoTx } from '../../../datasource/ConexionBD.js';
 import type { ReporteSaturacion } from '../../../entity/ReporteSaturacion.js';
 import { EstadoReporte } from '../../../enum/EstadoReporte.js';
 import { FiltroDias } from '../../../enum/FiltroDias.js';
-import type { MotivoSinPuntos } from '../../../enum/MotivoSinPuntos.js';
 import type { NivelSaturacion } from '../../../enum/NivelSaturacion.js';
 import { armarPagina, desplazamiento, type Pagina, type Paginacion } from '../../Paginacion.js';
 import type { AgregadoHora, ConsultaAgregada, FiltroPendientes, NuevoReporte, ReporteDAO } from '../../ReporteDAO.js';
@@ -42,8 +41,6 @@ export function aEntidadReporte(modelo: InferAttributes<ReporteModel>): ReporteS
     fechaHora: modelo.fechaHora,
     nivelConfiabilidad: modelo.nivelConfiabilidad === null ? null : Number(modelo.nivelConfiabilidad),
     estado: modelo.estado as EstadoReporte,
-    puntosOtorgados: modelo.puntosOtorgados,
-    motivoSinPuntos: modelo.motivoSinPuntos as MotivoSinPuntos | null,
     createdAt: modelo.createdAt,
     updatedAt: modelo.updatedAt,
   };
@@ -58,7 +55,7 @@ export function aEntidadReporte(modelo: InferAttributes<ReporteModel>): ReporteS
 export class ReporteDAOSequelize implements ReporteDAO {
   /**
    * Hand-written SELECT/INSERT/UPDATE ... RETURNING (see sqlCrudo.ts): the methods on the report transaction path skip
-   * the query generator. The other columns take the table defaults (ACTIVO, 0 points), as with Model.create.
+   * the query generator. The other columns take the table defaults (ACTIVO), as with Model.create.
    */
   private async filas(sql: string, replacements: Record<string, unknown>, tx?: ContextoTx): Promise<ReporteSaturacion[]> {
     const filas = await ReporteModel.sequelize!.query<InferAttributes<ReporteModel>>(sql, {
@@ -124,29 +121,6 @@ export class ReporteDAOSequelize implements ReporteDAO {
       where: { lugarId, estado: EstadoReporte.ACTIVO, fechaHora: { [Op.gte]: desde } },
       transaction: aTransaccion(tx),
     });
-  }
-
-  /**
-   * Takes `pg_advisory_xact_lock(usuarioId, 0)` (second key 0: a place id is never 0) before counting, so the daily
-   * karma cap is checked one transaction at a time per user, whatever the places they report on.
-   */
-  async contarPremiadosDeUsuarioDesde(usuarioId: number, desde: Date, tx?: ContextoTx): Promise<number> {
-    const transaction = aTransaccion(tx);
-    await ReporteModel.sequelize!.query('SELECT pg_advisory_xact_lock(:usuarioId, 0)', {
-      replacements: { usuarioId },
-      type: QueryTypes.SELECT,
-      transaction,
-    });
-    const [fila] = await ReporteModel.sequelize!.query<{ total: number }>(
-      `SELECT COUNT(*)::int AS total FROM reporte_saturacion
-        WHERE usuario_id = :usuarioId AND puntos_otorgados > 0 AND fecha_hora >= :desde`,
-      { replacements: { usuarioId, desde }, type: QueryTypes.SELECT, transaction },
-    );
-    return fila?.total ?? 0;
-  }
-
-  registrarPuntos(reporteId: number, puntos: number, motivo: MotivoSinPuntos | null, tx?: ContextoTx) {
-    return this.modificar(reporteId, { puntosOtorgados: puntos, motivoSinPuntos: motivo }, tx);
   }
 
   listarPorUsuario(usuarioId: number, paginacion: Paginacion, tx?: ContextoTx): Promise<Pagina<ReporteSaturacion>> {

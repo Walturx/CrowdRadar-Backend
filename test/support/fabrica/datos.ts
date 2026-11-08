@@ -22,7 +22,6 @@ export function aUsuario(sobrescritos: Partial<Usuario> = {}): Usuario {
     distrito: null,
     rol: Rol.USUARIO,
     status: EstadoCuenta.ACTIVO,
-    puntosKarma: 0,
     passwordCambiadaEn: null,
     createdAt: new Date('2026-10-05T10:00:00Z'),
     updatedAt: new Date('2026-10-05T10:00:00Z'),
@@ -56,7 +55,7 @@ export function aLugar(sobrescritos: Partial<Lugar> = {}): Lugar {
   };
 }
 
-/** Test data builder: a valid ACTIVO ReporteSaturacion that earned no points yet. */
+/** Test data builder: a valid ACTIVO ReporteSaturacion with no votes recorded on it. */
 export function aReporte(sobrescritos: Partial<ReporteSaturacion> = {}): ReporteSaturacion {
   secuencia += 1;
   return {
@@ -67,8 +66,6 @@ export function aReporte(sobrescritos: Partial<ReporteSaturacion> = {}): Reporte
     fechaHora: FECHA_BASE,
     nivelConfiabilidad: null,
     estado: EstadoReporte.ACTIVO,
-    puntosOtorgados: 0,
-    motivoSinPuntos: null,
     createdAt: FECHA_BASE,
     updatedAt: FECHA_BASE,
     ...sobrescritos,

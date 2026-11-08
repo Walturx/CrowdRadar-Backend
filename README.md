@@ -141,8 +141,9 @@ A repeatable run is `docker compose up -d --build` (the `migrate` service applie
 `npm run bench -- --seed`: the seed resets only the bench rows and the `reportes` scenario first deletes bench reports
 younger than 31 minutes, so consecutive runs start from the same data. In `reportes` every request uses a distinct
 (user, place) pair and, by default, consecutive requests come from different users and places, like real traffic.
-`--reportes-un-usuario` restores the order of the baseline (200 consecutive requests of one user), which mostly
-measures the wait on that user's karma lock (`pg_advisory_xact_lock(usuario, 0)`, kept so the daily cap is exact).
+`--reportes-un-usuario` restores the order of the baseline (200 consecutive requests of one user). The baseline mostly
+measured a per-user lock that no longer exists (it served a daily cap retired in CRO-72), so that order is now kept only to
+compare with the old numbers.
 
 Tests follow strict TDD (red, green, refactor). `test/support` holds the in-memory DAOs, fakes and
 `crearContenedorPrueba`, which assembles the real composition root with fakes instead of a database. The in-memory
@@ -217,7 +218,7 @@ PlantUML sources live in `docs/diagramas/*.puml`, each rendered to the SVG next 
 |---|---|---|
 | [Componentes](docs/diagramas/componentes.svg) | Layers route -> middleware -> controller -> facade/service -> DAO interface -> `dao/impl/sequelize` -> PostgreSQL, composition root, adapters, strategy/observer, config and datasource | [componentes.puml](docs/diagramas/componentes.puml) |
 | [Entidad-relacion](docs/diagramas/er.svg) | The ten tables of the migrations with PKs, FKs (and their `ON DELETE`), unique constraints and indexes | [er.puml](docs/diagramas/er.puml) |
-| [Secuencia: crear reporte](docs/diagramas/secuencia-crear-reporte.svg) | `POST /api/reportes`: transaction, advisory and row locks, karma, saturation Strategy, Observer alerts and push, error branches | [secuencia-crear-reporte.puml](docs/diagramas/secuencia-crear-reporte.puml) |
+| [Secuencia: crear reporte](docs/diagramas/secuencia-crear-reporte.svg) | `POST /api/reportes`: transaction, advisory and row locks, saturation Strategy, Observer alerts and push, error branches | [secuencia-crear-reporte.puml](docs/diagramas/secuencia-crear-reporte.puml) |
 | [Secuencia: login y JWT](docs/diagramas/secuencia-login-jwt.svg) | `POST /api/auth/login` (rate limits, validation, bcrypt, JWT) and how `autenticar` verifies a token | [secuencia-login-jwt.puml](docs/diagramas/secuencia-login-jwt.puml) |
 | [Despliegue](docs/diagramas/despliegue.svg) | Android app -> `api` container (Node 22, :3000) -> `postgres` container, one-shot `migrate`, ports and volume | [despliegue.puml](docs/diagramas/despliegue.puml) |
 
@@ -252,7 +253,7 @@ finds nothing; `rg "console\.log" src` finds nothing.
 | Adapter | `adapter/seguridad` (`BcryptHasherAdapter`, `JwtEmisorTokenAdapter`, `CryptoGeneradorTokenAdapter`), `adapter/correo` (`ConsolaCorreoAdapter`), `adapter/push` (`ConsolaNotificadorAdapter`, `FcmNotificadorAdapter`), `datasource/impl/ConexionSequelize` |
 | Mapper | `mapper/*Mapper` (entity -> response DTO), one per module |
 | Service Layer | `service/*Service` interfaces with `service/impl/*Impl`; controllers never touch DAOs |
-| Facade | `RecuperacionFacadeImpl` (M1), `ReporteFacadeImpl` (M4: one transaction for cooldown, report, karma and saturation), `ModeracionFacadeImpl` (M6) |
+| Facade | `RecuperacionFacadeImpl` (M1), `ReporteFacadeImpl` (M4: one transaction for cooldown, report and saturation), `ModeracionFacadeImpl` (M6) |
 | Strategy | `EstrategiaSaturacion` (`SaturacionPonderadaStrategy`, `SaturacionUltimoReporteStrategy`, chosen by `SATURACION_ESTRATEGIA`) and `EstrategiaConfiabilidad` (`ConfiabilidadSimpleStrategy`: every valid vote weighs 1) |
 | Observer | `PublicadorSaturacion` (subject) publishes `SaturacionCambiadaEvento` after a report commit (`ReporteFacadeImpl`) or a moderation change (`ModeracionFacadeImpl`); `AlertaFavoritosObserver` is subscribed in `container/favoritoAlerta.ts` |
 | composition root | `container/`: manual DI; each stream edits only its own builder; `crearContenedorPrueba` reuses it with fakes |
@@ -278,6 +279,37 @@ Firebase client (`ClienteFcm`, a thin wrapper of `firebase-admin` `sendEachForMu
 To finish it: add `firebase-admin`, implement `ClienteFcm` (load the package lazily so the console mode never needs it) and
 pass it to the adapter. Tokens answered with `registration-token-not-registered` or `invalid-registration-token` are
 returned as `tokensInvalidos` and deleted.
+
+## Puntos y tiers
+
+A user's `puntos` are computed by one query every time they are read (`PuntajeService` over `PuntajeDAO`); nothing is
+stored, there is no daily cap, and creating a report or voting awards nothing by itself (CRO-72):
+
+- +10 for each own ACTIVO report whose validation state is VALIDADO;
+- +2 for each vote whose `tipoAccion` matches the state of an ACTIVO report (CONFIRMAR with VALIDADO, RECHAZAR with RECHAZADO);
+- a report that is EN_VALIDACION, SIN_VALIDACIONES or ELIMINADO gives nothing to its author or its voters, so a report that
+  stops being VALIDADO (new votes, or moderation removes it) takes its points back without any revocation step.
+
+The validation state is the one of the reliability rule (`CONFIABILIDAD_*`, every valid vote weighs 1): VALIDADO from
+`CONFIABILIDAD_MIN_VOTOS_ESTADO` votes with ALTA reliability, RECHAZADO with the same votes and BAJA. The SQL
+(`sqlEstadoValidacion`) and the TypeScript rule (`estadoValidacionPorConteo`) share one contract test, so they cannot drift.
+
+The `tier` is a pure function of the points, informational only (it gives no extra weight to votes):
+
+| `tier` | Points |
+|---|---|
+| `CROWD_BABY` (Crowd Baby) | 0-49 |
+| `CROWD_EXPLORER` (Crowd Explorer) | 50-149 |
+| `CROWD_COLLABORATOR` (Crowd Collaborator) | 150-299 |
+| `CROWD_ROYALTY` (Crowd Royalty) | 300 or more |
+
+Login, register, the profile and the admin directory return `puntos` and `tier`; so does each vote
+(`POST /api/reportes/:id/validaciones`, `data.usuario`), with the voter's own vote already counted. `GET /api/reportes/mios`
+returns the `puntos` each report gives (10 or 0). The pending list (`GET /api/validaciones/pendientes`) and the report detail
+(`GET /api/reportes/:id`) show only the author's `tier` (`autor: { tier }`), never who they are.
+Migration 15 drops the former per-user and per-report point columns of `usuario`,
+`reporte_saturacion` and `validacion_reporte`: deploy this code first and run the migration right after it (deploy order and
+rollback in `docs/decisiones.md`, D-CRO-72-COLUMNAS).
 
 ## Environment variables
 
@@ -327,10 +359,6 @@ or missing value prints every offending key (never its value) and exits with cod
 | `LIMITE_DENUNCIAS` | Complaints (`POST /reportes/:id/denuncias`) per hour and user, accepted or not (10) |
 | `RECUPERACION_EXPIRA_MIN` | Recovery token lifetime in minutes (30); the link in the mail is `URL_PUBLICA/recuperar/restablecer?token=...` |
 | `COOLDOWN_REPORTE_MIN` | Minutes between reports of one user for one place (30) |
-| `KARMA_POR_REPORTE` | Karma for a report (10) |
-| `KARMA_POR_VALIDACION` | Karma for a validation (2) |
-| `KARMA_VALIDACION_MAX_DIA` | Validation karma a user can earn per calendar day of `ZONA_HORARIA`; past it a vote still counts but earns 0 (20) |
-| `KARMA_REPORTES_PREMIADOS_DIA` | Rewarded reports per day (5) |
 | `SATURACION_ESTRATEGIA` | `PONDERADA` or `ULTIMO_REPORTE` (PONDERADA) |
 | `SATURACION_VENTANA_MIN` | Report window for saturation in minutes (60) |
 | `SATURACION_MIN_REPORTES` | Minimum reports to compute saturation (3) |
@@ -394,18 +422,20 @@ Migrations 01-10 and 12 are frozen once released; fixes go forward as new migrat
 3. **Undo one step at a time**: `npm run db:migrate:undo` reverts only the latest migration. Check `\d usuario` (or the
    table the migration touched) and the `SequelizeMeta` rows, then repeat only if the release added several migrations.
 4. **Roll the image back** to the previous tag (the previous version must run on the older schema; every migration so
-   far is additive, so it does) and start it. Verify `GET /api/salud` and a login.
+   far is additive except 15, which drops point columns the code before it still uses, so undo 15 in step 3 before
+   starting an image older than it) and start it. Verify `GET /api/salud` and a login.
 5. **Do NOT use `db:migrate:undo:all` or `db:reset` outside a disposable database.** They drop every table
-   (`undo:all`) and then re-seed (`reset`): all users, reports and karma are lost. They are for local and test databases.
+   (`undo:all`) and then re-seed (`reset`): all users, reports and votes are lost. They are for local and test databases.
 6. **Verify `down` safety before shipping a migration**: run `db:migrate`, `db:migrate:undo` and `db:migrate` again on a
    copy of production-like data (the contract tests do this on an empty database; they cannot prove a `down` keeps data).
    Migration 12 (`password_cambiada_en`) loses only the timestamp; token invalidation by password change is lost with it.
+   Migration 15 cannot give back the point values it dropped: its `down` restores the columns holding 0.
 
 ## Decisiones
 
 Design decisions worth knowing before changing the report flow live in [docs/decisiones.md](docs/decisiones.md): event delivery
-is at-most-once after the commit (no outbox, accepted for the MVP) and report serialization uses a per-place row lock plus
-per-user advisory locks.
+is at-most-once after the commit (no outbox, accepted for the MVP), report serialization uses a per-place row lock plus a
+per-user-and-place advisory lock, and points and tiers are computed by a query instead of being stored.
 
 ## Security notes
 

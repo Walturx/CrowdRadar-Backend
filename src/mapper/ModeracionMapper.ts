@@ -72,7 +72,7 @@ export const ModeracionMapper = {
     return { reporteId, estado, denunciasResueltas };
   },
 
-  aUsuario({ usuario, sancionVigente }: UsuarioModerado): UsuarioModeradoResponseDTO {
+  aUsuario({ usuario, puntaje, sancionVigente }: UsuarioModerado): UsuarioModeradoResponseDTO {
     return {
       id: usuario.id,
       nombre: usuario.nombre,
@@ -80,7 +80,8 @@ export const ModeracionMapper = {
       email: usuario.email,
       rol: usuario.rol,
       status: usuario.status,
-      puntosKarma: usuario.puntosKarma,
+      puntos: puntaje.puntos,
+      tier: puntaje.tier,
       sancionVigente: sancionVigente ? ModeracionMapper.aSancion(sancionVigente) : null,
     };
   },
