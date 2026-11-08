@@ -88,6 +88,24 @@ describe('NodemailerCorreoAdapter', () => {
     });
   });
 
+  it('keeps the original error type (never its message) when the failure carries no Nodemailer code', async () => {
+    const fallo = new TypeError(`Cannot read properties of undefined (reading '${mensaje.para}')`);
+    const error = await new NodemailerCorreoAdapter(new TransporteEspia(fallo), remitente).enviar(mensaje).catch((e: unknown) => e);
+    expect(error).toMatchObject({ codigo: undefined, tipoOriginal: 'TypeError', message: expect.stringContaining('TypeError') });
+    expect([(error as Error).message, JSON.stringify(error)].join('\n')).not.toContain(mensaje.para);
+  });
+
+  it('desdeSmtp hands the TLS-only, time-bounded options to the transport factory, with the settings trimmed', () => {
+    const recibidas: unknown[] = [];
+    const fabrica = (opciones: unknown): TransporteCorreo => {
+      recibidas.push(opciones);
+      return new TransporteEspia();
+    };
+    const pegada = { host: ' smtp.gmail.com ', puerto: 587, usuario: 'crowdradar.demo@gmail.com\n', password: ' abcdefghijklmnop\r\n' };
+    NodemailerCorreoAdapter.desdeSmtp(pegada, remitente, fabrica);
+    expect(recibidas).toEqual([opcionesTransporteSmtp(smtp)]);
+  });
+
   it('desdeSmtp builds the adapter over a real Nodemailer transport without opening a connection', () => {
     expect(NodemailerCorreoAdapter.desdeSmtp(smtp, remitente)).toBeInstanceOf(NodemailerCorreoAdapter);
   });
