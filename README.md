@@ -250,7 +250,7 @@ finds nothing; `rg "console\.log" src` finds nothing.
 | Singleton | `config/ConfiguracionApp`: immutable, validated once, fail-fast |
 | Factory Method | `datasource/ConexionFactory.conectar()` -> `ConexionPostgresFactory.crearConexion()` |
 | DAO | `dao/*DAO` ports with `dao/impl/sequelize/*DAOSequelize` and in-memory fakes in `test/support/dao/memoria` |
-| Adapter | `adapter/seguridad` (`BcryptHasherAdapter`, `JwtEmisorTokenAdapter`, `CryptoGeneradorTokenAdapter`), `adapter/correo` (`ConsolaCorreoAdapter`), `adapter/push` (`ConsolaNotificadorAdapter`, `FcmNotificadorAdapter`), `datasource/impl/ConexionSequelize` |
+| Adapter | `adapter/seguridad` (`BcryptHasherAdapter`, `JwtEmisorTokenAdapter`, `CryptoGeneradorTokenAdapter`), `adapter/correo` (`ConsolaCorreoAdapter`, `NodemailerCorreoAdapter`), `adapter/push` (`ConsolaNotificadorAdapter`, `FcmNotificadorAdapter`), `datasource/impl/ConexionSequelize` |
 | Mapper | `mapper/*Mapper` (entity -> response DTO), one per module |
 | Service Layer | `service/*Service` interfaces with `service/impl/*Impl`; controllers never touch DAOs |
 | Facade | `RecuperacionFacadeImpl` (M1), `ReporteFacadeImpl` (M4: one transaction for cooldown, report and saturation), `ModeracionFacadeImpl` (M6) |
@@ -380,13 +380,13 @@ or missing value prints every offending key (never its value) and exits with cod
 | `LUGARES_Q_MIN` / `LUGARES_Q_MAX` | Length bounds of the search text `q` in `GET /api/lugares` (2 / 60) |
 | `LUGARES_LIMITE_MAX` | Largest `limite` accepted by the places list, and the hard cap of `LugarDAO.buscar` and `explorar` (200) |
 | `LUGARES_LIMITE_DEFAULT` | `limite` used when the request omits it; must not exceed the maximum (200) |
-| `CORREO_PROVEEDOR` | `consola` (development only: logs the recipient and the link with the token masked to its last 4 characters; refused when `NODE_ENV=production`) or `smtp` (not delivered yet: the server refuses to start with it) (consola) |
+| `CORREO_PROVEEDOR` | `consola` (development only: logs the recipient and the link with the token masked to its last 4 characters; refused when `NODE_ENV=production`) or `smtp` (`NodemailerCorreoAdapter` over any SMTP server; see Production notes for Gmail) (consola) |
 | `CORREO_MOSTRAR_ENLACE_DEV` | `true` also logs the full recovery link so a demo can follow it; refused when `NODE_ENV=production` (false) |
-| `CORREO_REMITENTE` | From address of outgoing mail |
-| `SMTP_HOST` | Required with `smtp` |
-| `SMTP_PUERTO` | SMTP port (587) |
-| `SMTP_USUARIO` | Required with `smtp` |
-| `SMTP_PASSWORD` | Required with `smtp` |
+| `CORREO_REMITENTE` | From address of outgoing mail; with Gmail it must be the `SMTP_USUARIO` address, or Gmail replaces it (CrowdRadar <no-responder@crowdradar.local>) |
+| `SMTP_HOST` | Required with `smtp` (Gmail: `smtp.gmail.com`) |
+| `SMTP_PUERTO` | SMTP port: 465 uses TLS from the start, any other port must offer STARTTLS or the send fails (587) |
+| `SMTP_USUARIO` | Required with `smtp` (Gmail: the full address) |
+| `SMTP_PASSWORD` | Required with `smtp` (Gmail: a 16-character app password, never the account password) |
 | `PUSH_PROVEEDOR` | `consola` or `fcm` (consola) |
 | `PUSH_TIMEOUT_MS` | One push call is given up after this long; the alert stays stored (3000) |
 | `FCM_CREDENCIALES_RUTA` | Required with `fcm` |
@@ -411,6 +411,19 @@ Test tooling only: `DATABASE_URL_TEST` (see Test).
   see sporadic 502s. `SERVIDOR_HEADERS_TIMEOUT_MS` must stay above the keep-alive timeout (validated at boot).
 - Counters of the rate limiter live in process memory: with several replicas each one counts on its own.
 - Readiness: point the balancer health check at `GET /api/salud` (`503 APAGANDO` during shutdown).
+- **Recovery mail needs `CORREO_PROVEEDOR=smtp`**: production refuses the console provider at boot. The demo uses Gmail,
+  which needs no own domain and reaches any recipient (up to 500 mails a day on a free account):
+  1. Use a team Gmail account, not a personal one, and turn on 2-Step Verification.
+  2. Create an app password (Google account > Security > 2-Step Verification > App passwords).
+  3. Set `SMTP_HOST=smtp.gmail.com`, `SMTP_PUERTO=587`, `SMTP_USUARIO` to the address, `SMTP_PASSWORD` to the
+     16 characters without spaces, and `CORREO_REMITENTE=CrowdRadar <that address>`. Keep them in the host's secrets,
+     never in the repository.
+
+  The host must allow outbound SMTP: Render free web services, for example, block ports 25, 465 and 587. Each
+  connection step gives up after 10 s and the whole send after 15 s, below the default request timeout of 30 s.
+  A failed send rejects with `EnvioCorreoFallidoError`, which keeps only the Nodemailer code (`EAUTH`: wrong app
+  password; `ETIMEDOUT` or `ECONNECTION`: port blocked or provider not answering) and never the recipient.
+  A failed recovery mail is logged by error name only and the request still answers as usual.
 
 ## Runbook de rollback
 

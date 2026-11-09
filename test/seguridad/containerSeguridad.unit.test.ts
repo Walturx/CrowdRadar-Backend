@@ -1,6 +1,7 @@
 /** container/seguridad.ts: builds the recovery facade from the shared infrastructure; the M1 ports are replaceable. */
 import { describe, expect, it } from 'vitest';
 import { ConsolaCorreoAdapter } from '../../src/adapter/correo/impl/ConsolaCorreoAdapter.js';
+import { NodemailerCorreoAdapter } from '../../src/adapter/correo/impl/NodemailerCorreoAdapter.js';
 import { construirInfraestructura } from '../../src/container/infraestructura.js';
 import { crearEnviadorCorreo, crearRecuperacionFacade, type DependenciasSeguridad } from '../../src/container/seguridad.js';
 import { ConexionFalsa } from '../support/ConexionFalsa.js';
@@ -75,8 +76,8 @@ describe('crearEnviadorCorreo', () => {
     expect(lineas.map((l) => l.enlace)).toEqual(['http://h.test/r?token=••••1234', 'http://h.test/r?token=COMPLETO1234']);
   });
 
-  it('CORREO_PROVEEDOR=smtp fails fast until the Nodemailer adapter exists (never falls back to the console silently)', () => {
-    const cfg = configPrueba({ CORREO_PROVEEDOR: 'smtp', SMTP_HOST: 'smtp.test', SMTP_PUERTO: 587, SMTP_USUARIO: 'u', SMTP_PASSWORD: 'p' });
-    expect(() => crearEnviadorCorreo(cfg, logger)).toThrow(/smtp/i);
+  it.each(['development', 'production'] as const)('CORREO_PROVEEDOR=smtp builds the Nodemailer adapter with NODE_ENV=%s', (entorno) => {
+    const cfg = configPrueba({ NODE_ENV: entorno, CORREO_PROVEEDOR: 'smtp', SMTP_HOST: 'smtp.test', SMTP_PUERTO: 587, SMTP_USUARIO: 'u', SMTP_PASSWORD: 'p' });
+    expect(crearEnviadorCorreo(cfg, logger)).toBeInstanceOf(NodemailerCorreoAdapter);
   });
 });
