@@ -1,5 +1,6 @@
 import type { EnviadorCorreo } from '../adapter/correo/EnviadorCorreo.js';
 import { ConsolaCorreoAdapter } from '../adapter/correo/impl/ConsolaCorreoAdapter.js';
+import { NodemailerCorreoAdapter } from '../adapter/correo/impl/NodemailerCorreoAdapter.js';
 import type { GeneradorToken } from '../adapter/seguridad/GeneradorToken.js';
 import { CryptoGeneradorTokenAdapter } from '../adapter/seguridad/impl/CryptoGeneradorTokenAdapter.js';
 import type { ConfiguracionApp } from '../config/ConfiguracionApp.js';
@@ -33,13 +34,13 @@ export interface DependenciasSeguridad {
 }
 
 /**
- * Mail provider named by CORREO_PROVEEDOR: the console adapter by default. `smtp` is configuration-valid but its
- * adapter (Nodemailer, optional slice BE-05) is not delivered yet: failing at assembly is better than a silent
- * fallback that would "send" recovery links to the console in an environment that expects real mail.
+ * Mail provider named by CORREO_PROVEEDOR: the console adapter by default, Nodemailer over SMTP with `smtp`.
+ * Production refuses the console at assembly: a silent fallback would "send" recovery links to the logs in an
+ * environment that expects real mail.
  */
 export function crearEnviadorCorreo(cfg: ConfiguracionApp, logger: Logger): EnviadorCorreo {
-  const { proveedor, mostrarEnlaceDev } = cfg.correo;
-  if (proveedor === 'smtp') throw new Error('CORREO_PROVEEDOR=smtp no está disponible todavía: falta NodemailerCorreoAdapter.');
+  const { proveedor, mostrarEnlaceDev, smtp, remitente } = cfg.correo;
+  if (proveedor === 'smtp') return NodemailerCorreoAdapter.desdeSmtp(smtp, remitente);
   if (cfg.servidor.entorno === 'production') {
     throw new Error('CORREO_PROVEEDOR=consola no se admite con NODE_ENV=production: los enlaces de recuperación no llegarían a nadie. Configura CORREO_PROVEEDOR=smtp.');
   }
