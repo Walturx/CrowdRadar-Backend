@@ -287,7 +287,7 @@ private key). Save it as `firebase-crowdradar-sa.json` at the repository root: `
 
 - **Local, without docker:** set `PUSH_PROVEEDOR=fcm` and `FCM_CREDENCIALES_RUTA=./firebase-crowdradar-sa.json` in `.env`.
 - **Local docker:** the base `docker-compose.yml` keeps the console provider; the opt-in overlay mounts the key read-only
-  at `/run/secrets/firebase-sa.json` and switches the API to FCM (compose fails if the key file is missing):
+  at `/run/secrets/firebase-sa.json` and switches the API to FCM (`docker compose up` fails if the key file is missing; `docker compose config` does not check it):
 
   ```bash
   docker compose -f docker-compose.yml -f docker-compose.fcm.yml up -d --build
