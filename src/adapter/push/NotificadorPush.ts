@@ -14,7 +14,7 @@ export interface ResultadoPush {
 /**
  * Pattern: Adapter (port). Owner: M3. Sends push notifications to device tokens (M3 favorite alerts).
  * Rejects when the provider is down; the observer publisher isolates that failure.
- * Implementations: ConsolaNotificadorAdapter.
+ * Implementations: ConsolaNotificadorAdapter (default), FcmNotificadorAdapter (PUSH_PROVEEDOR=fcm, firebase-admin).
  */
 export interface NotificadorPush {
   enviar(tokens: readonly string[], notificacion: NotificacionPush): Promise<ResultadoPush>;
