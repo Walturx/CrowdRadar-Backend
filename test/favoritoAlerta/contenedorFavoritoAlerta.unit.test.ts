@@ -86,8 +86,8 @@ describe('container/favoritoAlerta', () => {
     expect(ctx.notificador.llamadas).toHaveLength(0);
   });
 
-  it('con PUSH_PROVEEDOR=fcm sin cliente Firebase el push falla aislado: la alerta queda y se registra el error', async () => {
-    const { ctx, subject, lineas } = armar({ PUSH_PROVEEDOR: 'fcm', FCM_CREDENCIALES_RUTA: './cred.json' }, false);
+  it('con PUSH_PROVEEDOR=fcm y credenciales ilegibles el push falla aislado: la alerta queda y se registra el error', async () => {
+    const { ctx, subject, lineas } = armar({ PUSH_PROVEEDOR: 'fcm', FCM_CREDENCIALES_RUTA: './no-existe-cred.json' }, false);
     ctx.lugarDAO.agregar({ id: LUGAR });
     await ctx.favoritoDAO.crear(1, LUGAR);
     await ctx.dispositivoDAO.registrar(1, 'tok-1', PlataformaPush.ANDROID);

@@ -250,7 +250,7 @@ finds nothing; `rg "console\.log" src` finds nothing.
 | Singleton | `config/ConfiguracionApp`: immutable, validated once, fail-fast |
 | Factory Method | `datasource/ConexionFactory.conectar()` -> `ConexionPostgresFactory.crearConexion()` |
 | DAO | `dao/*DAO` ports with `dao/impl/sequelize/*DAOSequelize` and in-memory fakes in `test/support/dao/memoria` |
-| Adapter | `adapter/seguridad` (`BcryptHasherAdapter`, `JwtEmisorTokenAdapter`, `CryptoGeneradorTokenAdapter`), `adapter/correo` (`ConsolaCorreoAdapter`, `NodemailerCorreoAdapter`), `adapter/push` (`ConsolaNotificadorAdapter`, `FcmNotificadorAdapter`), `datasource/impl/ConexionSequelize` |
+| Adapter | `adapter/seguridad` (`BcryptHasherAdapter`, `JwtEmisorTokenAdapter`, `CryptoGeneradorTokenAdapter`), `adapter/correo` (`ConsolaCorreoAdapter`, `NodemailerCorreoAdapter`), `adapter/push` (`ConsolaNotificadorAdapter`, `FcmNotificadorAdapter`, `FirebaseAdminClienteFcmAdapter`), `datasource/impl/ConexionSequelize` |
 | Mapper | `mapper/*Mapper` (entity -> response DTO), one per module |
 | Service Layer | `service/*Service` interfaces with `service/impl/*Impl`; controllers never touch DAOs |
 | Facade | `RecuperacionFacadeImpl` (M1), `ReporteFacadeImpl` (M4: one transaction for cooldown, report and saturation), `ModeracionFacadeImpl` (M6) |
@@ -272,13 +272,30 @@ A device token belongs to one user: registering a token another user holds moves
 **Console adapter (default).** `PUSH_PROVEEDOR=consola` (or unset) uses `ConsolaNotificadorAdapter`: it logs the payload and
 the recipient count (never the tokens) and needs no Firebase, so the whole alert flow runs locally and in CI.
 
-**Enabling FCM later.** `PUSH_PROVEEDOR=fcm` plus `FCM_CREDENCIALES_RUTA=<service-account.json>` selects
-`FcmNotificadorAdapter`; the process refuses to start without the credentials path. The adapter is a skeleton: until a
-Firebase client (`ClienteFcm`, a thin wrapper of `firebase-admin` `sendEachForMulticast`) is wired in
-`crearNotificadorPush`, `enviar` throws `NoImplementadoException`, which the observer logs while the in-app alert stays.
-To finish it: add `firebase-admin`, implement `ClienteFcm` (load the package lazily so the console mode never needs it) and
-pass it to the adapter. Tokens answered with `registration-token-not-registered` or `invalid-registration-token` are
-returned as `tokensInvalidos` and deleted.
+**Firebase Cloud Messaging.** `PUSH_PROVEEDOR=fcm` plus `FCM_CREDENCIALES_RUTA=<service-account.json>` selects
+`FcmNotificadorAdapter`, which sends through `FirebaseAdminClienteFcmAdapter` (`firebase-admin`
+`sendEachForMulticast`, at most 500 tokens per call, Android priority `high`, `data.lugarId` so a tap opens the place).
+The process refuses to start without the credentials path. Nothing is loaded at boot: the first push reads the key file
+and only then imports `firebase-admin`, so the console mode never needs either. A missing or invalid key file makes that
+push fail with a Spanish message naming the path (never the file's content); the observer logs it, the in-app alert
+stays, and the next push tries again. Tokens answered with `registration-token-not-registered` or
+`invalid-registration-token` are returned as `tokensInvalidos` and deleted.
+
+The key is the Firebase service-account JSON (Firebase console > Project settings > Service accounts > Generate new
+private key). Save it as `firebase-crowdradar-sa.json` at the repository root: `.gitignore` and `.dockerignore` exclude
+`firebase-*.json`, so it is never committed nor copied into the image. Never commit it or paste it in a ticket.
+
+- **Local, without docker:** set `PUSH_PROVEEDOR=fcm` and `FCM_CREDENCIALES_RUTA=./firebase-crowdradar-sa.json` in `.env`.
+- **Local docker:** the base `docker-compose.yml` keeps the console provider; the opt-in overlay mounts the key read-only
+  at `/run/secrets/firebase-sa.json` and switches the API to FCM (`docker compose up` fails if the key file is missing; `docker compose config` does not check it):
+
+  ```bash
+  docker compose -f docker-compose.yml -f docker-compose.fcm.yml up -d --build
+  ```
+
+  The container runs as the `node` user, so on a Linux host the key file must be readable by it.
+- **Deploy (Render):** upload the key as a Secret File (it is mounted under `/etc/secrets/<name>`) and set
+  `PUSH_PROVEEDOR=fcm` and `FCM_CREDENCIALES_RUTA=/etc/secrets/firebase-crowdradar-sa.json`.
 
 ## Puntos y tiers
 
@@ -387,9 +404,9 @@ or missing value prints every offending key (never its value) and exits with cod
 | `SMTP_PUERTO` | SMTP port: 465 uses TLS from the start, any other port must offer STARTTLS or the send fails (587) |
 | `SMTP_USUARIO` | Required with `smtp` (Gmail: the full address) |
 | `SMTP_PASSWORD` | Required with `smtp` (Gmail: a 16-character app password, never the account password) |
-| `PUSH_PROVEEDOR` | `consola` or `fcm` (consola) |
+| `PUSH_PROVEEDOR` | `consola` (logs the push) or `fcm` (real push through `firebase-admin`, see Alertas y push) (consola) |
 | `PUSH_TIMEOUT_MS` | One push call is given up after this long; the alert stays stored (3000) |
-| `FCM_CREDENCIALES_RUTA` | Required with `fcm` |
+| `FCM_CREDENCIALES_RUTA` | Path of the Firebase service-account JSON, read on the first push; required with `fcm`. Locally `./firebase-crowdradar-sa.json` (never committed) |
 | `ADMIN_EMAIL` | Email of the seeded admin |
 | `ADMIN_PASSWORD` | Password of the seeded admin: 10 characters minimum, not a `CAMBIAR*` placeholder |
 | `SEED_SINTETICO` | Seed the synthetic demo history (on outside production, off in production when unset; see Datos de demostración) |

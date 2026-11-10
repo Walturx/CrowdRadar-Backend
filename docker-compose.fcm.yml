@@ -1,0 +1,18 @@
+# Opt-in overlay: real FCM push for the local stack. The base docker-compose.yml keeps the console provider.
+#   docker compose -f docker-compose.yml -f docker-compose.fcm.yml up -d --build
+# Needs the Firebase service-account key at ./firebase-crowdradar-sa.json (ignored by git and .dockerignore, so it
+# is never committed nor baked into the image): it is bind-mounted read-only and read by the API on the first push.
+services:
+  api:
+    environment:
+      # `environment` wins over env_file, so these apply even if .env still says PUSH_PROVEEDOR=consola.
+      PUSH_PROVEEDOR: fcm
+      FCM_CREDENCIALES_RUTA: /run/secrets/firebase-sa.json
+    volumes:
+      - type: bind
+        source: ./firebase-crowdradar-sa.json
+        target: /run/secrets/firebase-sa.json
+        read_only: true
+        bind:
+          # Fail if the key is missing instead of letting docker create an empty directory in its place.
+          create_host_path: false
