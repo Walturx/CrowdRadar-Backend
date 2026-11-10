@@ -1,6 +1,7 @@
 /**
- * FcmNotificadorAdapter is a skeleton behind PUSH_PROVEEDOR=fcm (spec M3 R8): it validates its configuration,
- * never ships functional without a Firebase client, and maps the provider's invalid-token errors.
+ * FcmNotificadorAdapter is the real push provider behind PUSH_PROVEEDOR=fcm (spec M3 R8, HU 8.3): it validates its
+ * configuration, refuses to send unless FCM is enabled, sends through the firebase-admin client by default and maps
+ * the provider's invalid-token errors.
  */
 import { describe, expect, it } from 'vitest';
 import type { ClienteFcm, RespuestaFcm } from '../../src/adapter/push/impl/FcmNotificadorAdapter.js';
@@ -31,7 +32,7 @@ describe('FcmNotificadorAdapter: configuracion', () => {
   });
 });
 
-describe('FcmNotificadorAdapter.enviar: nunca funcional sin Firebase', () => {
+describe('FcmNotificadorAdapter.enviar: solo con FCM habilitado', () => {
   it('con proveedor consola (no habilitado) lanza NoImplementadoException aunque haya credenciales y cliente', async () => {
     const { cliente, llamadas } = clienteQueResponde([{ exito: true }]);
     const adaptador = new FcmNotificadorAdapter({ proveedor: 'consola', credencialesRuta: './cred.json', cliente });
@@ -39,11 +40,12 @@ describe('FcmNotificadorAdapter.enviar: nunca funcional sin Firebase', () => {
     expect(llamadas).toHaveLength(0);
   });
 
-  it('con fcm y credenciales pero sin cliente Firebase lanza NoImplementadoException explicando que falta la integracion', async () => {
-    const adaptador = new FcmNotificadorAdapter({ proveedor: 'fcm', credencialesRuta: './cred.json' });
+  it('con fcm y sin cliente inyectado usa el cliente firebase-admin real: ya no lanza NoImplementadoException', async () => {
+    // The real client reads the credentials before loading firebase-admin, so a missing file fails fast and offline.
+    const adaptador = new FcmNotificadorAdapter({ proveedor: 'fcm', credencialesRuta: './no-existe-cred.json' });
     const error = await adaptador.enviar(['t1'], NOTIFICACION).catch((e: unknown) => e);
-    expect(error).toBeInstanceOf(NoImplementadoException);
-    expect((error as Error).message).toContain('firebase-admin');
+    expect(error).not.toBeInstanceOf(NoImplementadoException);
+    expect((error as Error).message).toMatch(/credenciales de FCM/);
   });
 });
 
