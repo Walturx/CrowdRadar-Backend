@@ -43,7 +43,10 @@ export function crearDaosFavoritoAlertaSequelize(lugarDAO: Pick<LugarDAO, 'busca
   };
 }
 
-/** Push provider named by PUSH_PROVEEDOR: the console adapter by default, the FCM skeleton with `fcm`. */
+/**
+ * Push provider named by PUSH_PROVEEDOR: the console adapter by default; with `fcm`, FcmNotificadorAdapter over the
+ * real firebase-admin client (FirebaseAdminClienteFcmAdapter), which loads the SDK and the credentials on the first send.
+ */
 export function crearNotificadorPush({ proveedor, fcmCredencialesRuta }: ConfiguracionApp['push'], logger: Logger): NotificadorPush {
   if (proveedor === 'fcm') return new FcmNotificadorAdapter({ proveedor, credencialesRuta: fcmCredencialesRuta });
   return new ConsolaNotificadorAdapter(logger);
