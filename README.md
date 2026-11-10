@@ -297,6 +297,21 @@ private key). Save it as `firebase-crowdradar-sa.json` at the repository root: `
 - **Deploy (Render):** upload the key as a Secret File (it is mounted under `/etc/secrets/<name>`) and set
   `PUSH_PROVEEDOR=fcm` and `FCM_CREDENCIALES_RUTA=/etc/secrets/firebase-crowdradar-sa.json`.
 
+## Demo setup
+
+For the class demo, stack the opt-in `docker-compose.demo.yml` overlay (it never belongs in a real deploy):
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.fcm.yml -f docker-compose.demo.yml up -d --build
+```
+
+- `migrate` also runs the seeders with `NODE_ENV=development`, so the 28-day synthetic history behind the analytics
+  screens is loaded (the seeder refuses it under `NODE_ENV=production`, which is the compose default).
+- `api` answers an unknown email with `CUENTA_NO_EXISTE` (`POLITICA_MENSAJES_AUTH=DETALLADA`, HU 1.1 C3 and 2.1 C3) and
+  validates a report with 3 votes instead of 10 (`CONFIABILIDAD_MIN_VOTOS_ESTADO=3`), so the +10 points can be shown live.
+- The defaults stay as they are: `GENERICA` does not reveal whether an account exists, and 10 votes keep validation strict.
+- Drop `-f docker-compose.fcm.yml` to run the demo without push.
+
 ## Puntos y tiers
 
 A user's `puntos` are computed by one query every time they are read (`PuntajeService` over `PuntajeDAO`); nothing is
