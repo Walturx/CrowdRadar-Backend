@@ -105,6 +105,33 @@ describe('tabla de rutas congelada', () => {
     expect(res.body.code).toBe('TOKEN_INVALIDO');
   });
 
+
+  it('SEC-API-02: rechaza un JWT con la firma manipulada', async () => {
+    const tokenOriginal = TOKEN_USUARIO.replace('Bearer ', '');
+
+    const partes = tokenOriginal.split('.');
+    expect(partes).toHaveLength(3);
+
+    const firma = partes[2];
+    const primerCaracter = firma[0] === 'A' ? 'B' : 'A';
+
+    const firmaManipulada = primerCaracter + firma.slice(1);
+
+    const tokenManipulado = [
+      partes[0],
+      partes[1],
+      firmaManipulada,
+    ].join('.');
+
+    const res = await request(app)
+      .get('/api/lugares')
+      .set('Authorization', `Bearer ${tokenManipulado}`);
+
+    expect(res.status).toBe(401);
+    expect(res.body.code).toBe('TOKEN_INVALIDO');
+  });
+
+
   it('una ruta que no esta en el contrato sigue siendo 404 RUTA_NO_ENCONTRADA', async () => {
     const res = await request(app).get('/api/lugares/12/inexistente').set('Authorization', TOKEN_USUARIO);
     expect(res.status).toBe(404);
