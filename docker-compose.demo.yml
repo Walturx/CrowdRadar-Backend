@@ -1,0 +1,19 @@
+# Opt-in overlay for the class demo (never for a real deploy). Stack it on the base file, and on the FCM overlay when
+# push is wanted:
+#   docker compose -f docker-compose.yml -f docker-compose.fcm.yml -f docker-compose.demo.yml up -d --build
+# What it changes, only for this run:
+# - migrate: also runs the seeders with NODE_ENV=development, so the synthetic analytics history (28 days) is loaded;
+#   the seeders are idempotent and the seeder refuses that history under NODE_ENV=production.
+# - api: POLITICA_MENSAJES_AUTH=DETALLADA, so an unknown email answers "cuenta no existe" (HU 1.1 C3, HU 2.1 C3);
+#   the default GENERICA hides whether an account exists. CONFIABILIDAD_MIN_VOTOS_ESTADO=3, so a report reaches
+#   VALIDADO (and its author earns the +10 points) with 3 votes instead of 10, which a handful of demo accounts can show.
+services:
+  migrate:
+    environment:
+      NODE_ENV: development
+    command: ["sh", "-c", "npm run db:migrate && npm run db:seed"]
+
+  api:
+    environment:
+      POLITICA_MENSAJES_AUTH: DETALLADA
+      CONFIABILIDAD_MIN_VOTOS_ESTADO: "3"

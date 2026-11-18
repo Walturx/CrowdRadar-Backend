@@ -3,6 +3,17 @@
 REST API for CrowdRadar: real-time crowding reports for places in Lima. Express 5, Sequelize 6, PostgreSQL 16,
 TypeScript (strict). The API contract is frozen in [`docs/api-contract.md`](docs/api-contract.md).
 
+## For evaluators
+
+| You want to | Go to |
+|---|---|
+| Run the API from zero | [Quick start](#quick-start), or everything in containers under [Run](#run) |
+| Run the mobile app against it | [CrowdRadar-FrontEnd, "Installation (from zero)"](https://github.com/Walturx/CrowdRadar-FrontEnd#installation-from-zero) |
+| Sign in | [Test credentials](#test-credentials) |
+| Reproduce the class demo (synthetic history, detailed login messages, validation with 3 votes) | [Demo setup](#demo-setup) |
+| Run the automated tests | [Test](#test) |
+| Configure it | [Environment variables](#environment-variables); `.env.example` lists every key and ships no real secret |
+
 ## Prerequisites
 
 - Node 22 or newer
@@ -21,6 +32,19 @@ npm run dev
 
 The API refuses to start with the placeholder secrets from `.env.example` (and `npm run db:seed` refuses to run with
 the placeholder `ADMIN_PASSWORD`), so a copied example never boots with a known secret.
+
+## Test credentials
+
+The repository ships no account and no password: every credential is created on the machine that runs the system.
+
+| Account | Created by | Sign in with |
+|---|---|---|
+| Administrator | `npm run db:seed` (in containers: `docker compose run --rm migrate npm run db:seed`) | `ADMIN_EMAIL` and `ADMIN_PASSWORD` from your `.env` |
+| Citizen | Signing up in the app, or `POST /api/auth/register` (`nombre`, `apellido`, `email`, `password`, `telefono`, `distrito`) | the email and password chosen at sign-up |
+| `Demo 01` to `Demo 03` | The synthetic history seeder | nothing: they have no password and only own the demo reports |
+
+A sign-up password needs 8 to 64 characters with an uppercase letter and a digit; `ADMIN_PASSWORD` needs at least 10
+characters. Sign-in attempts are rate limited (`LIMITE_LOGIN` per `LIMITE_VENTANA_MIN` minutes).
 
 ## Run
 
@@ -296,6 +320,21 @@ private key). Save it as `firebase-crowdradar-sa.json` at the repository root: `
   The container runs as the `node` user, so on a Linux host the key file must be readable by it.
 - **Deploy (Render):** upload the key as a Secret File (it is mounted under `/etc/secrets/<name>`) and set
   `PUSH_PROVEEDOR=fcm` and `FCM_CREDENCIALES_RUTA=/etc/secrets/firebase-crowdradar-sa.json`.
+
+## Demo setup
+
+For the class demo, stack the opt-in `docker-compose.demo.yml` overlay (it never belongs in a real deploy):
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.fcm.yml -f docker-compose.demo.yml up -d --build
+```
+
+- `migrate` also runs the seeders with `NODE_ENV=development`, so the 28-day synthetic history behind the analytics
+  screens is loaded (the seeder refuses it under `NODE_ENV=production`, which is the compose default).
+- `api` answers an unknown email with `CUENTA_NO_EXISTE` (`POLITICA_MENSAJES_AUTH=DETALLADA`, HU 1.1 C3 and 2.1 C3) and
+  validates a report with 3 votes instead of 10 (`CONFIABILIDAD_MIN_VOTOS_ESTADO=3`), so the +10 points can be shown live.
+- The defaults stay as they are: `GENERICA` does not reveal whether an account exists, and 10 votes keep validation strict.
+- Drop `-f docker-compose.fcm.yml` to run the demo without push.
 
 ## Puntos y tiers
 
